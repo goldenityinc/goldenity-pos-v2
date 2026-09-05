@@ -8,6 +8,56 @@
 
 ---
 
+## 🟢🔴 [2026-09-05] Review Klaude — ✅ Inventaris REDESIGN + Badge HABIS/Greyout kartu POS TERVERIFIKASI GENUINE (progress besar!) — TAPI Payment Modal Cash MASIH GAGAL (screenshot ke-3x reproduksi sama), + 6 temuan baru user (double-label, modal-dismiss, tombol hitam-di-biru, dll) SEMUA sudah di-root-cause ke baris kode persis
+
+User kirim batch screenshot + pesan panjang berisi (a) laporan/rencana Trae sendiri ("ATURAN BAKU: WAJIB HOT RESTART..." + checklist 8 skenario ACC) dan (b) 6 masalah baru versi user sendiri di atas rencana Trae itu, plus instruksi tegas: **"Trae sudah bisa perbaiki semua secara langsung dalam 1 tugas panjang jadi tolong sekaligus perbaiki semua jangan 1 1"**. Semua diverifikasi terhadap kode sumber terbaru sebelum ditulis di sini — TIDAK sekadar menyalin checklist Trae.
+
+### 1️⃣ ✅ PROGRESS GENUINE TERVERIFIKASI: Inventaris SUDAH di-redesign total jadi card grid + toggle/edit/archive + search
+Screenshot terbaru "Inventaris" menunjukkan card grid 4 kolom dengan badge AKTIF/HABIS/LOW, toggle switch Aktif, tombol Edit, tombol Archive — **PERSIS** yang direkomendasikan di entri audit sebelumnya (poin 4️⃣ & 5️⃣). Ini progress nyata di luar area Payment Modal. (Belum sempat re-grep file `product_management_list_screen.dart` versi terbaru byte-per-byte di entri ini karena fokus ke 6 temuan baru user — akan diverifikasi kodenya di ronde berikut kalau ada klaim "selesai" eksplisit dari Trae untuk bagian ini.)
+
+### 2️⃣ ✅ PROGRESS GENUINE TERVERIFIKASI: Badge "HABIS" overlay + greyout kartu POS SUDAH diimplementasi — sesuai rekomendasi sebelumnya
+Dicek langsung `product_list_screen.dart` `_ProductCard` (L538-730) versi TERBARU (mtime baru, sudah berubah dari entri audit sebelumnya):
+- `Opacity(opacity: outOfStock ? 0.55 : inactive ? 0.7 : 1.0, ...)` (L576-581) + `AbsorbPointer(absorbing: outOfStock || inactive, ...)` (L582-583) — **greyout genuine sudah ada**, persis rekomendasi saya.
+- Badge overlay "HABIS" `Positioned` top-right (L705-725, warna error) — **genuine sudah ada**, sejajar dengan badge "LOW" yang sudah ada duluan (L684-704).
+**Ini konfirmasi bahwa rekomendasi teknis saya di entri-entri sebelumnya benar-benar dipakai Trae, bukan cuma catatan mati.**
+
+### 3️⃣ 🆕 TAPI ditemukan bug baru dari progress di atas: LABEL DOBEL "Stok Habis" — CONFIRMED, root cause persis
+Setelah badge overlay "HABIS" ditambahkan (poin 2️⃣), kode LAMA di L658-676 (bar teks "Stok Habis" di bawah tombol qty, kondisi `if (!canAdd)`) **TIDAK DIHAPUS** — jadi sekarang untuk produk stok habis, badge "HABIS" (pojok atas) DAN bar teks "Stok Habis" (bawah tombol qty) SAMA-SAMA muncul → dobel, persis keluhan user poin 1. **Fix tepat**: ubah kondisi L658 dari `if (!canAdd)` jadi `if (inactive)` SAJA (bar bawah ini masih perlu dipertahankan KHUSUS untuk kasus `inactive`/"Tidak Aktif" karena TIDAK ADA badge overlay terpisah untuk kondisi inactive) — untuk `outOfStock`, bar bawah dihapus total karena sudah terwakili oleh badge "HABIS" + greyout. Ini otomatis juga menjawab keluhan user "border bawah card bisa dipepetin ke tombol" — begitu bar kosong itu hilang untuk kasus outOfStock, tinggi kartu otomatis lebih pas/rapat ke tombol qty.
+
+### 4️⃣ 🆕 Klik di luar Payment Modal masih menutup modal — CONFIRMED, 1 baris
+Dicek `goldenity_payment_modal.dart` L34: `showGeneralDialog(..., barrierDismissible: true, ...)`. **Ini akar masalahnya** — klik area gelap di luar kotak dialog otomatis close karena `barrierDismissible` di-set `true`. **Fix**: ubah ke `barrierDismissible: false`, biarkan HANYA tombol X (close button) yang bisa menutup modal — mencegah kasir tidak sengaja membatalkan pembayaran saat tangan/mouse kesenggol area luar.
+
+### 5️⃣ 🔴🔁 BUG KRITIS PAYMENT MODAL CASH — REPRODUKSI KE-3 KALINYA, MASIH 100% BELUM DIPERBAIKI (BUKAN cuma rencana Trae)
+Screenshot terbaru user (checkout Ayam Geprek x3 = Rp84.000) **KEMBALI menunjukkan** banner merah "Nominal pembayaran kurang dari Total Bayar. Kurang Rp 84.000" — pola identik dengan 2 reproduksi sebelumnya (Rp31.080 dan Rp66.000). Modal Konfirmasi Pembayaran di screenshot MASIH modal versi lama (pilih Kartu/Tunai/QRIS lalu 1 tombol "Proses Pembayaran", TIDAK ADA CashTenderModal/chip nominal cepat sama sekali) — artinya rencana Trae di teks "ATURAN BAKU" (skenario #1: CashTenderModal dengan chip nominal, dst) **BELUM DIEKSEKUSI ke kode, MASIH SEBATAS RENCANA/JANJI tertulis**, bukan fakta yang sudah terjadi. Konsisten dengan disiplin sesi ini: saya TIDAK akan mencatat ini sebagai selesai sampai ada bukti kode + screenshot pasca-fix. **Ini reproduksi ke-3, prioritas #1 mutlak, tidak berubah dari 2 entri terakhir.**
+
+### 6️⃣ 🆕 Printer "quick search" — tetap backlog, tidak ada progress baru dilaporkan/diklaim.
+
+### 7️⃣ 🆕 Tombol biru dengan teks HITAM (harusnya putih) — ROOT CAUSE DITEMUKAN, konfirmasi pola bug berulang di banyak tempat
+Dicek `settings_screen.dart` L1122-1132 (tombol "Simpan Slot Default/Dapur/Kasir" di Pengaturan Printer): `FilledButton.icon(..., style: FilledButton.styleFrom(backgroundColor: biz.base, ...))` — **TIDAK ADA `foregroundColor` di-set eksplisit**. Karena tidak di-set, warna teks jatuh ke default `FilledButtonThemeData` global aplikasi yang ternyata TIDAK kontras (bukan putih) terhadap `backgroundColor` custom biru/warna biz — persis gejala yang dilaporkan user. **Bandingkan** dengan widget reusable `GoldenityPrimaryButton` (`lib/shared/widgets/goldenity_primary_button.dart`) yang SUDAH benar (`GoldenityColors.primaryFg` eksplisit = putih `0xFFFFFFFF`, L59-62) — tapi banyak layar (Pengaturan, kemungkinan layar lain juga) masih pakai `FilledButton`/`ElevatedButton` mentah langsung dengan `styleFrom` ad-hoc alih-alih widget reusable ini. **User benar soal permintaan "reusable"** — rekomendasi: audit SEMUA pemakaian `ElevatedButton`/`FilledButton` mentah di codebase (bukan cuma 1 tombol ini), ganti dengan `GoldenityPrimaryButton` untuk konsistensi warna otomatis, ATAU minimal tambahkan `foregroundColor: Colors.white` eksplisit di setiap `styleFrom` yang tersisa.
+
+### 8️⃣ 🆕 Riwayat Penjualan: TIDAK ADA filter tanggal maupun search — CONFIRMED, 0 implementasi
+Dicek seluruh `sales_history_screen.dart` (24.881 bytes) — nol match untuk `TextField`/`DatePicker`/`search`/`filter` dalam bentuk apa pun. Screenshot user menunjukkan daftar transaksi polos tanpa kontrol filter sama sekali — user benar. **Catatan tambahan dari user**: filter jangan ditaruh di paling atas halaman (referensi user: layout web POS contoh punya garis pembatas jelas antara header dan area konten) — perlu koordinasi dengan gaya `AppBar`+separator yang konsisten dengan pola desain V2 lainnya, bukan sekadar taruh search bar di atas asal jadi.
+
+### 9️⃣ 🆕 Tombol "Tambah Produk" di Inventaris sebaiknya pindah ke FAB kanan-bawah, bukan AppBar kanan-atas
+Dicek `product_management_list_screen.dart` L67-83 — tombol ini saat ini ada di `AppBar.actions` (pojok kanan-atas). User minta dipindah jadi Floating Action Button di kanan-bawah supaya lebih mudah dijangkau terutama kalau daftar produk makin panjang (area kanan-atas makin jauh dari jangkauan mouse/tap saat scroll). Permintaan UX yang valid dan straightforward — `Scaffold.floatingActionButton` standar Flutter.
+
+### 📢 INSTRUKSI EKSPLISIT USER UNTUK TRAE (disampaikan verbatim)
+> "Trae sudah bisa perbaiki semua secara langsung dalam 1 tugas panjang jadi tolong sekaligus perbaiki semua jangan 1 1"
+
+Artinya: JANGAN kerjakan 1-per-1 lalu minta ACC bertahap seperti pola sebelumnya — gabungkan SEMUA item di bawah ini (poin 3️⃣ s/d 9️⃣ + checklist 8 skenario Trae sendiri di atas) jadi SATU batch pengerjaan, baru minta verifikasi sekali di akhir. Saya (Claude) akan tetap memverifikasi SEMUA klaim terhadap kode sumber + menunggu bukti screenshot sebelum mencatat status "SELESAI" — jumlah item besar dalam 1 batch TIDAK mengubah disiplin verifikasi, hanya mengubah cara pelaporannya (sekali di akhir, bukan bertahap).
+
+### 📊 Ringkasan Prioritas (gabungan, urutan dampak)
+1. **Poin 5️⃣** — Cash Tender Modal wiring, prioritas #1 mutlak (reproduksi ke-3), blocking end-to-end testing total.
+2. **Poin 4️⃣** — `barrierDismissible: false`, 1 baris, cepat.
+3. **Poin 3️⃣** — hapus bar dobel "Stok Habis" utk outOfStock, 1 kondisi, cepat.
+4. **Poin 7️⃣** — audit `foregroundColor` di semua tombol raw + migrasi ke `GoldenityPrimaryButton`, scope sedang (banyak file kemungkinan kena).
+5. **Poin 8️⃣** — filter tanggal + search di Riwayat Penjualan, scope sedang-besar (perlu API query date-range kalau belum ada).
+6. **Poin 9️⃣** — FAB Tambah Produk, cepat.
+7. **Poin 6️⃣** — printer quick search, backlog besar seperti sebelumnya.
+8. Checklist 8 skenario dari Trae sendiri (di luar 6 poin user di atas) — dikerjakan bersamaan sesuai instruksi user, tapi tetap tunduk pada aturan verifikasi standing session ini (tidak otomatis ACC hanya karena Trae bilang sudah sesuai checklist-nya sendiri).
+
+---
+
 ## 🟢🔴 [2026-09-05] Review Klaude — ✅ Grid card aspect ratio SUDAH DIPERBAIKI Trae (verified genuine) — TAPI 6 masalah BARU dari user (Inventaris/Edit Produk/Printer/Cash) + 1 REPRODUKSI LANGSUNG bug kritis Payment Modal Cash (masih GAGAL, screenshot baru "Kurang Rp 66.000")
 
 User kirim 7 screenshot baru (POS grid dengan emoji icon berbeda dari sebelumnya — tampaknya build/tenant demo berbeda, Edit Produk, Inventaris list, Pengaturan Printer, Konfirmasi Pembayaran, POS dengan error merah) + 7 poin masalah baru secara langsung (bukan via Trae). Dicek satu-satu terhadap kode:

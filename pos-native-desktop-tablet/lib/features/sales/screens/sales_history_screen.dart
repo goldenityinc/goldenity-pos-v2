@@ -32,10 +32,85 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
   );
   final DateFormat _dateFormatter = DateFormat('dd MMM yyyy HH:mm', 'id_ID');
 
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+  DateTime? _filterStartDate;
+  DateTime? _filterEndDate;
+
   @override
   void initState() {
     super.initState();
     Future<void>.microtask(() => _loadSales(initial: true));
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<Map<String, dynamic>> get _filtered {
+    final q = _searchQuery.trim().toLowerCase();
+    return _sales.where((s) {
+      // text search
+      if (q.isNotEmpty) {
+        final id = s['id']?.toString().toLowerCase() ?? '';
+        final ref = s['referenceId']?.toString().toLowerCase() ?? '';
+        final cashier = s['cashierName']?.toString().toLowerCase() ?? '';
+        final status = s['status']?.toString().toLowerCase() ?? '';
+        final orderType = s['orderType']?.toString().toLowerCase() ?? '';
+        final totalMatch = _currencyFormatter
+            .format(num.tryParse(s['total']?.toString() ?? '0') ?? 0)
+            .toLowerCase()
+            .contains(q);
+        final any = id.contains(q) ||
+            ref.contains(q) ||
+            cashier.contains(q) ||
+            status.contains(q) ||
+            orderType.contains(q) ||
+            totalMatch;
+        if (!any) return false;
+      }
+      // date filter
+      final createdAtRaw = s['createdAt']?.toString();
+      if (createdAtRaw != null) {
+        final parsed = DateTime.tryParse(createdAtRaw);
+        if (parsed != null) {
+          final d = DateTime(parsed.year, parsed.month, parsed.day);
+          if (_filterStartDate != null) {
+            final s2 = DateTime(_filterStartDate!.year, _filterStartDate!.month, _filterStartDate!.day);
+            if (d.isBefore(s2)) return false;
+          }
+          if (_filterEndDate != null) {
+            final e = DateTime(_filterEndDate!.year, _filterEndDate!.month, _filterEndDate!.day);
+            if (d.isAfter(e)) return false;
+          }
+        }
+      }
+      return true;
+    }).toList(growable: false);
+  }
+
+  Future<void> _pickDateRange() async {
+    final now = DateTime.now();
+    final initialStart = _filterStartDate ?? now.subtract(const Duration(days: 6));
+    final initialEnd = _filterEndDate ?? now;
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: now.subtract(const Duration(days: 365)),
+      lastDate: now.add(const Duration(days: 30)),
+      initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
+      locale: const Locale('id', 'ID'),
+      helpText: 'Pilih Rentang Tanggal',
+      cancelText: 'Batal',
+      confirmText: 'Terapkan',
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _filterStartDate = picked.start;
+        _filterEndDate = picked.end;
+      });
+    }
   }
 
   Future<void> _loadSales({bool initial = false}) async {
@@ -215,11 +290,37 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final biz = Theme.of(context).extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
+    final filtered = _filtered;
+    final dateLabel = (_filterStartDate != null || _filterEndDate != null)
+        ? '${_filterStartDate != null ? DateFormat('dd/MM/yyyy', 'id_ID').format(_filterStartDate!) : 'Awal'} — ${_filterEndDate != null ? DateFormat('dd/MM/yyyy', 'id_ID').format(_filterEndDate!) : 'Sekarang'}'
+        : 'Semua periode';
+    final hasFilter = _filterStartDate != null || _filterEndDate != null || _searchQuery.isNotEmpty;
+
+    num totalOmzet = 0;
+    int transaksiCount = 0;
+    for (final s in filtered) {
+      final t = num.tryParse(s['total']?.toString() ?? '0') ?? 0;
+      totalOmzet += t;
+      transaksiCount += 1;
+    }
+
     return Scaffold(
       backgroundColor: GoldenityColors.bg,
       appBar: AppBar(
-        title: const Text('Riwayat Penjualan'),
-        backgroundColor: Colors.transparent,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Riwayat Penjualan', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 2),
+            Text(
+              '$transaksiCount transaksi · Omzet: ${_currencyFormatter.format(totalOmzet)} · $dateLabel',
+              style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
         foregroundColor: biz.base,
         elevation: 0,
         actions: <Widget>[
@@ -229,9 +330,108 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
             onPressed: _isLoading ? null : () => _loadSales(),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(172),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  GoldenitySpacing.lg,
+                  GoldenitySpacing.xs,
+                  GoldenitySpacing.lg,
+                  GoldenitySpacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onChanged: (v) => setState(() => _searchQuery = v),
+                        decoration: InputDecoration(
+                          hintText: 'Cari ID transaksi / kasir / status / nomimal...',
+                          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                  icon: const Icon(Icons.close_rounded, size: 18),
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: GoldenitySpacing.md,
+                            vertical: GoldenitySpacing.md,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                            borderSide: const BorderSide(color: GoldenityColors.border, width: 1),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                            borderSide: BorderSide(color: biz.base, width: 1.5),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: GoldenitySpacing.sm),
+                    OutlinedButton.icon(
+                      onPressed: _pickDateRange,
+                      icon: const Icon(Icons.date_range_rounded, size: 18),
+                      label: Text(
+                        _filterStartDate == null && _filterEndDate == null ? 'Pilih Tanggal' : 'Ganti Tanggal',
+                        style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 46),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                      ),
+                    ),
+                    if (hasFilter) ...[
+                      const SizedBox(width: GoldenitySpacing.xs),
+                      IconButton.filledTonal(
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() {
+                            _searchQuery = '';
+                            _filterStartDate = null;
+                            _filterEndDate = null;
+                          });
+                        },
+                        icon: const Icon(Icons.filter_alt_off_rounded, size: 20),
+                        tooltip: 'Hapus filter',
+                        style: IconButton.styleFrom(
+                          backgroundColor: GoldenityColors.surface2,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
+                child: Row(
+                  children: [
+                    Expanded(child: _HeaderChip(label: 'No. Transaksi')),
+                    SizedBox(width: GoldenitySpacing.sm),
+                    Expanded(flex: 2, child: _HeaderChip(label: 'Info Kasir & Waktu')),
+                    SizedBox(width: GoldenitySpacing.sm),
+                    SizedBox(width: 140, child: _HeaderChip(label: 'Total')),
+                  ],
+                ),
+              ),
+              const SizedBox(height: GoldenitySpacing.sm),
+              const Divider(height: 1, color: GoldenityColors.border2, thickness: 1),
+            ],
+          ),
+        ),
       ),
       body: RefreshIndicator(
         onRefresh: () => _loadSales(),
+        color: biz.base,
         child: _isLoading && _sales.isEmpty
             ? const Center(child: CircularProgressIndicator())
             : _errorMessage != null && _sales.isEmpty
@@ -271,133 +471,182 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                           ),
                         ],
                       )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(GoldenitySpacing.lg),
-                        itemCount: _sales.length,
-                        itemBuilder: (ctx, i) {
-                          final sale = _sales[i];
-                          final id = sale['id']?.toString() ?? '-';
-                          final refId = sale['referenceId']?.toString();
-                          final totalRaw = num.tryParse(sale['total']?.toString() ?? '0') ?? 0;
-                          final createdAtRaw = sale['createdAt']?.toString();
-                          DateTime createdAt = DateTime.now();
-                          if (createdAtRaw != null) {
-                            final tryParse = DateTime.tryParse(createdAtRaw);
-                            if (tryParse != null) createdAt = tryParse;
-                          }
-                          final statusRaw = sale['status']?.toString() ?? 'COMPLETED';
-                          final cashierName = sale['cashierName']?.toString() ?? 'Kasir';
-                          final orderType = sale['orderType']?.toString() == 'TAKE_AWAY'
-                              ? 'Bawa Pulang'
-                              : 'Makan di Tempat';
-                          final voided = statusRaw == 'VOIDED';
-                          final (chipBg, chipFg) = _statusColor(statusRaw);
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: GoldenitySpacing.md),
-                            child: Material(
-                              color: GoldenityColors.surface,
-                              borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-                              clipBehavior: Clip.antiAlias,
-                              elevation: 0,
-                              shadowColor: Colors.transparent,
-                              child: InkWell(
-                                onTap: () => _openVoidDialog(sale),
-                                borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(GoldenitySpacing.lg),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: <Widget>[
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: <Widget>[
-                                            Row(
+                    : filtered.isEmpty
+                        ? ListView(
+                            padding: const EdgeInsets.all(GoldenitySpacing.xl),
+                            children: [
+                              SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                              const Icon(Icons.search_off_rounded, size: 56, color: GoldenityColors.muted),
+                              const SizedBox(height: GoldenitySpacing.md),
+                              Text(
+                                'Tidak ada transaksi yang cocok dengan filter.',
+                                textAlign: TextAlign.center,
+                                style: textTheme.bodyLarge?.copyWith(color: GoldenityColors.muted),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Coba kata kunci lain atau hapus filter tanggal / pencarian.',
+                                textAlign: TextAlign.center,
+                                style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                              ),
+                            ],
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(
+                              GoldenitySpacing.lg,
+                              GoldenitySpacing.md,
+                              GoldenitySpacing.lg,
+                              GoldenitySpacing.xl,
+                            ),
+                            itemCount: filtered.length,
+                            itemBuilder: (ctx, i) {
+                              final sale = filtered[i];
+                              final id = sale['id']?.toString() ?? '-';
+                              final refId = sale['referenceId']?.toString();
+                              final totalRaw = num.tryParse(sale['total']?.toString() ?? '0') ?? 0;
+                              final createdAtRaw = sale['createdAt']?.toString();
+                              DateTime createdAt = DateTime.now();
+                              if (createdAtRaw != null) {
+                                final tryParse = DateTime.tryParse(createdAtRaw);
+                                if (tryParse != null) createdAt = tryParse;
+                              }
+                              final statusRaw = sale['status']?.toString() ?? 'COMPLETED';
+                              final cashierName = sale['cashierName']?.toString() ?? 'Kasir';
+                              final orderType = sale['orderType']?.toString() == 'TAKE_AWAY'
+                                  ? 'Bawa Pulang'
+                                  : 'Makan di Tempat';
+                              final voided = statusRaw == 'VOIDED';
+                              final (chipBg, chipFg) = _statusColor(statusRaw);
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: GoldenitySpacing.md),
+                                child: Material(
+                                  color: GoldenityColors.surface,
+                                  borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+                                  clipBehavior: Clip.antiAlias,
+                                  elevation: 0,
+                                  shadowColor: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () => _openVoidDialog(sale),
+                                    borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(GoldenitySpacing.lg),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: <Widget>[
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
                                               children: <Widget>[
+                                                Row(
+                                                  children: <Widget>[
+                                                    Text(
+                                                      '#$id',
+                                                      style: textTheme.titleMedium?.copyWith(
+                                                        color: voided ? GoldenityColors.muted : GoldenityColors.text,
+                                                        decoration: voided ? TextDecoration.lineThrough : null,
+                                                        fontWeight: FontWeight.w700,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: GoldenitySpacing.sm),
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                        horizontal: GoldenitySpacing.sm,
+                                                        vertical: 2,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: chipBg,
+                                                        borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                                                      ),
+                                                      child: Text(
+                                                        _statusLabel(statusRaw),
+                                                        style: TextStyle(
+                                                          fontFamily: GoldenityTypography.fontFamilySans,
+                                                          color: chipFg,
+                                                          fontSize: 12,
+                                                          fontWeight: FontWeight.w700,
+                                                          height: 1.3,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: GoldenitySpacing.xs),
                                                 Text(
-                                                  '#$id',
-                                                  style: textTheme.titleMedium?.copyWith(
-                                                    color: voided ? GoldenityColors.muted : GoldenityColors.text,
-                                                    decoration: voided ? TextDecoration.lineThrough : null,
-                                                    fontWeight: FontWeight.w700,
+                                                  '${_dateFormatter.format(createdAt)} · $cashierName · $orderType',
+                                                  style: textTheme.bodyLarge?.copyWith(
+                                                    color: GoldenityColors.text2,
                                                   ),
                                                 ),
-                                                const SizedBox(width: GoldenitySpacing.sm),
-                                                Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: GoldenitySpacing.sm,
-                                                    vertical: 2,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: chipBg,
-                                                    borderRadius: BorderRadius.circular(GoldenityRadius.full),
-                                                  ),
-                                                  child: Text(
-                                                    _statusLabel(statusRaw),
-                                                    style: TextStyle(
-                                                      fontFamily: GoldenityTypography.fontFamilySans,
-                                                      color: chipFg,
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w700,
-                                                      height: 1.3,
+                                                if (refId != null && refId.trim().isNotEmpty)
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(top: GoldenitySpacing.xs),
+                                                    child: Text(
+                                                      'Ref: $refId',
+                                                      style: const TextStyle(
+                                                        fontFamily: GoldenityTypography.fontFamilySans,
+                                                        color: GoldenityColors.muted,
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w500,
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
+                                                if (voided && sale['voidReason']?.toString().trim().isNotEmpty == true)
+                                                  Padding(
+                                                    padding: const EdgeInsets.only(top: GoldenitySpacing.sm),
+                                                    child: Text(
+                                                      'Alasan batal: ${sale['voidReason']}',
+                                                      style: textTheme.bodyLarge?.copyWith(
+                                                        color: GoldenityColors.error,
+                                                      ),
+                                                    ),
+                                                  ),
                                               ],
                                             ),
-                                            const SizedBox(height: GoldenitySpacing.xs),
-                                            Text(
-                                              '${_dateFormatter.format(createdAt)} · $cashierName · $orderType',
-                                              style: textTheme.bodyLarge?.copyWith(
-                                                color: GoldenityColors.text2,
-                                              ),
+                                          ),
+                                          const SizedBox(width: GoldenitySpacing.md),
+                                          Text(
+                                            _currencyFormatter.format(totalRaw),
+                                            textAlign: TextAlign.right,
+                                            style: textTheme.titleLarge?.copyWith(
+                                              color: voided ? GoldenityColors.muted : biz.base,
+                                              decoration: voided ? TextDecoration.lineThrough : null,
+                                              fontWeight: FontWeight.w800,
+                                              fontFamily: GoldenityTypography.fontFamilyMono,
+                                              fontFeatures: const [FontFeature.tabularFigures()],
                                             ),
-                                            if (refId != null && refId.trim().isNotEmpty)
-                                              Padding(
-                                                padding: const EdgeInsets.only(top: GoldenitySpacing.xs),
-                                                child: Text(
-                                                  'Ref: $refId',
-                                                  style: const TextStyle(
-                                                    fontFamily: GoldenityTypography.fontFamilySans,
-                                                    color: GoldenityColors.muted,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                              ),
-                                            if (voided && sale['voidReason']?.toString().trim().isNotEmpty == true)
-                                              Padding(
-                                                padding: const EdgeInsets.only(top: GoldenitySpacing.sm),
-                                                child: Text(
-                                                  'Alasan batal: ${sale['voidReason']}',
-                                                  style: textTheme.bodyLarge?.copyWith(
-                                                    color: GoldenityColors.error,
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(width: GoldenitySpacing.md),
-                                      Text(
-                                        _currencyFormatter.format(totalRaw),
-                                        textAlign: TextAlign.right,
-                                        style: textTheme.titleLarge?.copyWith(
-                                          color: voided ? GoldenityColors.muted : biz.base,
-                                          decoration: voided ? TextDecoration.lineThrough : null,
-                                          fontWeight: FontWeight.w800,
-                                          fontFamily: GoldenityTypography.fontFamilyMono,
-                                          fontFeatures: const [FontFeature.tabularFigures()],
-                                        ),
-                                      ),
-                                    ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                              );
+                            },
+                          ),
+      ),
+    );
+  }
+}
+
+class _HeaderChip extends StatelessWidget {
+  final String label;
+  const _HeaderChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm, vertical: 8),
+      decoration: BoxDecoration(
+        color: GoldenityColors.surface2,
+        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+      ),
+      child: Text(
+        label,
+        style: textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w700,
+          color: GoldenityColors.text2,
+        ),
       ),
     );
   }

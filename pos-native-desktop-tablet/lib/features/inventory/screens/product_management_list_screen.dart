@@ -106,6 +106,17 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
 
     return Scaffold(
       backgroundColor: GoldenityColors.surface,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProductBuilderScreen.create()));
+        },
+        backgroundColor: biz.base,
+        foregroundColor: Colors.white,
+        elevation: 6.0,
+        icon: const Icon(Icons.add_rounded, size: 20),
+        label: Text('Tambah Produk', style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.xl)),
+      ),
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
@@ -137,23 +148,7 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
                 : const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
           ),
-          Padding(
-            padding: const EdgeInsets.only(right: GoldenitySpacing.md, top: GoldenitySpacing.sm, bottom: GoldenitySpacing.sm),
-            child: ElevatedButton.icon(
-              onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProductBuilderScreen.create()));
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: biz.base,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md, vertical: GoldenitySpacing.sm),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
-              ),
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: Text('Tambah Produk', style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
-            ),
-          ),
+          const SizedBox(width: GoldenitySpacing.md),
         ],
       ),
       body: state.status == ProductListStatus.loading
@@ -243,7 +238,7 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
               const SizedBox(height: GoldenitySpacing.xs),
               Text(
                 _searchQuery.isEmpty
-                    ? 'Tekan "Tambah Produk" di pojok kanan atas untuk mulai.'
+                    ? 'Tekan "Tambah Produk" di pojok kanan bawah untuk mulai.'
                     : 'Coba kata kunci lain atau hapus filter pencarian.',
                 style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
               ),

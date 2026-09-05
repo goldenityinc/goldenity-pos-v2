@@ -32,7 +32,7 @@ class GoldenityPaymentModal {
   }) async {
     await showGeneralDialog(
       context: context,
-      barrierDismissible: true,
+      barrierDismissible: false,
       barrierLabel: 'Konfirmasi Pembayaran',
       transitionDuration: const Duration(milliseconds: 260),
       barrierColor: Colors.black54,
@@ -201,7 +201,17 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     final refRaw = ref.read(paymentReferenceNumberProvider);
     final refClean = (refRaw ?? '').trim();
     final grandTotal = ref.read(cartGrandTotalProvider);
-    final paid = ref.read(paidAmountProvider);
+    num paid = ref.read(paidAmountProvider);
+    if (paymentMethod == kPaymentMethodCash && paid < grandTotal) {
+      final result = await GoldenityCashTenderModal.show(
+        context,
+        totalAmount: grandTotal.toDouble(),
+        initialReceived: paid > 0 ? paid.toDouble() : grandTotal.toDouble(),
+      );
+      if (result == null || !mounted) return;
+      paid = result.received;
+      ref.read(paidAmountProvider.notifier).state = result.received;
+    }
     if (paymentMethod != kPaymentMethodCash && refClean.isEmpty) {
       final msg = paymentMethod == kPaymentMethodQris
           ? 'Nomor referensi QRIS WAJIB diisi (trace number / kode transaksi QRIS).'
@@ -374,6 +384,76 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     );
   }
 
+  Widget _buildCashSummary(BuildContext context, TextTheme textTheme, WidgetRef ref) {
+    final grandTotal = ref.watch(cartGrandTotalProvider);
+    final paid = ref.watch(paidAmountProvider);
+    final change = (paid > grandTotal) ? (paid - grandTotal) : 0;
+    final insufficient = paid < grandTotal;
+    return Material(
+      color: insufficient ? GoldenityColors.errorLight : GoldenityColors.successLight,
+      borderRadius: BorderRadius.circular(GoldenityRadius.md),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () async {
+          final result = await GoldenityCashTenderModal.show(
+            context,
+            totalAmount: grandTotal.toDouble(),
+            initialReceived: paid > 0 ? paid.toDouble() : grandTotal.toDouble(),
+          );
+          if (result != null && mounted) {
+            ref.read(paidAmountProvider.notifier).state = result.received;
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm, GoldenitySpacing.md),
+          child: Row(
+            children: [
+              Icon(
+                insufficient ? Icons.warning_amber_rounded : Icons.attach_money_rounded,
+                color: insufficient ? GoldenityColors.error : GoldenityColors.success,
+                size: 22,
+              ),
+              const SizedBox(width: GoldenitySpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      paid <= 0
+                          ? 'Klik untuk input nominal uang diterima'
+                          : insufficient
+                              ? 'Belum cukup. Klik untuk perbaiki nominal'
+                              : 'Tap untuk ubah nominal',
+                      style: textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: insufficient ? GoldenityColors.error : GoldenityColors.success,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Nominal Diterima: ${_currencyFormatter.format(paid)}${change > 0 ? ' · Kembalian: ${_currencyFormatter.format(change)}' : ''}',
+                      style: textTheme.bodySmall?.copyWith(
+                        fontFamily: GoldenityTypography.fontFamilyMono,
+                        color: GoldenityColors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: GoldenitySpacing.xs),
+              Icon(
+                Icons.touch_app_rounded,
+                size: 18,
+                color: insufficient ? GoldenityColors.error : GoldenityColors.success,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -507,6 +587,11 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                 ],
               ),
               const SizedBox(height: GoldenitySpacing.xl),
+              if (isCash)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: GoldenitySpacing.lg),
+                  child: _buildCashSummary(context, textTheme, ref),
+                ),
               if (!isCash)
                 _ReferenceNumberInput(
                   isQris: isQris,

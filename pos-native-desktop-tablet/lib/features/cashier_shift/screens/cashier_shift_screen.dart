@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
+import '../../../core/design/goldenity_elevation.dart';
+import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../../../core/models/shift_profile.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../inventory/providers/product_list_provider.dart';
@@ -310,10 +312,12 @@ class _CashierShiftScreenState extends ConsumerState<CashierShiftScreen> {
           ],
         ),
         actions: [
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: biz.base),
+          GoldenityPrimaryButton(
+            label: 'OK, Tutup',
+            height: 40,
+            backgroundColor: biz.base,
+            shadow: GoldenityElevation.btnPrimary,
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK, Tutup'),
           ),
         ],
       ),

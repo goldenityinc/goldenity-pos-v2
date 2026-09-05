@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
+import '../../../core/design/goldenity_elevation.dart';
+import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../../../core/models/branch_profile_extended.dart';
 import '../../../core/models/printer_config_profile.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -39,6 +41,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
   List<BranchWithPrintersProfile> _branches = [];
   final TextEditingController _branchNameCtrl = TextEditingController();
   final TextEditingController _branchQrisCtrl = TextEditingController();
+  final TextEditingController _branchSearchCtrl = TextEditingController();
+  String _branchSearchQuery = '';
   final GlobalKey<FormState> _branchFormKey = GlobalKey<FormState>();
 
   String? _selectedBranchId;
@@ -67,6 +71,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
     _storeQrisUrlCtrl.dispose();
     _branchNameCtrl.dispose();
     _branchQrisCtrl.dispose();
+    _branchSearchCtrl.dispose();
     for (final ctrl in _printerAddressCtrls.values) {
       ctrl.dispose();
     }
@@ -217,8 +222,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Batal'),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: biz.base),
+          GoldenityPrimaryButton(
+            label: 'Simpan',
+            height: 40,
+            backgroundColor: biz.base,
+            shadow: GoldenityElevation.btnPrimary,
             onPressed: () async {
               final form = _branchFormKey.currentState;
               if (form == null || !form.validate()) return;
@@ -275,7 +283,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                 }
               }
             },
-            child: const Text('Simpan'),
           ),
         ],
       ),
@@ -293,10 +300,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Batal'),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: GoldenityColors.error),
+          GoldenityPrimaryButton(
+            label: 'Ya, Hapus',
+            height: 40,
+            backgroundColor: GoldenityColors.error,
+            shadow: GoldenityElevation.btnSuccess,
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Ya, Hapus'),
           ),
         ],
       ),
@@ -769,15 +778,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                 const SizedBox(height: GoldenitySpacing.xl),
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.icon(
+                  child: GoldenityPrimaryButton(
                     onPressed: _loading ? null : _updateStore,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: biz.base,
-                      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
-                    ),
-                    icon: const Icon(Icons.save_rounded),
-                    label: Text('Simpan Pengaturan', style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+                    label: 'Simpan Pengaturan',
+                    icon: Icons.save_rounded,
+                    backgroundColor: biz.base,
+                    height: 48,
                   ),
                 ),
               ],
@@ -789,6 +795,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
   }
 
   Widget _buildBranchesTab(BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
+    final q = _branchSearchQuery.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? _branches
+        : _branches.where((b) {
+            if (b.name.toLowerCase().contains(q)) return true;
+            if (b.id.toLowerCase().contains(q)) return true;
+            if (b.printerConfigs.length.toString().contains(q)) return true;
+            if ((b.qrisImageUrl ?? '').isNotEmpty && 'qris'.contains(q)) return true;
+            return false;
+          }).toList(growable: false);
     if (_branches.isEmpty) {
       return Center(
         child: Padding(
@@ -809,116 +825,184 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
         ),
       );
     }
-    return RefreshIndicator(
-      onRefresh: _loadBranches,
-      color: biz.base,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(GoldenitySpacing.lg),
-        itemCount: _branches.length,
-        separatorBuilder: (_, __) => const SizedBox(height: GoldenitySpacing.sm),
-        itemBuilder: (context, i) {
-          final b = _branches[i];
-          return Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(GoldenityRadius.md),
-              border: Border.all(color: GoldenityColors.border),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            GoldenitySpacing.lg,
+            GoldenitySpacing.md,
+            GoldenitySpacing.lg,
+            GoldenitySpacing.sm,
+          ),
+          child: TextField(
+            controller: _branchSearchCtrl,
+            onChanged: (v) => setState(() => _branchSearchQuery = v),
+            decoration: InputDecoration(
+              hintText: 'Cari nama cabang / QRIS / jumlah printer...',
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+              suffixIcon: _branchSearchQuery.isNotEmpty
+                  ? IconButton(
+                      onPressed: () {
+                        _branchSearchCtrl.clear();
+                        setState(() => _branchSearchQuery = '');
+                      },
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                    )
+                  : null,
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: GoldenitySpacing.md,
+                vertical: GoldenitySpacing.md,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                borderSide: const BorderSide(color: GoldenityColors.border, width: 1),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                borderSide: BorderSide(color: biz.base, width: 1.5),
+              ),
             ),
-            padding: const EdgeInsets.all(GoldenitySpacing.md),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: biz.light,
-                    borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                  ),
-                  child: Icon(Icons.storefront_rounded, color: biz.dark, size: 28),
-                ),
-                const SizedBox(width: GoldenitySpacing.md),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        b.name,
-                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const Divider(height: 1, color: GoldenityColors.border2),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadBranches,
+            color: biz.base,
+            child: filtered.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(GoldenitySpacing.xl),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.search_off_rounded, size: 48, color: GoldenityColors.muted),
+                          const SizedBox(height: GoldenitySpacing.md),
+                          Text(
+                            'Tidak ada cabang yang cocok',
+                            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Coba kata kunci lain atau hapus filter pencarian.',
+                            style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      if (b.qrisImageUrl != null && b.qrisImageUrl!.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: GoldenityColors.successLight,
-                            borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.qr_code_2_rounded, size: 14, color: GoldenityColors.success),
-                              const SizedBox(width: 4),
-                              Text(
-                                'QRIS tersedia',
-                                style: textTheme.labelSmall?.copyWith(color: GoldenityColors.success, fontWeight: FontWeight.w800),
-                              ),
-                            ],
-                          ),
-                        )
-                      else
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: GoldenityColors.surface2,
-                            borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                          ),
-                          child: Text(
-                            'Belum ada QRIS',
-                            style: textTheme.labelSmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      const SizedBox(height: GoldenitySpacing.xs),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(GoldenitySpacing.lg),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: GoldenitySpacing.sm),
+                    itemBuilder: (context, i) {
+                      final b = filtered[i];
+                      return Container(
                         decoration: BoxDecoration(
-                          color: GoldenityColors.surface2,
-                          borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                          border: Border.all(color: GoldenityColors.border),
+                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
                         ),
-                        child: Text(
-                          '${b.printerConfigs.length} printer dikonfigurasi',
-                          style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                        padding: const EdgeInsets.all(GoldenitySpacing.md),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: biz.light,
+                                borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                              ),
+                              child: Icon(Icons.storefront_rounded, color: biz.dark, size: 28),
+                            ),
+                            const SizedBox(width: GoldenitySpacing.md),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    b.name,
+                                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  if (b.qrisImageUrl != null && b.qrisImageUrl!.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: GoldenityColors.successLight,
+                                        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.qr_code_2_rounded, size: 14, color: GoldenityColors.success),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'QRIS tersedia',
+                                            style: textTheme.labelSmall?.copyWith(color: GoldenityColors.success, fontWeight: FontWeight.w800),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: GoldenityColors.surface2,
+                                        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                                      ),
+                                      child: Text(
+                                        'Belum ada QRIS',
+                                        style: textTheme.labelSmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w700),
+                                      ),
+                                    ),
+                                  const SizedBox(height: GoldenitySpacing.xs),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: GoldenityColors.surface2,
+                                      borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                                    ),
+                                    child: Text(
+                                      '${b.printerConfigs.length} printer dikonfigurasi',
+                                      style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: GoldenitySpacing.md),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit_outlined),
+                                  tooltip: 'Edit',
+                                  onPressed: _loading ? null : () => _showBranchDialog(existing: b),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete_outline),
+                                  tooltip: 'Hapus',
+                                  color: GoldenityColors.error,
+                                  onPressed: _loading ? null : () => _confirmDeleteBranch(b),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                ),
-                const SizedBox(width: GoldenitySpacing.md),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Edit',
-                      onPressed: _loading ? null : () => _showBranchDialog(existing: b),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Hapus',
-                      color: GoldenityColors.error,
-                      onPressed: _loading ? null : () => _confirmDeleteBranch(b),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+          ),
+        ),
+      ],
     );
   }
 

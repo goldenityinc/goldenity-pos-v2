@@ -655,21 +655,21 @@ class _ProductCard extends ConsumerWidget {
                               ),
                             ],
                           ),
-                          if (!canAdd) ...[
+                          if (!canAdd && inactive) ...[
                             const SizedBox(height: GoldenitySpacing.sm),
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(vertical: 4),
                               decoration: BoxDecoration(
-                                color: outOfStock ? GoldenityColors.errorLight : GoldenityColors.surface2,
+                                color: GoldenityColors.surface2,
                                 borderRadius: BorderRadius.circular(GoldenityRadius.sm),
                               ),
                               alignment: Alignment.center,
                               child: Text(
-                                inactive ? 'Tidak Aktif' : (outOfStock ? 'Stok Habis' : 'Stok ${product.stock}'),
+                                'Tidak Aktif',
                                 style: textTheme.labelSmall?.copyWith(
                                   fontWeight: FontWeight.w600,
-                                  color: outOfStock ? GoldenityColors.error : GoldenityColors.text2,
+                                  color: GoldenityColors.text2,
                                 ),
                               ),
                             ),

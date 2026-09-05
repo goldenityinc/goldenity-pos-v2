@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
+import '../../../core/design/goldenity_elevation.dart';
+import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../../../core/models/category_profile.dart';
 import '../providers/product_list_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -81,10 +83,12 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
             onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Batal'),
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: GoldenityColors.error),
+          GoldenityPrimaryButton(
+            label: 'Ya, Hapus',
+            height: 40,
+            backgroundColor: GoldenityColors.error,
+            shadow: GoldenityElevation.btnSuccess,
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Ya, Hapus'),
           ),
         ],
       ),
@@ -169,8 +173,11 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
             builder: (_, ref2, __) {
               final theme = Theme.of(ctx);
               final biz = theme.extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
-              return FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: biz.base),
+              return GoldenityPrimaryButton(
+                label: 'Simpan',
+                height: 40,
+                backgroundColor: biz.base,
+                shadow: GoldenityElevation.btnPrimary,
                 onPressed: () async {
                   final form = _createKey.currentState;
                   if (form == null || !form.validate()) return;
@@ -202,7 +209,6 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
                     }
                   }
                 },
-                child: const Text('Simpan'),
               );
             },
           ),
@@ -240,8 +246,11 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
             builder: (_, ref2, __) {
               final theme = Theme.of(ctx);
               final biz = theme.extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
-              return FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: biz.base),
+              return GoldenityPrimaryButton(
+                label: 'Simpan',
+                height: 40,
+                backgroundColor: biz.base,
+                shadow: GoldenityElevation.btnPrimary,
                 onPressed: () async {
                   try {
                     final auth = ref.read(authNotifierProvider.notifier);
@@ -274,7 +283,6 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
                     }
                   }
                 },
-                child: const Text('Simpan'),
               );
             },
           ),
