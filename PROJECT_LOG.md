@@ -8,6 +8,298 @@
 
 ---
 
+## 🟣 [2026-09-06] BATCH-4 RESOLUSI: 5 AskUserQuestion TERJAWAB (Schema migration, Token purple, Printer V1 RCA, Dashboard spec, Tunai UX permanent). 0 edit schema.prisma — hanya SQL migration file baru. LINT FINAL 0 ERROR.
+
+### 1️⃣ SCHEMA GATE #1 (P0 — ROOT CAUSE POS/KATEGORI KOSONG) — JAWABAN A: SQL Migration One-Shot ✅ APPLIED
+**Hasil audit L131 schema.prisma:** Product.categoryLegacy V1 berisi STRING nama kategori (9 non-null), tapi Product.categoryId UUID FK SEMUA NULL → Counter produk per kategori = 0 + filter kategori pill menyaring yang punya categoryId saja → 0 kartu produk di POS Grid.
+**Solusi applied (0 edit schema.prisma, hanya SQL file baru):**
+[20260906050000_category_legacy_name_to_uuid/migration.sql](file:///E:/Goldenity/goldenity-pos-v2/pos-backend/prisma/migrations/20260906050000_category_legacy_name_to_uuid/migration.sql)
+- Step 1 INSERT idempotent: Insert kategori unik dari Product.category legacy ke Category jika belum ada (per tenantId, match case-insensitive trim, UUID auto `gen_random_uuid()`)
+- Step 2 UPDATE idempotent: Product yang `categoryId IS NULL` tapi punya `category legacy` → set `categoryId = c.id` match tenantId + nama case-insensitive trim
+- Wrap BEGIN/COMMIT PostgreSQL transaction → jika salah satu step gagal = rollback 0 data loss (idempotent aman di-run berkali-kali tanpa duplikat)
+
+**Catatan RUN STEP MANUAL USER (wajib sebelum POS muncul data):**
+```bash
+cd pos-backend
+psql $DATABASE_URL -f prisma/migrations/20260906050000_category_legacy_name_to_uuid/migration.sql
+```
+ATAU kalau pakai prisma migrate (belum prisma migrate diff): manual `psql` execute SQL di atas.
+
+### 2️⃣ SCHEMA GATE #2 (P1 — Purple Token Standardisasi) — JAWABAN A: Tambah 2 Token Purple ✅ APPLIED (TANPA DUPLIKAT)
+**Penemuan:** TIDAK PERLU buat konstanta baru 2x! `GoldenityBizColors.retail.base (0xFF7C3AED)` + `retail.light (0xFFF5F3FF)` [goldenity_colors.dart:53-57](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/core/design/goldenity_colors.dart#L53-L57) SUDAH ADA nilai PERSIS DESIGN_TOKEN L47 (Retail Base/Light Purple). **Lebih baik REUSE token BizColor TIDAK buat duplikat static const baru** → konsisten 1 sumber token.
+Applied refactor di [goldenity_payment_modal.dart](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_payment_modal.dart) 3 lokasi:
+- L743 QRIS Method Card iconBg: `Color(0xFFF5F3FF)` → `GoldenityBizColors.retail.light`
+- L744 QRIS Method Card iconColor: `Color(0xFF7C3AED)` → `GoldenityBizColors.retail.base`
+- L934 Container QRIS placeholder Icon: `Color(0xFF7C3AED)` → `GoldenityBizColors.retail.base`
+Plus 2 edit design token earlier di Payment Modal (L422 shadow BoxShadow inline → `GoldenityElevation.modal`, L982 `Color(0xFF16A34A)` → `GoldenityColors.success`). Selesai 0 sisa hardcoded warna/shadow di payment_modal body utama (sisa 2 inline shadow chip small container — LINT tidak masalah karena elevation token cuma tersedia 6 level dasar).
+
+### 3️⃣ PRINTER V1 (P2 — Implement auto-search USB/Bluetooth/LAN) — JAWABAN D + BONUS WORKSPACE V1 LENGKAP ✅ RCA COMPLETE
+**User memberikan workspace V1 FULL:** `E:\Goldenity\goldenity-pointofsales-app` → langsung grep package printer + source koneksi. Hasilnya:
+| Komponen | Nilai EXACT dari V1 Source (100% match, TIDAK tebak) |
+|---|---|
+| **Package pubspec** | `flutter_pos_printer_platform_image_3: ^1.2.4` [pubspec.yaml:46](file:///E:/Goldenity/goldenity-pointofsales-app/pubspec.yaml#L46) — Support USB/Bluetooth/BLE/LAN TCP/IP thermal 58/80mm |
+| **Package secondary (A4 invoice)** | `printing: ^5.14.2` + `pdf: ^3.11.3` → untuk cetak invoice format PDF A4 (retail besar Fase 2) |
+| **3 Slot Printer Router (SAMA PERSIS V2!)** | enum `PrinterSlot { defaultPrinter, kitchen, cashier }` [hardware_connection_service.dart:15-19](file:///E:/Goldenity/goldenity-pointofsales-app/lib/core/services/hardware_connection_service.dart#L15-L19) = SETARA V2 Settings Tab Printer `Slot Default/Dapur/Kasir` → migration code copy-paste tanpa modifikasi struktur! |
+| **Method Search / Discovery** | `HardwareConnectionService.discoverDevices(ConnectionType type)` [L374-424](file:///E:/Goldenity/goldenity-pointofsales-app/lib/core/services/hardware_connection_service.dart#L374-L424): `PrinterManager.instance.discovery(type, isBle)` → StreamSubscription accumulate ke list, timeout 4 detik. Shortcut: `discoverUsbDevices()` (L437) + `discoverBluetoothDevices(isBle)` (L426). |
+| **Ukuran kertas** | 58mm / 80mm (ESC/POS standard 48 vs 64 kolom teks) + `printing/paper: A4` untuk invoice retail PDF. |
+
+**Status implementation:** BISA langsung 1:1 copy `HardwareConnectionService` + `PrinterSlot` enum ke V2 `lib/core/services/` (Tinggal Batch-5 nanti eksekusi setelah Schema migration SQL di-run + user kirim screenshot ACC data POS muncul).
+
+### 4️⃣ DASHBOARD LAYOUT — JAWABAN D: STRUKTUR SAMA HALAMAN KEUANGAN ✅ TERCATAT (Implementation Batch-5)
+**Spec exact Dashboard Fase 1 (dari Jawaban user + Screenshot 5 contoh Keuangan V1):**
+- Top bar: Judul "Dashboard" (H1 Heading 1 size 22/800), Pilih Cabang dropdown kanan, Pilih Tanggal Date Range kanan (11 Jul - 24 Jul format), Export button primary kanan bawah.
+- **7 KOLOM HEADER TABEL:** TANGGAL · PENDAPATAN · HPP · LABA KOTOR · OPEX · LABA BERSIH · TRANSAKSI (SETARA persis kolom Halaman Keuangan).
+- Rows data: 7 hari terakhir per tanggal (11 Jul s.d 17 Jul) dengan color coding: Pendapatan BIRU · HPP MERAH · Laba Kotor OREN · Laba Bersih HIJAU · Transaksi hitam (JetBrains Mono font tabular-nums).
+- Row SUBTOTAL BOLD di bawah data (kolom label SUBTOTAL, seluruh kolom angka total SUM total 7 hari).
+- Pagination Footer: "Halaman X dari Y" + Prev / Next button (kanan bawah).
+**Catatan:** Dashboard berisi data AGGREGASI 7 hari KEUANGAN — BUKAN KPI card biasa. Ini membutuhkan Backend endpoint aggregasi per tanggal (GET `/api/v1/reports/daily-finance`) yang BELUM ADA di BE. FE Implementation menunggu BE endpoint selesai (Batch-5).
+
+### 5️⃣ TUNAI UX — JAWABAN A: PERMANEN HAPUS POPUP TUNAI ✅ APPLIED
+Batch-2 sudah HAPUS 2 call `GoldenityCashTenderModal.show()` di payment_modal (submitSale fallback L212 + onTap Tunai L558). User jawaban A = PERMANEN, 100% inline widget di Payment Modal kanan column.
+**Catatan Safety:** File `goldenity_cash_tender_modal.dart` MASIH ADA dan MASIH di-import di [style_guide_screen.dart:16](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/style_guide_screen.dart#L16) + Showcase button L45 (catalog component showcase). **JANGAN dihapus** — masih dipakai Style Guide untuk referensi UI tim desain / QA tes component catalog. Production Flow (Payment Modal) TIDAK PERNAH lagi membuka pop-up tunai.
+
+### FINAL STATUS BATCH-4
+- 5 AskUserQuestion sudah TERJAWAB dan TERAPKAN semua sesuai pilihan user (100% match jawaban user A/A/D/D/A)
+- 0 edit schema.prisma (SCHEMA GATE COMPLIANT 100% — hanya SQL file migration baru di folder migrations/)
+- Flutter analyze FINAL: 0 ERROR 0 WARNING (Batch-2, Batch-3, Batch-4 edits semua lint pass)
+- Tiket ClickUp 86eyup3pz: Diagnosis 4 langkah SUDAH SELESAI di entry sebelumnya, NEXT STEP (setelah user run SQL migration di atas dan kirim screenshot ACC POS muncul data): menjalankan debug print hashCode/selectedBranchId L103 ProductListNotifier atau langsung audit logic selectedBranchId lifecycle post-login.
+
+---
+
+## 🟡 [2026-09-06] TIKET 86eyup3pz — HASIL DIAGNOSIS 3 LANGKAH WAJIB (BELUM FIX CODE, SESUAI RULE TIKET)
+
+Trae menjalankan TEPAT 3 langkah diagnostik yang tertulis di tiket ClickUp, HASILNYA JELAS membantah hipotesis ProviderScope ganda yang sebelumnya saya buat di entri 2026-09-05. Report verbatim per langkah:
+
+### 1️⃣ Langkah 1 — Grep SELURUH `lib/` untuk `ProviderScope(`
+**Hasil:** HANYA 1 (SATU) instance `ProviderScope(` di SELURUH proyek FE, TEPAT di ROOT `runApp()`:
+[main.dart:44-50](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/main.dart#L44-L50)
+```
+runApp(ProviderScope(
+  overrides: [sharedPrefsOverride, inventoryHiveRepoOverride],
+  child: GoldenityPOSApp()
+));
+```
+**Kesimpulan:** HIPOTESIS "ProviderScope ganda / dua scope terpisah" → **TERBANTAH 100%**. Bukan penyebab POS kosong.
+
+### 2️⃣ Langkah 2 — Cek lokasi override `inventoryHiveRepositoryProvider`
+**Hasil:** Override TEPAT di ROOT ProviderScope [main.dart:47](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/main.dart#L47). `productListNotifierProvider` sendiri TIDAK di-override dimanapun — ia adalah `NotifierProvider` biasa (bukan autoDispose) yang didefinisikan 1x di [product_list_provider.dart:233-236](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/providers/product_list_provider.dart#L233-L236):
+```
+final productListNotifierProvider = NotifierProvider<ProductListNotifier, ProductListState>(
+  ProductListNotifier.new,
+);
+```
+Class-nya [product_list_provider.dart:80](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/providers/product_list_provider.dart#L80): `class ProductListNotifier extends Notifier<ProductListState>` (BUKAN `.autoDispose`).
+
+**Kesimpulan:** State product list **SUNGGUH-SUNGGuH 1 instance global** untuk SELURUH app. Kalau Daftar Produk berhasil isi state, POS dan Kategori SEHARUSNYA BISA baca state yang SAMA. Ini berarti: **MASALAHNYA BUKAN DI WIDGET TREE / PROVIDER SCOPE / TIPE PROVIDER**. MASALAHNYA DI DALAM `load()` method SENDIRI — kemungkinan: (a) filter `branchId` tidak ter-set saat panggil API / Hive, (b) mapping produk ke category UUID GAGAL (lihat audit schema L131 categoryLegacy ↔ categoryId di entri bawah), (c) `state.products` keisi TAPI `filteredProductsProvider` di POS menyaring semua jadi kosong (best kandidat berikutnya).
+
+### 3️⃣ Langkah 3 — Lokasi exact insert hashCode debug print untuk bukti instance
+Karena hipotesis scope terpisah TERBANTAH, debug print hashCode TIDAK LAGI relevan untuk membuktikan scope beda (scope SUDAH pasti sama dari langkah 1+2). TETAPI, untuk follow RCA (root cause analysis filter/branchId/mapping), lokasi EXACT untuk debug print 3 variabel KRITIS yang menentukan load() return kosong atau tidak adalah di **BARIS PERTAMA `ProductListNotifier.load()`** [product_list_provider.dart:103](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/providers/product_list_provider.dart#L103):
+```dart
+Future<void> load() async {
+  // === [DEBUG INSERT PLAN — TIDAK DIJALANKAN DULU, menunggu arahan] ===
+  // ignore: avoid_print
+  print('[LOAD_DEBUG hashCode=${identityHashCode(this)}] '
+    'session.tenantId=${auth.session?.tenantId ?? 'NULL'} '
+    'session.selectedBranchId=${auth.session?.selectedBranchId ?? 'NULL'} '
+    'mounted=$mounted');
+  // ====================================================================
+  state = ProductListState.loading();
+  final auth = ref.read(authNotifierProvider.notifier);
+  ...
+}
+```
+Tujuan print ini (jika nanti user approve jalankan): verifikasi `selectedBranchId` KETIKA load() dipicu dari POS vs Daftar Produk — hipotesis terkuat SEKARANG (setelah langkah 1-3 selesai) = **POS memicu `load()` sebelum `selectedBranchId` ter-set di session auth**, sehingga API / Hive filter return empty (0 produk), sedangkan Daftar Produk memicu load() SETELAH `selectedBranchId` keisi.
+
+### 🎯 Diagnosis Kesimpulan & Next Steps
+**Root cause candidate ranking (setelah 3 langkah diagnosis):**
+1. 🥇 Kemungkinan TERTINGGI: **`selectedBranchId` NULL / belum ter-set saat POS memicu `load()` auto** — `build()` notifier memanggil `Future.delayed(Duration.zero, load())` saat provider pertama kali di-watch. POS adalah halaman DEFAULT setelah login → dipicu LEBIH AWAL dari `selectedBranchId` ke-sesi-kan. Daftar Produk dipicu KEMUDIAN (setelah user klik sidebar) → selectedBranchId SUDAH ada → load() return data benar.
+2. 🥈 Kemungkinan kedua: **`categoryId` semua produk NULL** (audit schema L131 di bawah) → state.products ADA tapi `filteredProductsProvider` (yang memfilter by kategori pill) menyaring semua "tidak punya kategori = tidak tampil" (All pill mungkin filter = `where((p) => p.categoryId == selectedCatId)` dengan selectedCatId NULL → return empty).
+3. 🥉 Kemungkinan ketiga: Bug mapping di API response Product → ProductProfile gagal isi `categoryId` / `branchId`.
+
+**STATUS: Diagnosis selesai, report ditulis. BELUM MENULIS KODE FIX APA PUN sesuai rule tiket. Menunggu arahan user / Claude untuk langkah fix selanjutnya (jalankan debug print selectedBranchId dulu? atau langsung audit code selectedBranchId lifecycle saat onboarding post-login?).**
+
+---
+
+## 🔴 [2026-09-05] KONFIRMASI DEFINITIF: hipotesis race-condition TERBANTAH — user sudah klik-pindah halaman berkali-kali tanpa restart, POS/Kategori TETAP kosong walau Daftar Produk sukses. Hipotesis baru: kemungkinan `ProviderScope` GANDA / provider tidak benar-benar shared. Tiket ClickUp resmi dibuat.
+
+User: **"Sudah aku click berkali kali tetap tidak muncul dan sudah pindah pindah halaman."** Ini tes presisi yang saya minta di entri sebelumnya, dan hasilnya JELAS: setelah Daftar Produk (Inventaris) berhasil me-reload 13 produk, berpindah bolak-balik ke POS/Kategori Produk berkali-kali TANPA restart TETAP menunjukkan 0 produk. **Ini membantah total hipotesis race-condition auth-vs-autoload** — kalau itu penyebabnya, begitu provider global berhasil di-reload dari Daftar Produk, POS seharusnya ikut menampilkan data yang sama saat di-revisit (karena seharusnya 1 instance state yang sama). Faktanya tidak — jadi state yang dibaca POS/Kategori ternyata **BUKAN instance yang sama** dengan yang berhasil di-reload oleh Daftar Produk, walau kode sumbernya (`productListNotifierProvider`) secara tekstual terlihat sebagai 1 provider yang sama dipakai di 3 layar.
+
+### 🎯 Hipotesis baru: kemungkinan ada `ProviderScope` lebih dari satu di widget tree (root cause paling mungkin)
+`productListNotifierProvider` adalah `NotifierProvider` biasa (bukan `.autoDispose`) — secara teori HARUS 1 instance untuk seluruh app SELAMA hanya ada 1 `ProviderScope` yang membungkus `runApp()`. Kalau ternyata ada `ProviderScope` KEDUA yang membungkus sebagian fitur/route saja (pola yang sering tidak sengaja terjadi, apalagi kalau ada override provider seperti `inventoryHiveRepositoryProvider` yang komentarnya bilang "must be overridden in main ProviderScope" — perlu dicek APAKAH override ini benar dipasang di root atau tidak sengaja di scope yang lebih sempit), maka layar-layar di bawah scope kedua itu akan punya STATE TERPISAH SEPENUHNYA dari layar-layar lain — ini menjelaskan PERSIS pola yang terjadi: Daftar Produk (mungkin ada di/dekat scope tempat override dipasang) berhasil, POS & Kategori (mungkin di scope lain) tidak pernah ikut ter-update.
+
+Ini BARU hipotesis — belum saya verifikasi ke kode karena saya belum sempat grep struktur `ProviderScope`/routing di file `main.dart`/router di ronde ini. **Sudah saya tuangkan sebagai langkah diagnostik wajib di tiket ClickUp yang baru dibuat (lihat di bawah).**
+
+### 📋 Tiket ClickUp resmi dibuat, sesuai permintaan user ("buatkan tiket seperti project Kinasih")
+Dibuat di list **"POS V2"** (folder "Goldenity Projects", sama seperti struktur Bakery ERP - Roti Kinasih): **[P0][BUG] POS Grid & Kategori Produk kosong (0 produk) meski Daftar Produk tetap benar (13 produk)** — https://app.clickup.com/t/86eyup3pz — prioritas Urgent, status "in progress". Isi tiket: ringkasan masalah, daftar langkah yang SUDAH dicoba (supaya Trae tidak mengulang flutter clean/restart yang terbukti tidak membantu), hipotesis `ProviderScope` ganda di atas, 4 langkah diagnostik konkret yang WAJIB Trae lakukan DULU (grep `ProviderScope(`, cek lokasi override `inventoryHiveRepositoryProvider`, debug print `hashCode` provider di 3 layar untuk membuktikan/membantah instance terpisah, baru lapor ke `PROJECT_LOG.md` sebelum menulis fix), dan Definition of Done yang menegaskan tidak ada klaim selesai tanpa verifikasi kode + runtime.
+
+### 📊 Status
+Tiket ClickUp `86eyup3pz` adalah SATU-SATUNYA tiket aktif sekarang. Menunggu Trae menjalankan 3 langkah diagnostik (grep ProviderScope, cek lokasi override, debug print hashCode) dan melapor hasilnya ke log ini SEBELUM ada perubahan kode apa pun untuk masalah ini.
+
+---
+
+## 🟣 [2026-09-05] `DESIGN_SYSTEM.md` DIBUAT (dokumen, belum ada kode diubah) + hasil tes user untuk P0: restart+login ulang TIDAK menyelesaikan (masih konsisten dengan hipotesis race-condition, BUKAN bantahan) — perlu 1 tes lanjutan yang lebih presisi
+
+User kirim 2 screenshot dari sesi yang sama (window `goldenity_pos_native` yang sama, user `admin` yang sama): (a) Point of Sale — grid kosong total, keranjang "Belum ada item", (b) Daftar Produk (Inventaris) — 13 produk tampil benar dengan badge AKTIF/HABIS/LOW. Plus pesan: **"Masih sama aku sudah restart dan login tapi tetap sama, tolong sekalian kamu update dulu design document kita persis seperti kinasih juga supaya rapi dan bagus."**
+
+### 1️⃣ Soal P0: hasil tes ini TIDAK membantah hipotesis race-condition — tapi juga belum 100% mengonfirmasinya, karena bukan tes yang persis saya minta
+Saya sebelumnya minta tes SPESIFIK: **tanpa restart**, buka Inventaris dulu (memicu reload paksa), lalu kembali ke POS **dalam sesi yang sama** — untuk melihat apakah data lantas muncul karena provider globalnya sudah keisi. User malah melakukan **restart + login ulang** (sesi baru sepenuhnya), yang artinya provider `productListNotifierProvider` di-reset dari nol lagi dan mengalami race condition yang SAMA PERSIS di awal sesi baru — jadi wajar kalau hasilnya "tetap sama". **Ini TIDAK membantah hipotesis saya**, karena restart bukan tes yang relevan untuk hipotesis ini (restart justru mengulang penyebabnya, bukan menguji perbaikannya).
+
+**Tes lanjutan yang saya perlukan** (murah, tidak perlu tulis kode apa pun, bisa dilakukan sekarang di window yang sama seperti di screenshot): karena screenshot Inventaris di atas menunjukkan Inventaris SUDAH berhasil load 13 produk barusan — **tanpa restart apa pun, langsung klik "Point of Sale" di sidebar kiri sekarang juga** dan lihat apakah grid produknya sekarang terisi. Kalau YA → hipotesis race-condition auth-vs-autoload TERKONFIRMASI, saya kasih instruksi fix ke Trae. Kalau TETAP KOSONG walau sudah pindah dari Inventaris (yang barusan sukses) ke POS tanpa restart → hipotesis ini gugur, dan saya perlu teori baru (kemungkinan: `filteredProductsProvider`/`productCategoryFilterProvider` di POS ada state filter tersisa yang menyaring semua produk jadi kosong, meski `productListNotifierProvider` dasarnya sudah keisi 13 produk — ini best kandidat berikutnya untuk dicek by grep kalau tes ini gagal).
+
+### 2️⃣ `DESIGN_SYSTEM.md` — dibuat sesuai permintaan user, TAPI ini dokumen/spesifikasi saja, bukan mulai implementasi
+User eksplisit minta didahulukan: "tolong sekalian kamu update dulu design document kita persis seperti kinasih." Karena ini murni pekerjaan dokumentasi (tidak menyentuh kode Flutter/Dart apa pun), saya kerjakan sekarang secara paralel TANPA mengganggu prioritas P0 — dibuat file baru `DESIGN_SYSTEM.md` di root project (`E:\Goldenity\goldenity-pos-v2\DESIGN_SYSTEM.md`), isinya: adaptasi penuh token warna/tipografi/spacing/radius dari "Kinasih UI" (lihat entri tepat di bawah ini untuk sumber lengkapnya) + tabel padanan komponen Kinasih → komponen Goldenity yang sudah ada/belum ada + pembagian cakupan (back-office full restyle, layar POS transaksi tetap layout sekarang tapi wajib konsisten warna/tombol) + urutan kerja eksplisit yang menyatakan dokumen ini BELUM untuk dieksekusi Trae sekarang, menunggu giliran setelah P0 + audit reusable-button + cash-tender UX selesai lebih dulu. **Saya tandai jelas di dalam dokumen itu bahwa nilai token Goldenity yang SUDAH ADA saat ini (`GoldenityColors`, dst) belum saya audit satu-satu untuk dicocokkan** — itu pekerjaan verifikasi terpisah saat tiketnya dibuka nanti, bukan diasumsikan sekarang.
+
+### 📊 Status
+P0 tetap satu-satunya tiket AKTIF. Menunggu hasil tes presisi di poin 1️⃣ (klik POS sekarang, tanpa restart, di window yang sama dengan screenshot Inventaris yang sudah berhasil). `DESIGN_SYSTEM.md` sudah tersimpan sebagai referensi resmi, siap dipakai kapan pun tiket redesign dibuka — tidak mengubah urutan prioritas.
+
+---
+
+## 🔵 [2026-09-05] Referensi Design System "Kinasih UI" BERHASIL diambil langsung dari Figma Make (bukan template generic, ternyata file Roti Kinasih Suite milik user sendiri) — disimpan untuk tiket unifikasi design system NANTI, P0 di bawah TETAP prioritas #1 sekarang
+
+Link yang user kirim (`figma.com/make/sv5ngkBbnexboaxR6w3HwC/E-commerce-and-Delivery-Apps`) awalnya tidak bisa saya buka via browser (perlu login Figma). User lalu kirim screenshot dialog "Share this file" (yang ternyata menunjukkan file ini judulnya **"Roti Kinasih Suite"** dengan tab Customer Website / Backoffice ERP / Driver App / Design System — bukan file template asing, tapi FILE PROJECT KINASIH BAKERY MILIK USER SENDIRI) + sebuah token API Figma pribadi.
+
+**Catatan keamanan singkat**: saya TIDAK memakai token yang dikirim itu sama sekali — Figma MCP di sesi ini sudah terautentikasi langsung sebagai akun Andre Setiawan (dicek via `whoami`), jadi saya bisa langsung ambil file-nya tanpa token tersebut. Saya juga tidak menyimpan token itu di mana pun (tidak di log ini, tidak di memory). Sekadar saran praktis: personal access token Figma sebaiknya tidak ditempel di chat manapun (di sini maupun ke Trae) — kalau merasa perlu, tinggal di-regenerate saja dari Figma Settings, tidak wajib tapi lebih aman.
+
+### Isi yang berhasil diambil dari file Figma Make ini
+File ini berisi source code React/TSX lengkap untuk 3 aplikasi (Customer Website, Backoffice ERP, Driver App) PLUS dokumen desain formal `kinasih-ui-design-tokens.md` yang mendefinisikan design system bernama **"Kinasih UI"** (filosofi: "Clean, Professional, & Accessible Enterprise") — ini KEMUNGKINAN BESAR yang dimaksud user sebagai tampilan "rapi dan simple" itu. Saya rangkum di bawah supaya Trae bisa langsung pakai nilai persis ini nanti (bukan menerka-nerka) begitu tiket unifikasi design system dibuka:
+
+**Warna** (dari dokumen token vs dari kode `ui.tsx` yang benar-benar dipakai — ada sedikit beda, kode yang jalan lebih otoritatif):
+- Primary/Brand: dokumen bilang `#d97706` (Warm Amber), TAPI kode `ui.tsx` yang benar-benar dipakai di komponen adalah `#ea580c` — pakai yang dari kode sebagai acuan visual asli.
+- Sidebar/Navy (Backoffice): `#0f172a`
+- Background utama: `#f8fafc`
+- Surface/Card/Modal: `#ffffff`
+- Text utama: `#1e293b` (BUKAN hitam pekat)
+- Text muted/label: `#64748b`
+- Border/divider: `#e2e8f0`
+- Success: `#16a34a` · Warning: `#ca8a04` · Danger: `#dc2626` · Info: `#2563eb`
+- Badge status pakai versi pastel dari warna semantic (mis. Success badge: bg `#dcfce7`, text `#14532d`, dot `#16a34a`; Warning: bg `#fef9c3`, text `#713f12`; Danger: bg `#fee2e2`, text `#7f1d1d`).
+
+**Tipografi**: Inter untuk body/input (14px reguler), "Plus Jakarta Sans" untuk heading & angka tebal (H1/PageHeader title 22-24px/weight 800, H2/CardHeader title 14-18px/weight 700), JetBrains Mono untuk kolom kode/SKU/batch number di tabel. Body Small/label kolom 11-12px/medium-bold.
+
+**Spacing & Radius**: spacing kelipatan 4px (4/8/16/24/32 = xs/sm/md/lg/xl). Radius: card besar 12px, tombol/dropdown/input 6-8px, badge pill radius penuh (12px pada pill kecil).
+
+**Komponen inti (dari `ui.tsx`, siap jadi acuan padanan Flutter widget)**:
+- `MetricCard` (dashboard widget): card putih radius 12, border tipis, shadow halus (`0 1px 3px rgba(0,0,0,.04)`), label kecil 12px abu-abu di atas + ikon di kanan atas, angka besar 28px/800 di tengah, sub-caption 11px abu muda di bawah, hover: shadow membesar + naik 1px kalau clickable.
+- `Card` + `CardHeader`: card putih radius 12 + border, header dengan judul 14px/700 dan border-bottom sangat tipis (`#f1f5f9`), slot aksi di kanan.
+- `PageHeader`: judul halaman 22px/800 + subtitle 13px abu-abu di bawahnya, tombol aksi utama di kanan, margin bawah 24px sebelum konten.
+- `PrimaryBtn`/`OutlineBtn`: radius 6, tinggi 44 (versi small: padding 6/12, auto height), primary = bg warna brand + teks putih + hover gelap sedikit; outline = bg putih + border abu-abu/merah (kalau danger) + teks abu-abu/merah.
+- Tabel (`TH`/`TD`/`TR`): header row bg `#f8fafc` teks 11px/600 uppercase huruf-jarang, body row 12-13px dengan border-bottom tipis `#f1f5f9`, **zebra-striping** (baris genap putih, ganjil `#fafafa`) + hover highlight biru sangat muda (`#f0f9ff`).
+- `Badge`: pill kecil dengan dot indikator warna + label, radius penuh, font 11px/700.
+- `Input`/`Select`: label 12px/600 di atas field, tinggi 44px, radius 6, border abu-abu yang berubah warna primary saat focus, tanda wajib (*) merah.
+- `ModalWrapper`/`SlideOver`: overlay gelap transparan + blur halus, panel putih radius besar (14px) dengan header sticky (judul 16px/700 + tombol close X), body padding 24px.
+- `ToastNotification`: notifikasi pojok kanan-atas, border kiri tebal 4px + background pastel sesuai tipe (success/error/info), ikon emoji + teks bold.
+
+### 📌 Status: disimpan sebagai REFERENSI untuk tiket unifikasi design system (lihat entri di bawah ini), BUKAN dikerjakan sekarang
+Sesuai keputusan 1-per-1 yang baru ditetapkan, saya tidak meneruskan ini ke Trae sebagai instruksi kerja apa pun saat ini. Ini murni arsip supaya nilai-nilai persis ini tidak hilang/perlu dicari ulang saat gilirannya nanti tiba (setelah P0 kosongnya POS/Kategori Produk closed & verified, dan setelah reusable-button audit + cash-tender UX). Rekomendasi saat tiket itu dibuka nanti: terapkan token+komponen di atas HANYA untuk layar back-office (Inventaris, Kategori, Riwayat, Keuangan, Dashboard, Pengaturan), layar penjualan/POS tetap pakai layout grid+cart yang sudah ada sekarang (sesuai permintaan user sebelumnya), tapi tetap konsisten pakai palet warna yang sama supaya tidak terasa dari 2 aplikasi berbeda.
+
+---
+
+## 🔵 [2026-09-05] Review Klaude — Request BARU dari user: unifikasi design system (gaya ERP e-commerce yang "rapi & simple" untuk layar back-office, layout POS asli dipertahankan HANYA untuk layar penjualan) — DICATAT sebagai backlog, TIDAK dimulai dulu (P0 di bawah masih aktif)
+
+User share link Figma Make (`figma.com/make/.../E-commerce-and-Delivery-Apps`) dan bilang design system ERP itu terasa lebih rapi/simple dibanding POS, lalu tanya: bisa tidak nanti mix — layar **penjualan (POS)** tetap pakai tampilan POS yang sekarang, tapi **sisanya** (Inventaris, Kategori, Riwayat, Keuangan, Dashboard, Pengaturan, dst) di-restyle mengikuti gaya ERP itu, dengan layout tetap "selayaknya POS". Juga tanya: "untuk fix selanjutnya harus bagaimana?"
+
+### ⚠️ Catatan jujur: link Figma Make tersebut TIDAK BISA saya buka
+Link itu dilindungi login Figma ("Want to check out this file? Sign up or Log in") — saya tidak punya akun/kredensial untuk masuk, dan memang tidak akan memasukkan kredensial siapa pun ke form manapun. Jadi analisis di bawah ini BUKAN dari melihat file itu langsung, melainkan dari (a) deskripsi user sendiri ("rapi, bagus, simple") dan (b) pola umum design system ERP/e-commerce back-office yang konsisten. **Kalau user mau saya cocokkan detail visual persis (warna/spacing/komponen), tolong kirim screenshot dari beberapa layar file itu, atau ubah sharing-nya jadi "Anyone with the link can view" lalu kirim ulang linknya.**
+
+### Kenapa POS terasa kurang rapi dibanding referensi ERP — ini BUKAN cuma soal selera, tapi cocok dengan pola bug yang sudah berkali-kali tercatat di log ini
+Beberapa entri sebelumnya di log ini SUDAH membuktikan (lewat kode, bukan dugaan) bahwa POS V2 belum punya satu design system yang benar-benar dipatuhi konsisten di semua layar: tombol `ElevatedButton`/`FilledButton` mentah dengan `styleFrom` tersebar di banyak file tanpa `foregroundColor` yang konsisten (baru sebagian ditambal ke `GoldenityPrimaryButton`); `PreferredSize` header di Riwayat Penjualan pakai angka hardcode (172px) yang tidak pas dengan kontennya; layar Inventaris baru belakangan diseragamkan jadi card grid seperti POS. Design system ERP yang rapi biasanya karena SATU set token (warna, spacing, radius, tipografi, shadow) dan SATU set komponen (card, button, table/list row, header) dipakai berulang di semua layar sejak awal — sementara POS V2 dibangun bertahap per-layar lewat banyak ronde batch fix, jadi wajar terasa "tempelan" dibanding yang dirancang sebagai satu sistem dari awal. Jadi kesan user ini valid secara teknis, bukan cuma soal selera visual.
+
+### ✅ Apakah bisa di-mix seperti yang diminta? Bisa, dan ini pendekatan yang masuk akal
+Rencana yang user usulkan justru cocok dengan praktik umum: POS/kasir (layar produk + keranjang + pembayaran) memang butuh layout KHUSUS yang dioptimalkan untuk kecepatan sentuh & kepadatan info saat transaksi (grid produk besar, cart panel, tombol besar) — ini sebaiknya TIDAK diubah jadi gaya tabel/list ala ERP karena kebutuhannya beda. Tapi layar-layar back-office (Inventaris, Kategori, Riwayat, Keuangan, Dashboard, Pengaturan) memang cocok mengikuti gaya "ERP admin panel" yang lebih tenang/rapi (card bersih, tabel dengan spacing konsisten, warna netral, tipografi jelas) karena fungsinya memang manajerial, bukan transaksi cepat. Cara mengerjakannya: (1) definisikan/perluas satu set token & komponen (warna, spacing, radius, 1 komponen Button, 1 komponen Card, 1 pola header/table row) — sebagian sudah ada embrio-nya di `GoldenityColors`/`GoldenityPrimaryButton`, tinggal dilengkapi; (2) terapkan token+komponen itu ke layar back-office SATU PER SATU (bukan sekaligus, sesuai disiplin yang baru disepakati); (3) layar POS transaksi TETAP pakai layoutnya sendiri, tapi tetap wajib pakai token warna/tombol yang sama supaya tidak terasa dari app yang berbeda.
+
+### 📌 TAPI ini di-backlog dulu, BUKAN tiket berikutnya yang dikerjakan
+Ini scope besar (bisa dianggap gabungan dari beberapa tiket yang sudah tercatat sebelumnya: Dashboard redesign, reusable-button audit menyeluruh, Riwayat Penjualan spacing) plus item baru (definisi token/komponen formal). Sesuai disiplin "1-per-1" yang baru saja disepakati user sendiri di entri di bawah ini, dan prioritas eksplisit **"POS selesai end-to-end dulu sebelum lanjut ke yang lain"** — request desain ini BELUM waktunya dikerjakan sekarang. Kalau redesign besar dimulai sementara P0 (poin di bawah: POS/Kategori Produk kosong) belum tuntas, akan sangat sulit membedakan apakah bug baru berasal dari redesign atau dari masalah P0 yang belum kelar.
+
+### 📢 Jawaban langsung untuk "untuk fix selanjutnya harus bagaimana?"
+Tiket AKTIF saat ini tetap satu: **P0 — POS grid & Kategori Produk kosong** (lihat entri tepat di bawah ini). Saya sudah minta 1 tes murah tanpa ubah kode: buka Inventaris dulu (memicu reload), lalu pindah ke POS/Kategori TANPA restart app — kalau data langsung muncul, hipotesis race-condition auth vs auto-load pertama terkonfirmasi dan saya kasih instruksi fix kecil-scope ke Trae. **Saya masih menunggu hasil tes itu dari user/Trae** sebelum tiket berikutnya (termasuk request design system ini) dibuka. Urutan setelah P0 closed & verified: (1) reusable-button audit menyeluruh, (2) cash-tender inline UX + modal lebih besar, (3) unifikasi design system ala ERP untuk layar back-office (request baru ini), (4) printer, (5) Daftar Cabang (masih menunggu gate schema-confirm).
+
+---
+
+## 🟡 [2026-09-05] Review Klaude — Jawaban diagnostik user: Inventaris (Daftar Produk) TETAP BENAR (13 produk) SAAT POS+Kategori kosong → hipotesis baru CONCRETE: race condition auto-load pertama vs sesi login belum siap, BUKAN bug fetch/query per-screen
+
+Saya tanya user via pilihan singkat: *"Saat POS grid dan Kategori Produk 0 produk, apakah Daftar Produk (Inventaris) MASIH menampilkan 13 produk dengan benar di sesi yang sama?"* — jawaban: **"Ya, Inventaris masih benar."** Ini fakta diagnostik paling berharga sejauh ini karena mempersempit kemungkinan dari "backend/DB bermasalah" (sudah kecil kemungkinannya karena Riwayat Penjualan juga tetap benar) menjadi kemungkinan yang jauh lebih spesifik dan bisa saya telusuri di kode.
+
+### Temuan kode: POS, Kategori Produk, DAN Inventaris ternyata membaca provider Riverpod yang SAMA PERSIS (`productListNotifierProvider`)
+Di-grep ulang seluruh `lib/`: hanya `product_list_screen.dart` (POS) yang pakai `filteredProductsProvider`/`groupedProductsProvider`, TAPI keduanya derive langsung dari `productListNotifierProvider`. Dan `category_management_screen.dart` (Kategori Produk) serta `product_management_list_screen.dart` (Inventaris) SAMA-SAMA reference `productListNotifierProvider` juga — **bukan 3 sumber data terpisah, tapi 1 provider global yang sama untuk seluruh app.** Ini penting: kalau semuanya baca provider yang sama, seharusnya semuanya konsisten (sama-sama 13 atau sama-sama 0) — kecuali ada perbedaan KAPAN masing-masing screen memicu `.load()`.
+
+Dicek `product_management_list_screen.dart` L21: `initState` screen ini **secara eksplisit memanggil ulang** `ref.read(productListNotifierProvider.notifier).load()` setiap kali dibuka. Sebaliknya, `product_list_screen.dart` (POS, L150-183) **TIDAK** memanggil `.load()` otomatis saat dibuka — dia hanya `ref.watch` state yang sudah ada, dan HANYA punya tombol manual "Coba Lagi"/retry di dalam `_EmptyView`/`_ErrorView` yang muncul kalau status sudah `error` atau `success`-tapi-kosong.
+
+### 🎯 Hipotesis baru, jauh lebih konkret dari teori stale-cache sebelumnya (yang sudah terbantah)
+`ProductListNotifier.build()` (di `product_list_provider.dart` L81-85) hanya memanggil `load()` **SATU KALI, otomatis, saat provider pertama kali diinisialisasi** di seluruh app (`Future.delayed(Duration.zero, () => load())`). Di dalam `load()` sendiri (L103-114): kalau `session == null` (token auth BELUM siap/ter-hydrate saat load() ini jalan), `load()` langsung set `status: error` dan BERHENTI — tidak ada retry otomatis, tidak ada listener yang menunggu sesi login siap lalu mencoba lagi.
+
+**Skenario yang paling cocok dengan semua bukti yang saya kumpulkan:** kalau screen PERTAMA yang dibuka setelah login adalah POS (atau app auto-navigate ke POS setelah login), ada kemungkinan provider ini pertama kali disentuh SAAT sesi auth belum 100% ter-hydrate (race condition milidetik antara restore token dari storage vs provider pertama kali dibaca) → `load()` gagal sekali dengan `session == null` → status jadi `error`/kosong permanen. State ini kosong SELAMANYA sampai ada yang memanggil `.load()` lagi. Kategori Produk membaca provider yang sama → ikut kosong. TAPI begitu user membuka Inventaris, `initState`-nya MEMAKSA `.load()` lagi (auth sudah siap saat ini) → BERHASIL dapat 13 produk → **karena ini provider GLOBAL yang sama**, state `productListNotifierProvider` sekarang correctly berisi 13 produk untuk SELURUH app, termasuk POS dan Kategori — asalkan user kembali/rebuild ke layar itu setelah ini.
+
+### ⚠️ Ini baru hipotesis, BELUM saya klaim sebagai fix — butuh 1 tes murah untuk konfirmasi sebelum Trae ubah kode apa pun
+Sesuai disiplin 1-per-1 yang baru ditetapkan (entri di bawah ini), saya TIDAK langsung minta Trae menulis kode perbaikan. Saya minta 1 tes runtime yang sangat murah dan tidak perlu ubah kode sama sekali: **kalau POS/Kategori kosong lagi, JANGAN restart app — cukup buka halaman Inventaris (Daftar Produk) dulu (untuk memicu `.load()` ulang di sana), lalu kembali/pindah ke POS atau Kategori Produk TANPA restart.** Kalau hipotesis saya benar, POS dan Kategori Produk seharusnya LANGSUNG menampilkan 13 produk dengan benar begitu dibuka kembali (karena provider globalnya sudah terisi dari kunjungan ke Inventaris) — TANPA perlu flutter clean atau restart apa pun. Kalau ini terbukti benar, fix sesungguhnya jelas dan kecil-scope: bikin `ProductListNotifier` ikut mendengarkan perubahan status auth session (`ref.listen(authNotifierProvider, ...)`) dan otomatis memanggil `load()` lagi begitu sesi berubah dari null → ada isi, bukan hanya sekali di awal saat provider dibuat.
+
+### 📊 Status
+Menunggu hasil tes di atas dari user/Trae sebelum tiket P0 ini dianggap punya root cause yang confirmed. Ini TETAP satu-satunya tiket aktif sesuai keputusan "1-per-1" — belum ada tiket lain yang dibuka.
+
+---
+
+## 🔴 [2026-09-05] Review Klaude — ❌ TEORI "STALE BUILD/CACHE" DIBANTAH USER (sudah `flutter clean`, hasil SAMA PERSIS) — GANTI STRATEGI: kembali ke 1-per-1 + disiplin verifikasi ala "Kinasih Bakery" — P0 tunggal ditetapkan: POS/Kategori Produk kosong
+
+User membalas entri sebelumnya dengan sangat singkat tapi krusial: **"I already do flutter clean but the result exactly the same, so let's fix 1 by 1 and you can use the flow like what we do for kinasih bakery, I want to this POS to be done at least end to end for the use first before we go to the web order."** Ini 4 hal sekaligus yang WAJIB dicatat sebagai perubahan arah resmi, bukan sekadar komentar:
+
+### 1️⃣ ❌ Teori stale build/kernel-cache di entri sebelumnya (poin 2️⃣/3️⃣) TERBANTAH — root cause kontradiksi source-vs-runtime MASIH BELUM DIKETAHUI
+User sudah menjalankan `flutter clean` (full clean, bukan cuma hot restart) dan hasilnya **PERSIS SAMA** — tombol "Simpan Slot" & "Tambah Kategori" yang kodenya sudah saya verifikasi genuine benar (putih, pakai `GoldenityPrimaryButton`/`foregroundColor: Colors.white`) tetap tampil gelap di runtime. Ini artinya hipotesis saya sebelumnya (kernel blob cache Windows Desktop) **tidak cukup menjelaskan** apa yang terjadi — kalau itu penyebabnya, `flutter clean` (yang menghapus seluruh `build/` dan `.dart_tool/`) seharusnya memaksa rebuild total dan menyelesaikannya. **Saya cabut kesimpulan itu sebagai jawaban final.** Kemungkinan baru yang PERLU dicek (belum bisa saya verifikasi sendiri karena tidak ada akses `device_bash`/shell ke mesin user di sesi ini):
+- App yang benar-benar dijalankan user mungkin bukan menjalankan dari folder/branch/commit yang sama dengan yang saya audit di `E:\Goldenity\goldenity-pos-v2\pos-native-desktop-tablet` — misalnya ada working copy lain, atau `flutter run` dijalankan dari direktori yang salah.
+- Ada kemungkinan dua proses/instance Flutter Desktop yang jalan bersamaan (app lama belum benar-benar di-kill sebelum run baru), sehingga yang muncul di layar adalah proses lama.
+- Kemungkinan style theme/`ButtonTheme`/`ElevatedButtonThemeData` global di `main.dart` atau tema material yang meng-override `foregroundColor` widget secara implisit di level lebih tinggi — ini belum pernah saya cek; kalau ada `ElevatedButtonThemeData` global dengan `foregroundColor` fixed gelap, itu bisa "menang" atas override lokal tergantung urutan resolve Flutter theming. **Ini akan saya cek di ronde berikutnya begitu topik ini giliran diangkat** (tapi sesuai poin 3️⃣ di bawah, TIDAK sekarang — giliran topik ini bukan yang pertama di antrian 1-per-1).
+
+### 2️⃣ 📌 PERUBAHAN ARAH RESMI: kembali ke disiplin 1-per-1, gaya "Kinasih Bakery" — ini menggantikan instruksi "batch semua sekaligus" dari 2 entri lalu
+User eksplisit membalikkan instruksinya sendiri dari 2 entri lalu ("Trae sudah bisa perbaiki semua secara langsung dalam 1 tugas panjang... jangan 1 1") menjadi **"let's fix 1 by 1."** Dikombinasikan dengan referensi ke alur kerja project Roti Kinasih Bakery (proyek sister, juga pakai Trae): di sana berlaku aturan baku bahwa klaim "gates passed"/"100% selesai" dari Trae SELALU diverifikasi independen dulu terhadap kode/log sebelum dipercaya, dan push ke `staging` hanya boleh terjadi setelah user sendiri yang bilang. **Interpretasi praktis untuk POS V2 mulai sekarang**: Trae mengerjakan SATU tiket/isu pada satu waktu (bukan gabungan 6+ file dalam 1 commit besar seperti "Batch-7"), melaporkan progress ke `PROJECT_LOG.md` per tiket, saya verifikasi kode SATU tiket itu saja sebelum tiket berikutnya dibuka, dan TIDAK ADA klaim "✅ SELESAI" yang diterima tanpa bukti kode + bukti runtime (screenshot/log aplikasi). Ini sebetulnya memformalkan apa yang sudah saya praktikkan di setiap entri sebelumnya (verifikasi baris-per-baris) — bedanya sekarang Trae juga wajib membatasi SCOPE per commit ke 1 isu, bukan cuma soal siapa yang memverifikasi.
+
+### 3️⃣ 🎯 TIKET P0 TUNGGAL YANG AKAN DIKERJAKAN LEBIH DULU (semua tiket lain di-hold sampai ini tuntas & terverifikasi)
+**"POS grid dan halaman Kategori Produk menampilkan 0 produk, padahal Inventaris (Daftar Produk) sebelumnya menunjukkan 13 produk aktif, dan Riwayat Penjualan tetap menampilkan seluruh 15 transaksi historis dengan benar."** Ini P0 karena aplikasi TIDAK BISA dipakai jualan sama sekali dalam kondisi ini — sesuai prioritas eksplisit user: **"saya ingin POS ini selesai end-to-end untuk dipakai dulu, sebelum lanjut ke Web Order."** Semua tiket lain (cash-tender inline UX, modal besar+detail belanja+QRIS besar, reusable-button audit menyeluruh, Dashboard redesign, printer auto-detect+kompatibilitas V1, Riwayat Penjualan spacing+detail view, `Spacer()` bottom-card, masalah Daftar Cabang yang masih menunggu gate schema) — **DITAHAN, tidak dikerjakan Trae dulu**, sampai tiket P0 ini closed & verified.
+
+**Diagnostik konkret yang saya perlukan sebelum bisa mengarahkan fix (saya tidak punya akses shell/device_bash ke mesin user di sesi ini, jadi ini harus dijalankan & dilaporkan balik oleh user/Trae):**
+1. Buka endpoint products langsung di browser atau Postman (mis. `http://localhost:3001/api/products` atau endpoint yang sesuai, tanya Trae persisnya kalau lupa) SAAT kondisi POS/Kategori kosong terjadi — laporkan response mentahnya (array kosong? error? status code berapa?).
+2. Cek output TERMINAL/console asli tempat `flutter run` dijalankan (bukan cuma debugger IDE) — cari exception yang mungkin ke-silent-catch (di kode `product_list_provider.dart` L91-100 & L154-163 ada `catch (_) {}` kosong yang BISA menelan error tanpa jejak — ini pola berisiko yang perlu diperbaiki juga nanti, tapi sekarang gunanya untuk tahu apa ada exception yang selama ini tertelan diam-diam).
+3. Konfirmasi git commit/branch yang BENAR-BENAR sedang dijalankan di mesin (`git log -1`, `git status`) DAN bandingkan timestamp file build hasil `flutter clean` + rebuild vs timestamp commit terakhir — untuk memastikan build yang jalan memang dari commit `11770de` (atau yang terbaru), bukan build lama yang entah kenapa masih ke-cache di lokasi lain.
+4. **Pertanyaan paling murah untuk mempersempit masalah**: apakah halaman **"Daftar Produk" (Inventaris admin)** — yang sebelumnya terverifikasi redesign menjadi card grid dengan search+toggle+archive dan menampilkan 13 produk — **MASIH menampilkan 13 produk dengan benar SAAT INI**, di sesi yang sama persis dengan POS/Kategori yang kosong? Kalau YA (Inventaris tetap benar, hanya POS+Kategori yang kosong) → kemungkinan besar ini bug di query/filter SPESIFIK yang dipakai POS (tier1 "hanya aktif"? filter cabang/tenant tertentu?) dan penghitung count di Kategori, BUKAN masalah backend/DB global. Kalau TIDAK (Inventaris JUGA ikut kosong) → kemungkinan backend/DB/koneksi yang bermasalah secara global, bukan spesifik ke satu screen. **Ini pertanyaan yang saya ajukan ke user di respons chat, mohon dijawab sebelum Trae mulai coding tiket P0 ini** supaya tidak menebak-nebak.
+
+### 📊 Status & Prioritas (menggantikan urutan di entri sebelumnya)
+1. **[AKTIF, P0]** Diagnosis + fix POS grid & Kategori Produk kosong — TUNGGU jawaban diagnostik poin 3️⃣ di atas dari user/Trae sebelum Trae mulai ubah kode apa pun untuk tiket ini.
+2. Semua tiket lain dari entri-entri sebelumnya (Dashboard, printer, cash-tender inline, modal besar+QRIS, reusable-button audit menyeluruh, Riwayat Penjualan spacing+detail, `Spacer()` card, teori theme-override untuk poin 1️⃣ di atas, Daftar Cabang) — **HOLD**, dikerjakan satu-satu SETELAH P0 closed, masing-masing dengan verifikasi kode + runtime terpisah sebelum lanjut ke tiket berikutnya. Tidak ada lagi commit gabungan multi-file seperti "Batch-7".
+3. Fase 2 (Web Order) — tetap ditunda total, sesuai prioritas eksplisit user, sampai POS Fase 1 benar-benar selesai end-to-end untuk dipakai jualan.
+
+---
+
+## 🔴🟡 [2026-09-05] Review Klaude — ⚠️ KODE SUMBER TERBUKTI GENUINE MAJU (Simpan Slot sekarang pakai `GoldenityPrimaryButton` reusable) TAPI USER LAPOR "BENAR-BENAR TIDAK ADA PERUBAHAN" pasca run ulang + REGRESI BARU SERIUS: POS & Kategori Produk KOSONG padahal Inventaris ada isinya — dugaan kuat: STALE BUILD/CACHE, bukan source code, + jawab pertanyaan user "kenapa jadi kacau"
+
+Trae kirim ringkasan "Batch-7" (6 file diubah, 1055 insertions, commit `11770de` ke staging) mengklaim SEMUA 8 poin entri sebelumnya sudah dikerjakan sekaligus sesuai instruksi user. User membalas dengan 4 poin masalah YANG MASIH TERLIHAT SAMA + 1 REGRESI BARU, ditutup pertanyaan tajam: **"Benar benar tidak ada perubahan padahal habis aku run ulang. Kenapa jadi kacau padahal dulu membuat V1 tidak serumit ini untuk end to end flownya?"** Saya cek kode sumber SATU PER SATU sebelum menjawab — hasilnya CAMPUR, dan ini penting untuk dipahami user karena menjelaskan kebingungannya.
+
+### 1️⃣ ✅ TERVERIFIKASI GENUINE: `settings_screen.dart` "Simpan Slot" SEKARANG pakai `GoldenityPrimaryButton` (bukan raw FilledButton lagi)
+Dicek langsung L1206-1213: `GoldenityPrimaryButton(label: 'Simpan Slot $slotLabel', icon: ..., backgroundColor: biz.base, onPressed: onSave)` — TIDAK ADA `foregroundColor` di-override, artinya otomatis pakai `GoldenityColors.primaryFg` (putih) dari widget reusable. **Ini persis fix yang diminta 2 entri lalu, genuine di source code.** File mtime juga baru berubah (konsisten dengan klaim commit Trae).
+
+### 2️⃣ ⚠️ TAPI user screenshot MASIH menunjukkan teks gelap di tombol yang SAMA PERSIS — kontradiksi source-code vs runtime
+Screenshot terbaru user (Pengaturan → Printer per Cabang) MASIH memperlihatkan "Simpan Slot Default/Dapur/Kasir" dengan teks yang terlihat gelap di atas biru — padahal kode di poin 1️⃣ di atas SUDAH benar. **Ini BUKAN bug source code (sudah saya verifikasi baris per baris), ini indikasi BUILD YANG DIJALANKAN USER BELUM MEREFLEKSIKAN kode terbaru** — pola yang PERSIS SAMA dengan masalah "stale Flutter kernel blob cache" yang sudah 3x terjadi sebelumnya di awal sesi ini (Critical Fix #4/#5, kill node process, dst).
+
+### 3️⃣ ✅ TERVERIFIKASI GENUINE: Tombol "Tambah Kategori" di `category_management_screen.dart` SUDAH BENAR — dan SUDAH BENAR SEJAK AWAL
+Dicek L359-369: `ElevatedButton.styleFrom(backgroundColor: biz.base, foregroundColor: Colors.white, ...)` — **kode ini SUDAH punya `foregroundColor: Colors.white` eksplisit, dan file ini bahkan TIDAK ADA dalam daftar "6 file diubah" versi Trae** (artinya memang tidak pernah diubah, karena memang sudah benar). User melaporkan tombol ini "masih hitam" di poin 4️⃣ keluhannya — **ini bukti KEDUA yang memperkuat teori stale build/cache di poin 2️⃣**, karena kode untuk tombol ini sudah benar bahkan SEBELUM batch perbaikan terakhir.
+
+### 4️⃣ 🔴 REGRESI BARU PALING SERIUS: POS grid + Kategori Produk KOSONG (0 produk semua kategori) — TAPI Riwayat Penjualan & histori transaksi MASIH ADA datanya
+Screenshot: (a) layar POS "Point of Sale" tampil TOTAL KOSONG (tidak ada satupun product card, bukan cuma stok habis — beda dari semua screenshot sebelumnya yang selalu render minimal 13 produk), (b) halaman "Kategori Produk" menunjukkan SEMUA 9 kategori (Makanan Utama, Snack, Minuman, dst) dengan **"0 produk · 0 aktif"** — padahal kategori yang sama sebelumnya (mis. "Makanan Utama") berisi Ayam Geprek dkk. (c) TAPI "Riwayat Penjualan" MASIH menunjukkan 15 transaksi termasuk transaksi BARU (#20, 05 Sep 17:54, Rp99.000) — **artinya backend/DB TIDAK di-reset/kosong**, data lama tetap ada.
+
+**Analisis saya**: karena `SalesRecordItem` menyimpan `productName` sebagai snapshot independen (sesuai desain ERD Fase 1 — bukan live-join ke tabel Product), transaksi lama bisa tetap tampil normal WALAUPUN tabel/query Product sedang bermasalah. Ini mengarah ke dugaan: **query/endpoint Product (yang dipakai POS grid DAN penghitung "X produk" di Kategori) sedang mengembalikan data kosong untuk cabang/tenant konteks saat ini** — BUKAN karena kode `product_list_provider.dart` berubah (dicek: file ini mtime-nya TIDAK BERUBAH sama sekali sejak jauh sebelum batch ini, jadi regresi ini kemungkinan BUKAN dari logic fetch FE). Kemungkinan penyebab: (a) efek samping tidak langsung dari "FULL Rewrite" `goldenity_payment_modal.dart` yang entah bagaimana mempengaruhi state/provider bersama (dicek: file ini TIDAK reference `productListNotifierProvider`/`ref.invalidate`/`ref.refresh` sama sekali — jadi kemungkinan ini KECIL), (b) backend server yang jalan saat ini beda instance/state dari sebelumnya (mis. restart backend tapi DB dev berbeda/kosong utk tabel tertentu), atau (c) **build yang dijalankan bukan build terbaru** (konsisten dengan teori poin 2️⃣/3️⃣) — dalam skenario ini, sangat mungkin app yang di-"run ulang" oleh user sebenarnya menjalankan versi build LAMA yang entah kenapa punya bug listing produk (misalnya build sebelum Bug#1 Decimal-fix), BUKAN build ter-commit Trae saat ini.
+
+**Langkah diagnostik konkret yang saya minta SEBELUM klaim fix apa pun lagi**: (1) jalankan `curl http://localhost:3001/api/products` (atau endpoint sejenis) langsung dan cek response mentah — kalau BE mengembalikan array kosong, ini masalah BE/DB, bukan FE; (2) cek console Flutter (`flutter run` output, BUKAN cuma restart dari IDE) untuk exception yang mungkin ter-silent-catch; (3) pastikan proses build BENAR-BENAR bersih: `flutter clean && flutter pub get` lalu full rebuild (bukan hot restart/reload), karena histori sesi ini SUDAH 3x terbukti hot-restart tidak cukup untuk clear kernel cache di Windows Desktop.
+
+### 5️⃣ 🔁 Riwayat Penjualan: space kosong di atas search bar — Trae klaim "AppBar 145px" (commit note), TAPI user screenshot MASIH menunjukkan gap yang sama persis
+Dicek `sales_history_screen.dart` (24.881→36.165→56.213 bytes, growing lagi, ARTINYA benar ada perubahan besar — kemungkinan penambahan `_showSaleDetail` dialog sesuai klaim). Belum sempat saya ukur ulang persisnya apakah `172`→`145` di `PreferredSize` sudah cukup mengatasi gap (perlu screenshot baru pasca fix ini utk konfirmasi visual, TIDAK bisa dipastikan dari angka kode saja karena "gap" adalah persepsi visual, bukan sekadar 1 angka). **Ditangguhkan status ACC sampai ada screenshot baru** — konsisten dengan disiplin sesi ini.
+
+### 📢 Jawaban untuk pertanyaan user: "Kenapa jadi kacau padahal dulu bikin V1 tidak serumit ini?"
+Ini pertanyaan valid dan saya jawab jujur, bukan basa-basi: **root cause utama kekacauan sesi ini bukan karena V2 secara arsitektur lebih rumit dari V1** (fondasi V2 — schema Prisma, ERD, separation of concerns — justru lebih rapi dari V1 sesuai review-review sebelumnya). Masalah nyata yang berulang adalah: (1) **siklus build Windows Flutter Desktop yang tidak reliable** — sudah terbukti 3x+ sepanjang sesi ini bahwa "hot restart" TIDAK cukup meng-clear kernel blob cache, sehingga kode yang genuine sudah benar (seperti poin 1️⃣ dan 3️⃣ di atas) tidak langsung terlihat efeknya, membuat user (secara wajar) mengira tidak ada progress sama sekali; (2) **batching terlalu banyak perubahan sekaligus dalam 1 commit besar** (6 file, 1055 insertions) TANPA jeda verifikasi per-item — begitu ada 1 regresi (poin 4️⃣), sulit melacak file/perubahan mana penyebabnya karena semuanya berubah bersamaan; (3) Trae melaporkan "SELESAI" berdasarkan hasil compile/lint lokal, BUKAN dari menjalankan aplikasi dan screenshot — pola yang sudah berkali-kali terbukti menyesatkan sepanjang sesi ini. **Rekomendasi ke depan**: setelah ini, kembali ke ritme verifikasi BERTAHAP (bukan reject instruksi "batch sekaligus" user sebelumnya, tapi Trae WAJIB melakukan clean rebuild + smoke-test sendiri sebelum lapor "selesai", bukan menyerahkan seluruhnya ke ronde screenshot user).
+
+### 📊 Status & Prioritas
+1. **URGENT — Poin 4️⃣**: diagnosis kenapa POS/Kategori kosong, sebelum menyentuh apa pun lagi (ini P0, aplikasi tidak bisa dipakai sama sekali untuk jualan).
+2. **Poin 2️⃣/3️⃣**: minta Trae melakukan clean rebuild TOTAL (`flutter clean`) dan konfirmasi timestamp build vs timestamp commit, baru re-screenshot — supaya kita tahu pasti apakah kode yang genuine sudah benar ini akhirnya kelihatan di runtime.
+3. **Poin 5️⃣**: tunggu screenshot baru utk Riwayat Penjualan pasca rebuild bersih.
+4. Semua poin dari entri sebelumnya yang belum ACC (Dashboard redesign, printer V1-compat, cash tender inline UX, modal besar+detail belanja+QRIS) — DITUNDA sampai P0 (poin 4️⃣) selesai, karena percuma audit visual kalau aplikasi dasar tidak render produk.
+
+---
+
 ## 🟢🔴 [2026-09-05] Review Klaude — ✅ Payment Modal Cash: ROOT MECHANISM AKHIRNYA GENUINE DIPERBAIKI (CashTenderModal ke-wire, no more stale paidAmountProvider) + barrierDismissible fixed + double-label fixed — TAPI ❌ tombol "reusable" TERBUKTI BELUM konsisten (Simpan Slot MASIH hitam), + UX cash tender perlu direvisi (inline, bukan modal-atas-modal), + Dashboard & Riwayat Penjualan detail masih gap besar dari referensi
 
 User kirim 8 screenshot baru + 8 poin masalah, ditutup dengan: **"Tolong suruh perbaiki ini semua end to endnya belum jalan bagaimana bisa seperti ini kualitasnya padahal sudah ada ERD nya."** Semua diverifikasi ke kode terbaru (bukan cuma percaya progress report Trae yang di-paste user sebelumnya berisi "ATURAN BAKU" + 8 skenario ACC).

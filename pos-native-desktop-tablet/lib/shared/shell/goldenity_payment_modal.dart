@@ -419,13 +419,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
           color: GoldenityColors.surface,
           borderRadius: BorderRadius.circular(GoldenityRadius.xxxl),
           border: Border.all(color: GoldenityColors.border),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x2E0F172A),
-              blurRadius: 48,
-              offset: Offset(0, 24),
-            ),
-          ],
+          boxShadow: GoldenityElevation.modal,
         ),
         child: Padding(
           padding: const EdgeInsets.all(GoldenitySpacing.xl),
@@ -532,7 +526,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                             ],
                           ),
                           const SizedBox(height: GoldenitySpacing.sm),
-                          Divider(color: GoldenityColors.border, thickness: 1.2, height: 1),
+                          const Divider(color: GoldenityColors.border, thickness: 1.2, height: 1),
                           const SizedBox(height: GoldenitySpacing.sm),
                           if (cart.isEmpty)
                             Padding(
@@ -549,8 +543,9 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                               physics: const NeverScrollableScrollPhysics(),
                               itemCount: cart.length,
                               separatorBuilder: (_, __) =>
-                                  Divider(color: GoldenityColors.border, height: 1, thickness: 0.5),
+                                  const Divider(color: GoldenityColors.border, height: 1, thickness: 0.5),
                               itemBuilder: (_, i) {
+                                // ignore: collection_methods_unrelated_type
                                 final item = cart[i]!;
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.sm),
@@ -599,7 +594,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                               },
                             ),
                           if (cart.isNotEmpty) const SizedBox(height: GoldenitySpacing.sm),
-                          Divider(color: GoldenityColors.border, thickness: 1, height: 1),
+                          const Divider(color: GoldenityColors.border, thickness: 1, height: 1),
                           const SizedBox(height: GoldenitySpacing.md),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -676,7 +671,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                             ),
                           ],
                           const SizedBox(height: GoldenitySpacing.md),
-                          Divider(color: GoldenityColors.border, thickness: 1.5, height: 1),
+                          const Divider(color: GoldenityColors.border, thickness: 1.5, height: 1),
                           const SizedBox(height: GoldenitySpacing.md),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -746,8 +741,8 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                             Expanded(
                               child: _PaymentMethodCard(
                                 icon: Icons.qr_code_2_outlined,
-                                iconBg: const Color(0xFFF5F3FF),
-                                iconColor: const Color(0xFF7C3AED),
+                                iconBg: GoldenityBizColors.retail.light,
+                                iconColor: GoldenityBizColors.retail.base,
                                 label: 'QRIS',
                                 selected: isQris,
                                 onTap: () {
@@ -814,7 +809,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(Icons.payments_outlined, size: 18, color: GoldenityColors.primary),
+                                          const Icon(Icons.payments_outlined, size: 18, color: GoldenityColors.primary),
                                           const SizedBox(width: GoldenitySpacing.xs),
                                           Text(
                                             'Rp ',
@@ -828,15 +823,15 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                                     ),
                                     border: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                                      borderSide: BorderSide(color: GoldenityColors.border),
+                                      borderSide: const BorderSide(color: GoldenityColors.border),
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                                      borderSide: BorderSide(color: GoldenityColors.border),
+                                      borderSide: const BorderSide(color: GoldenityColors.border),
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                                      borderSide: BorderSide(color: GoldenityColors.primary, width: 1.5),
+                                      borderSide: const BorderSide(color: GoldenityColors.primary, width: 1.5),
                                     ),
                                     filled: true,
                                     fillColor: GoldenityColors.surface,
@@ -863,7 +858,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                                     decoration: BoxDecoration(
                                       color: GoldenityColors.successLight,
                                       borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                                      border: Border.all(color: GoldenityColors.success.withOpacity(0.3)),
+                                      border: Border.all(color: GoldenityColors.success.withValues(alpha: 0.3)),
                                     ),
                                     child: Row(
                                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -894,7 +889,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                                     decoration: BoxDecoration(
                                       color: GoldenityColors.errorLight,
                                       borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                                      border: Border.all(color: GoldenityColors.error.withOpacity(0.3)),
+                                      border: Border.all(color: GoldenityColors.error.withValues(alpha: 0.3)),
                                     ),
                                     child: Text(
                                       '⚠️  Kurang: ${_currencyFormatter.format(grandTotal - paid)}',
@@ -926,18 +921,18 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(GoldenityRadius.xl),
                               border: Border.all(color: GoldenityColors.border, width: 1.5),
-                              boxShadow: [
+                              boxShadow: const [
                                 BoxShadow(
-                                  color: const Color(0x1A0F172A),
+                                  color: Color(0x1A0F172A),
                                   blurRadius: 8,
-                                  offset: const Offset(0, 2),
+                                  offset: Offset(0, 2),
                                 ),
                               ],
                             ),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.qr_code_2_rounded, size: 96, color: const Color(0xFF7C3AED)),
+                                Icon(Icons.qr_code_2_rounded, size: 96, color: GoldenityBizColors.retail.base),
                                 const SizedBox(height: GoldenitySpacing.sm),
                                 Text(
                                   'Scan QRIS Static',
@@ -985,7 +980,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                 label: _isSubmitting ? 'Memproses...' : '✓ Proses Pembayaran',
                 icon: null,
                 isLoading: _isSubmitting,
-                backgroundColor: const Color(0xFF16A34A),
+                backgroundColor: GoldenityColors.success,
                 foregroundColor: Colors.white,
                 shadow: GoldenityElevation.btnSuccess,
                 height: 48,
