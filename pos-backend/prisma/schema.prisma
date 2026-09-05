@@ -1,0 +1,308 @@
+// ─────────────────────────────────────────────────────────
+// Goldenity POS V2 — Prisma Schema (Fase 1)
+// Sumber: ERD_POS_V2_FASE1.md §2 Prisma Schema Lengkap
+// ─────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────
+// EPIC 1 — Auth & Multi-Tenant Core
+// ─────────────────────────────────────────────────────────
+
+model Tenant {
+  id                      String       @id @default(uuid())
+  slug                    String       @unique
+  name                    String
+  logoUrl                 String?
+  address                 String?
+  phone                   String?
+  receiptFooter           String?
+  taxSettings             Json?
+  qrisImageUrl            String?
+  allowPayAtCashier       Boolean      @default(true)
+  isPaymentProofMandatory Boolean      @default(false)
+  blindShiftClose         Boolean      @default(false)
+  taxEnabled              Boolean      @default(true)
+  taxRatePercentage       Int          @default(11)
+  isActive                Boolean      @default(true)
+  subscriptionStatus      String?
+  allowedSolutions        String[]
+  branches                Branch[]
+  users                   User[]
+  customRoles             CustomRole[]
+  categories              Category[]
+  products                Product[]
+  productVariantStocks    ProductVariantStock[]
+  salesRecords            SalesRecord[]
+  storeSettings           StoreSetting[]
+  cashierShifts           CashierShift[]
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+}
+
+model Branch {
+  id             String          @id @default(uuid())
+  tenantId       String
+  name           String
+  qrisImageUrl   String?
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  users          User[]
+  products       Product[]
+  salesRecords   SalesRecord[]
+  printerConfigs PrinterConfig[]
+  cashierShifts  CashierShift[]
+  createdAt      DateTime        @default(now())
+
+  @@index([tenantId])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  TENANT_ADMIN
+  CASHIER
+  CRM_STAFF
+  WORKSHOP_ADMIN
+  ACCOUNTANT
+}
+
+model User {
+  id           String      @id @default(uuid())
+  tenantId     String
+  branchId     String?
+  username     String
+  passwordHash String
+  role         UserRole
+  customRoleId String?
+  isActive     Boolean     @default(true)
+  tenant       Tenant      @relation(fields: [tenantId], references: [id])
+  branch       Branch?     @relation(fields: [branchId], references: [id])
+  customRole   CustomRole? @relation(fields: [customRoleId], references: [id])
+  salesRecords SalesRecord[] @relation("CashierSales")
+  cashierShifts CashierShift[]
+  createdAt    DateTime    @default(now())
+
+  @@unique([tenantId, username])
+  @@index([branchId])
+}
+
+model CustomRole {
+  id          String @id @default(uuid())
+  tenantId    String
+  name        String
+  permissions Json
+  tenant      Tenant @relation(fields: [tenantId], references: [id])
+  users       User[]
+
+  @@unique([tenantId, name])
+}
+
+// ─────────────────────────────────────────────────────────
+// EPIC 2 — Inventaris & Kategori
+// ─────────────────────────────────────────────────────────
+
+model Category {
+  id        String    @id @default(uuid())
+  tenantId  String
+  name      String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  products  Product[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Product {
+  id                String   @id @default(uuid())
+  tenantId          String
+  branchId          String?
+  clientReferenceId String?  @unique
+  name              String
+  categoryLegacy    String?  @map("category")  // LEGACY V1: DB column bernama "category" (string, 9 non-null values). Prisma field name = categoryLegacy agar TIDAK bentrok dengan relation object dibawah. Akan dimigrasikan normalize ke categoryId UUID mapping nanti.
+  categoryId        String?
+  price             Decimal
+  cost              Decimal?
+  barcode           String?
+  sku               String?
+  stock             Int?
+  isActive          Boolean  @default(true)
+  imageUrl          String?
+  variants          Json?
+  description       String?
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  branch            Branch?  @relation(fields: [branchId], references: [id])
+  category          Category? @relation(fields: [categoryId], references: [id])  // RELATION NAME TETAP "category" = 7 line BE code (product.service.ts/dashboard.service.ts) TIDAK perlu diubah 0 regression!
+  items             SalesRecordItem[]
+  productVariantStocks ProductVariantStock[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId, categoryId])
+  @@index([barcode])
+}
+
+model ProductVariantStock {
+  id               String   @id @default(uuid())
+  tenantId         String
+  productId        String
+  variantOptionKey String
+  sku              String?
+  stock            Int      @default(0)
+  minStock         Int?     @default(0)
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([productId, variantOptionKey])
+  @@index([tenantId, productId])
+}
+
+// ─────────────────────────────────────────────────────────
+// EPIC 3 — Alur Penjualan
+// ─────────────────────────────────────────────────────────
+
+enum PaymentMethod {
+  CASH
+  QRIS
+  CREDIT_CARD
+}
+
+enum SaleStatus {
+  COMPLETED
+  VOIDED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+model SalesRecord {
+  id                     BigInt         @id @default(autoincrement())
+  referenceId            String         @unique
+  tenantId               String
+  branchId               String
+  cashierId              String
+  orderType              String
+  subtotal               Decimal
+  discountAmount         Decimal        @default(0)
+  taxAmount              Decimal        @default(0)
+  serviceChargeAmount    Decimal        @default(0)
+  serviceChargePercentage Int?
+  total                  Decimal
+  paymentMethod          PaymentMethod  @default(CASH)
+  paymentReferenceNumber String?
+  cashReceived           Decimal?
+  cashChange             Decimal?
+  status                 SaleStatus     @default(COMPLETED)
+  voidedAt               DateTime?
+  voidedBy               String?
+  voidReason             String?
+  refundedAmount         Decimal?       @default(0)
+  cashierShiftId         String?
+  tenant                 Tenant         @relation(fields: [tenantId], references: [id])
+  branch                 Branch         @relation(fields: [branchId], references: [id])
+  cashier                User           @relation("CashierSales", fields: [cashierId], references: [id])
+  cashierShift           CashierShift?  @relation(fields: [cashierShiftId], references: [id])
+  items                  SalesRecordItem[]
+  createdAt              DateTime       @default(now())
+
+  @@index([tenantId, branchId, createdAt])
+  @@index([status])
+  @@index([cashierShiftId])
+}
+
+model SalesRecordItem {
+  id            BigInt      @id @default(autoincrement())
+  salesRecordId BigInt
+  productId     String?
+  productName   String
+  qty           Int
+  unitPrice     Decimal
+  lineTotal     Decimal
+  note          String?
+  salesRecord   SalesRecord @relation(fields: [salesRecordId], references: [id])
+  product       Product?    @relation(fields: [productId], references: [id])
+
+  @@index([salesRecordId])
+}
+
+// ─────────────────────────────────────────────────────────
+// EPIC 3.5 — Closing Kasir Shift (Rekonsiliasi Kas Fisik)
+// ─────────────────────────────────────────────────────────
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
+}
+
+model CashierShift {
+  id             String       @id @default(uuid())
+  tenantId       String
+  branchId       String
+  cashierId      String
+  openedAt       DateTime     @default(now())
+  closedAt       DateTime?
+  status         ShiftStatus  @default(OPEN)
+  openingCash    Decimal      @default(0)
+  expectedCash   Decimal?
+  actualCash     Decimal?
+  discrepancy    Decimal?
+  notes          String?
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  branch         Branch       @relation(fields: [branchId], references: [id])
+  cashier        User         @relation(fields: [cashierId], references: [id])
+  salesRecords   SalesRecord[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([tenantId, branchId, status])
+  @@index([cashierId, status])
+}
+
+// ─────────────────────────────────────────────────────────
+// EPIC 4 — Printer & Pengaturan Perangkat Keras
+// ─────────────────────────────────────────────────────────
+
+model StoreSetting {
+  id       String @id @default(uuid())
+  tenantId String
+  key      String
+  value    String
+  tenant   Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, key])
+}
+
+enum PrinterSlot {
+  defaultPrinter
+  kitchen
+  cashier
+}
+
+enum PrinterConnectionType {
+  bluetooth
+  usb
+  network
+  none
+}
+
+model PrinterConfig {
+  id             String                @id @default(uuid())
+  branchId       String
+  slot           PrinterSlot
+  connectionType PrinterConnectionType @default(none)
+  address        String?
+  port           Int?
+  branch         Branch                @relation(fields: [branchId], references: [id])
+
+  @@unique([branchId, slot])
+}

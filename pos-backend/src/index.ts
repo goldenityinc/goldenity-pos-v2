@@ -1,0 +1,73 @@
+import 'dotenv/config';
+import express, { type Request, type Response } from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import morgan from 'morgan';
+import authRoutes from './modules/auth/auth.routes';
+import testRoutes from './modules/test/test.routes';
+import categoryRoutes from './modules/category/category.routes';
+import { productRoutes } from './modules/product/product.routes';
+import { salesRoutes } from './modules/sales/sales.routes';
+import { settingsRoutes } from './modules/settings/settings.routes';
+import { cashierShiftRoutes } from './modules/cashier-shift/cashier-shift.routes';
+import { dashboardRoutes } from './modules/dashboard/dashboard.routes';
+
+(BigInt.prototype as any).toJSON = function (this: bigint): string {
+  return this.toString();
+};
+
+// =================================================================
+// 🔴 CRITICAL CRASH GUARD (Anti BE MATI TOTAL pola berulang user)
+// Sebelumnya: unhandled Prisma query error / type error = process EXIT 1
+// Sesudah: Log error stack trace detail, tapi EXPRESS TETAP HIDUP!
+// =================================================================
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  console.error('\n[CRASH-GUARD] ⚠️ UNHANDLED REJECTION CAUGHT (BE TETAP HIDUP!):');
+  console.error('  Promise:', promise);
+  console.error('  Alasan:', reason?.stack || reason?.message || JSON.stringify(reason, null, 2));
+  console.error('[CRASH-GUARD] Melanjutkan serve request lain tanpa kill process BE...\n');
+});
+process.on('uncaughtException', (err: Error) => {
+  console.error('\n[CRASH-GUARD] ⚠️ UNCAUGHT EXCEPTION CAUGHT (BE TETAP HIDUP!):');
+  console.error('  Stack:', err.stack || err.message);
+  console.error('[CRASH-GUARD] Melanjutkan serve request lain tanpa kill process BE...\n');
+});
+
+const app = express();
+const PORT = process.env.PORT ?? 3001;
+
+app.use(helmet());
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN ?? '*',
+    credentials: true,
+  }),
+);
+app.use(express.json({ limit: '10mb' }));
+app.use(morgan('combined'));
+
+app.get('/api/v1/health', (_req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      status: 'ok',
+      service: 'goldenity-pos-backend',
+      version: '2.0.0',
+      timestamp: new Date().toISOString(),
+    },
+  });
+});
+
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/test', testRoutes);
+app.use('/api/v1/categories', categoryRoutes);
+app.use('/api/v1/products', productRoutes);
+app.use('/api/v1/sales', salesRoutes);
+app.use('/api/v1/settings', settingsRoutes);
+app.use('/api/v1/shifts', cashierShiftRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
+
+app.listen(PORT, () => {
+  console.log(`[goldenity-pos-backend] listening on :${PORT}`);
+  console.log(`[goldenity-pos-backend] mounted routes: /api/v1/health, /api/v1/auth (login, me), /api/v1/test/rbac-scope, /api/v1/categories (crud soft-delete), /api/v1/products (crud + auto-create category), /api/v1/sales (crud + idempotent referenceId + branch strict), /api/v1/settings (store TENANT_ADMIN, branches CRUD tenant-scoped, printers CRUD per cabang), /api/v1/shifts (buka tutup shift kasir, current open, histori), /api/v1/dashboard (summary, finance report)`);
+});
