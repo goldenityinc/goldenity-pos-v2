@@ -8,6 +8,84 @@
 
 ---
 
+## 🟢🔴 [2026-09-05] Review Klaude — ✅ Grid card aspect ratio SUDAH DIPERBAIKI Trae (verified genuine) — TAPI 6 masalah BARU dari user (Inventaris/Edit Produk/Printer/Cash) + 1 REPRODUKSI LANGSUNG bug kritis Payment Modal Cash (masih GAGAL, screenshot baru "Kurang Rp 66.000")
+
+User kirim 7 screenshot baru (POS grid dengan emoji icon berbeda dari sebelumnya — tampaknya build/tenant demo berbeda, Edit Produk, Inventaris list, Pengaturan Printer, Konfirmasi Pembayaran, POS dengan error merah) + 7 poin masalah baru secara langsung (bukan via Trae). Dicek satu-satu terhadap kode:
+
+### 1️⃣ ✅ PROGRESS TERVERIFIKASI: `childAspectRatio` grid card SUDAH diubah Trae dari 0.86 → **1.1**
+Dicek langsung `product_list_screen.dart` L508 sekarang `childAspectRatio: 1.1` (sesuai rentang rekomendasi saya 1.05–1.15 di entri sebelumnya) — **genuine, sudah dieksekusi**, file mtime lebih baru dari entri audit terakhir. Kartu produk sekarang juga sudah pakai `Stack` dengan badge "LOW" (stok rendah) ter-posisi di pojok kanan-atas kartu (`Positioned`, L674-692) dan tombol +/- stepper qty di kartu — progress bagus dari versi sebelumnya. **NAMUN** masih ada gap vs harapan user (lihat poin 2 di bawah).
+
+### 2️⃣ 🆕 Badge "stok rendah"/"habis" belum full sesuai Figma — user minta di depan gambar/frame + greyout jelas kalau habis
+Dicek `_ProductCard` (`product_list_screen.dart` L525-727): saat ini HANYA badge "LOW" (stok rendah) yang ditampilkan sebagai overlay di pojok kartu (L674-692). Untuk **stok HABIS**, TIDAK ADA badge overlay serupa — yang ada cuma teks bar kecil "Stok Habis" di bawah tombol qty (L650-668, warna background `errorLight`) dan `canAdd=false` (tombol +/- & tap kartu di-disable, L547/552-556). **Tapi kartu itu sendiri TIDAK di-greyscale/opacity-kan** — background tetap putih solid, hanya teks nama produk yang berubah warna `muted` untuk kondisi `inactive` (BUKAN untuk `outOfStock` — baca L608, kondisi hanya cek `inactive`, bukan `outOfStock`). Jadi produk stok habis SECARA VISUAL nyaris tidak beda dari produk normal kecuali teks kecil di bawah — tidak "jelas" seperti diminta user.
+
+**Rekomendasi fix ke Trae:**
+- Tambahkan badge overlay "HABIS" (mirip pola badge "LOW" yang sudah ada di L674-692) di pojok kartu untuk kondisi `outOfStock`, bukan cuma teks bar di bawah.
+- Untuk greyout: bungkus konten kartu (atau apply ke `Container` L557) dengan `Opacity(opacity: outOfStock ? 0.45 : 1.0, ...)` atau ubah background `Container` jadi abu-abu (`GoldenityColors.surface2`) + border abu ketika `outOfStock`, supaya user langsung sadar dari sekilas pandang tanpa baca teks kecil.
+
+### 3️⃣ 🆕 KONFIRMASI GAP SERIUS: Base product (tanpa variant) TIDAK PUNYA field Stok yang bisa dilihat/diedit langsung di form "Edit Produk"
+User tanya "dimana aku bisa lihat stock dan update stocknya?" — screenshot Edit Produk (Ayam Geprek) hanya punya field: Nama Produk, SKU, Harga Dasar, Kategori, Status Aktif, Deskripsi — **tidak ada field Stok sama sekali**. **Dicek langsung `product_builder_screen.dart`:**
+- Field `stockCtrl`/`Stok Awal` (L1071-1096, label "Lacak Stok") **HANYA muncul di dalam "Tambah Variant Group"** — yaitu, HANYA kalau produk dibuat dengan varian (mis. ukuran/topping). Produk sederhana tanpa varian (seperti Ayam Geprek) TIDAK PERNAH menampilkan field stok apa pun di form.
+- Root cause lebih dalam: fungsi `_calcGlobalStock()` (L319-337) — kalau tidak ada Variant Group dengan "Lacak Stok" aktif (`anyTracked == false`), untuk mode EDIT dia `return _existing!.stock` (**stok lama dipertahankan diam-diam, tidak bisa diubah dari UI ini**), dan untuk mode CREATE dia `return 0` (**produk baru otomatis stok 0, tidak ada cara set stok awal dari form dasar**).
+- **Ini bug fungsional nyata, bukan cuma UX**: admin TIDAK BISA menambah/mengurangi stok produk simpel manapun kecuali memakai jalan memutar "Tambah Variant Group" yang secara konsep tidak related sama sekali dengan stok produk tunggal.
+
+**Rekomendasi fix ke Trae**: tambahkan field "Stok" biasa (angka, seperti Harga Dasar) di section "Informasi Dasar" untuk produk TANPA variant group — muncul kondisional: kalau `_groups.isEmpty`, tampilkan field stok manual yang langsung map ke `stock` pada payload create/update (bukan lewat `_calcGlobalStock()` variant-only). Field ini juga harus prefill dari `_existing.stock` saat mode Edit supaya user bisa lihat angka stok saat ini (menjawab pertanyaan user "dimana aku bisa lihat stock").
+
+### 4️⃣ 🆕 Halaman Inventaris (`product_management_list_screen.dart`): TIDAK ADA search bar — CONFIRMED
+Dicek seluruh file — hanya ada `AppBar` (judul + tombol Refresh + "Tambah Produk"), lalu `ListView.separated` daftar `_ProductRowCard`. **Tidak ada `TextField` pencarian sama sekali** di halaman ini (beda dengan halaman POS yang sudah punya `_buildSearchBar`, L202-250 di `product_list_screen.dart`). User benar, ini gap nyata.
+
+### 5️⃣ 🆕 Style list Inventaris masih row-list polos, belum ada toggle Aktif/Edit/Archive — CONFIRMED
+Dicek `_ProductRowCard` (L147-289) — hanya SATU tombol aksi: "Edit" (`OutlinedButton.icon`, L274-284). Tidak ada tombol toggle status Aktif/Nonaktif langsung dari list (harus masuk ke Edit Produk dulu untuk ubah toggle "Status Produk Aktif"), dan tidak ada tombol Archive/Hapus sama sekali. Style-nya juga baris horizontal penuh lebar, bukan card grid seperti di halaman POS. User minta disamakan gaya card seperti di halaman penjualan + tombol quick-action (toggle aktif, edit, archive) di tiap card — ini permintaan desain/UX baru yang valid, belum ada implementasinya sama sekali saat ini.
+
+### 6️⃣ 🔁 Printer: setup UI ada (Slot Default/Dapur/Kasir per cabang, screenshot terlihat normal), TAPI end-to-end print (Checker+Struk actual print-out) belum pernah dites — status TETAP backlog seperti sebelumnya, sejalan dengan poin auto-detect (belum dicek ulang kode print-driver-nya sesi ini, tidak ada perubahan diklaim Trae soal ini).
+
+### 7️⃣ 🔴🔁 BUG KRITIS PAYMENT MODAL CASH — DIREPRODUKSI LAGI LANGSUNG DI SCREENSHOT BARU, MASIH BELUM DIPERBAIKI
+Screenshot terbaru user menunjukkan alur PERSIS sama seperti temuan saya sebelumnya: order 2 item (Es Jeruk x2 + Roti Bakar Keju Spesial x2 = Rp66.000), buka Konfirmasi Pembayaran pilih Tunai → klik "Proses Pembayaran" → **muncul banner merah "Nominal pembayaran kurang dari Total Bayar. Kurang Rp 66.000."** — persis mekanisme `paidAmountProvider` yang sudah saya root-cause di entri "BUG#1..." poin 2️⃣ (auto-fill sekali gagal re-sync). **Dicek ulang**: `goldenity_cash_tender_modal.dart` (solusi yang sudah direkomendasikan) mtime **masih sama persis** sejak awal ditemukan — **BELUM ADA PERUBAHAN/WIRING SAMA SEKALI**, masih orphan. User closing statement "Aku masih belum bisa end to end testing" — **valid dan terbukti benar**, bug ini masih 100% blocking transaksi Tunai apa pun.
+
+### 📊 Ringkasan Prioritas Eksekusi Terbaru
+1. **Poin 7️⃣ (Cash Tender Modal wiring)** — TETAP prioritas #1 mutlak, sudah 2x direkomendasikan, 0x dieksekusi, blocking end-to-end testing user sepenuhnya.
+2. **Poin 3️⃣ (field Stok hilang di Edit Produk)** — prioritas tinggi baru, blocking operasional dasar (admin tidak bisa kelola stok produk simpel).
+3. **Poin 2️⃣ (badge HABIS + greyout kartu)** — cepat, isolated, tinggal ikuti pola badge LOW yang sudah ada.
+4. **Poin 4️⃣ & 5️⃣ (search + redesign Inventaris jadi card+toggle/archive)** — scope UI lebih besar, kerjakan setelah 3 poin di atas.
+5. **Poin 6️⃣ (printer end-to-end print test)** — verifikasi manual dulu pakai printer/emulator nyata, baru lanjut auto-detect (poin 4️⃣ entri sebelumnya).
+
+Catatan tambahan: apresiasi progress nyata di poin 1️⃣ (`childAspectRatio` sudah difix, genuine) — supaya jelas ini bukan cuma daftar komplain, kemajuan riil sudah mulai terlihat di luar area Payment Modal yang masih jadi bottleneck utama.
+
+---
+
+## 🟡 [2026-09-05] Review Klaude — 5 ISU BARU dari User pasca Bug#1 fix (screenshot baru) + 1 ROOT CAUSE ditemukan sendiri (overflow "police tape"), 2 root cause sudah diketahui dari entri sebelumnya (tinggal eksekusi), 1 butuh klarifikasi user dulu sebelum Trae kerjakan
+
+User kirim 5 screenshot baru + laporan: Bug#1 Product List sudah OK (13 produk tampil, harga biru — sesuai entri di bawah), TAPI muncul 5 masalah UI/fitur baru. Instruksi user verbatim: "Tolong lanjut dan fix yuk". Berikut breakdown per isu, dengan status root-cause masing-masing supaya Trae bisa langsung eksekusi tanpa re-investigasi dari nol:
+
+### 1️⃣ 🆕 "Police tape" (garis kuning-hitam overflow) muncul di pojok kiri-bawah saat layar kecil — ROOT CAUSE DITEMUKAN (baru, sesi ini)
+Ini **RenderFlex overflow warning bawaan Flutter debug mode** ("BOTTOM OVERFLOWED BY X PIXELS" — sebagian teks terbaca di salah satu screenshot user), bukan bug visual custom. Posisi pojok kiri-bawah = sidebar (`GoldenitySidebar`, lebar tetap 200px di kiri layar).
+
+**Dicek langsung `pos-native-desktop-tablet/lib/shared/shell/goldenity_sidebar.dart` L55-146** — `build()` method sidebar adalah `Column` polos (bukan `SingleChildScrollView`/`ListView`) berisi: brand header (~L58, tinggi tetap), biz mode segmented (~L60), **8 nav item** masing-masing dengan padding vertical `GoldenitySpacing.md` (16) → tinggi per item kira-kira ~50-54px, dipisah `SizedBox` spacer antar item (L59-140), lalu `const Spacer()` (L141), lalu `_buildUserFooter` (card user + tombol Logout, ~140px, L142), lalu `SizedBox` bottom padding (L143). **Total tinggi konten minimum (header+bizmode+8 nav item+spacer+footer) jauh lebih besar dari layar pendek** (window di-resize kecil / laptop layar pendek) — karena TIDAK ADA scroll fallback, begitu tinggi window < tinggi konten minimum, `Column` overflow vertikal dan Flutter render warning stripe kuning-hitam persis yang dilaporkan user.
+
+**Rekomendasi fix ke Trae**: bungkus BAGIAN NAV ITEM (L62-140, dari "Point of Sale" sampai "Shift Kasir") dengan `Expanded(child: SingleChildScrollView(child: Column(children:[...nav items...])))` — supaya kalau tinggi window kurang, nav item yang scroll duluan, BUKAN seluruh sidebar overflow. Brand header dan biz mode tetap fixed di atas, user footer + logout tetap fixed di bawah (keduanya harus selalu terlihat). Alternatif lebih sederhana: bungkus SELURUH `Column` di L55 dengan `SingleChildScrollView` (lebih cepat implementasi tapi UX kurang ideal karena footer/logout bisa ikut ter-scroll keluar layar). **Rekomendasi saya: opsi pertama (Expanded+scroll khusus nav item).**
+
+### 2️⃣ 🔁 Card produk grid: ukuran masih terlalu besar + ruang kosong — ROOT CAUSE SUDAH DIKETAHUI (dari entri sebelumnya, BELUM DIEKSEKUSI Trae)
+Sudah saya root-cause di entri "BUG#1 PRODUCT LIST..." poin 3.6 di bawah: `product_list_screen.dart` L504-508, `SliverGridDelegateWithMaxCrossAxisExtent(childAspectRatio: 0.86, ...)` bikin kartu ~279px tinggi utk lebar 240px, padahal konten (ikon placeholder 48x48 L582-594 + teks, `MainAxisSize.min`) jauh lebih pendek → sisa ruang kosong di bawah kartu. **Dicek ulang sesi ini — file belum berubah (masih sama persis), Trae BELUM eksekusi fix ini walau sudah 1x dilaporkan.** Fix: turunkan `childAspectRatio` ke ~1.05–1.15 dan/atau perbesar area ikon/gambar produk supaya proporsional, samakan dengan ukuran card di Figma Make.
+
+### 3️⃣ 🔁 Quick shortcut nominal cash di Payment Modal belum muncul — ROOT CAUSE & FIX SUDAH DIKETAHUI (dari entri sebelumnya, BELUM DIEKSEKUSI Trae)
+Sudah saya root-cause + rekomendasikan fix di entri "BUG#1..." poin 2️⃣ di bawah: pasang kembali `GoldenityCashTenderModal` (`lib/shared/widgets/goldenity_cash_tender_modal.dart` — SUDAH lengkap dibangun, ada smart chip nominal + kalkulasi kembalian + validasi, tapi ORPHAN/tidak dipanggil di mana pun) ke dalam `goldenity_payment_modal.dart` saat metode Tunai dipilih — GANTIKAN mekanisme auto-fill `paidAmountProvider` sekali-set yang sekarang (root cause bug kritis "Cash gagal bayar" yang juga masih terbuka). **Ini SATU fix yang menyelesaikan DUA masalah sekaligus**: quick-shortcut nominal (poin ini) + bug kritis payment modal cash gagal bayar (lihat entri di bawah poin 2️⃣). Prioritas TERTINGGI dari 5 isu ini karena yang satu ini blocking transaksi riil.
+
+### 4️⃣ 🆕 Printer "quick search"/auto-detect belum ada — BACKLOG, BELUM DIMULAI
+Konsisten dengan catatan sebelumnya (poin 3.1 di entri bawah) — permintaan device discovery otomatis USB/network seperti di V1, saat ini printer config masih 100% manual input alamat/MAC/IP per slot per cabang. Belum ada implementasi apa pun (belum dicek ulang kodenya sesi ini karena sudah dikonfirmasi kosong sebelumnya) — backlog murni, bukan regresi.
+
+### 5️⃣ ⏸️ "Masalah branch" (Daftar Cabang) — MASIH BLOCKED, BUTUH KLARIFIKASI USER DULU sebelum Trae sentuh kode
+User cuma bilang "Masalah branch juga belum" tanpa detail baru — merujuk ke permintaan sebelumnya soal Daftar Cabang admin-edit-only + data shared/mirrored (kategori/produk/QRIS antar cabang). **Pertanyaan terbuka yang belum terjawab dari sesi-sesi sebelumnya**: kalau admin TIDAK BISA tambah cabang baru dari UI POS, bagaimana alur onboarding cabang baru? (misal: hanya via Super Admin/backend seed manual? atau tetap ada form tambah cabang tapi dibatasi role tertentu?) Saya rekomendasikan **TIDAK langsung minta Trae eksekusi** poin ini — perlu 1 ronde `AskUserQuestion` dulu ke user untuk detail scope-nya, KHUSUSNYA kalau ternyata butuh perubahan `schema.prisma` (mis. field baru di `Branch` utk status/parent-mirroring) — sesuai aturan standing **Schema-Confirm-First** yang sudah ditegaskan ulang di sesi ini.
+
+### 📊 Ringkasan Prioritas Eksekusi ke Trae (urutan disarankan)
+1. **Poin 3️⃣** (Cash Tender Modal wiring) — prioritas #1, blocking transaksi riil + sekaligus jawab quick-shortcut nominal.
+2. **Poin 1️⃣** (sidebar overflow scroll fix) — cepat, isolated, tidak menyentuh business logic, aman dieksekusi langsung.
+3. **Poin 2️⃣** (grid card aspect ratio) — cepat, isolated, aman dieksekusi langsung.
+4. **Poin 4️⃣** (printer auto-detect) — scope lebih besar (device discovery), backlog sesuai kapasitas.
+5. **Poin 5️⃣** (branch) — **JANGAN dieksekusi dulu**, tunggu klarifikasi user via `AskUserQuestion`.
+
+Saya akan verifikasi tiap klaim "selesai" dari Trae terhadap kode sumber langsung seperti biasa — TIDAK menerima klaim naratif tanpa bukti (screenshot untuk UI, hasil test untuk logic), sesuai pola yang berulang kali terbukti perlu sepanjang sesi ini.
+
+---
+
 ## 🟢🔴 [2026-09-05] Review Klaude — ✅ BUG#1 PRODUCT LIST AKHIRNYA CONFIRMED FIXED (screenshot 13 produk, harga biru, grid normal) — TAPI ditemukan BUG BARU YANG LEBIH SERIUS di Payment Modal (Cash TIDAK BISA bayar, root cause ketemu) + 6 catatan UI/fitur baru dari user
 
 ### 1️⃣ ✅ ACC FINAL: Bug#1 Product List — SELESAI, terverifikasi visual

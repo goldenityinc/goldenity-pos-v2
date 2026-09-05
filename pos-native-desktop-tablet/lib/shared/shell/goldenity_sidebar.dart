@@ -59,86 +59,95 @@ class GoldenitySidebar extends ConsumerWidget {
           const SizedBox(height: GoldenitySpacing.md),
           _buildBizModeSegmented(textTheme),
           const SizedBox(height: GoldenitySpacing.md),
-          _buildNavItem(
-            textTheme,
-            icon: Icons.storefront_rounded,
-            label: 'Point of Sale',
-            tab: GoldenitySidebarTab.pos,
-            onTap: onTabChanged != null
-                ? () => onTabChanged!(GoldenitySidebarTab.pos)
-                : null,
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildNavItem(
+                    textTheme,
+                    icon: Icons.storefront_rounded,
+                    label: 'Point of Sale',
+                    tab: GoldenitySidebarTab.pos,
+                    onTap: onTabChanged != null
+                        ? () => onTabChanged!(GoldenitySidebarTab.pos)
+                        : null,
+                  ),
+                  const SizedBox(height: GoldenitySpacing.xs),
+                  _buildNavItem(
+                    textTheme,
+                    icon: Icons.dashboard_rounded,
+                    label: 'Dashboard',
+                    tab: GoldenitySidebarTab.dashboard,
+                    onTap: onTabChanged != null
+                        ? () => onTabChanged!(GoldenitySidebarTab.dashboard)
+                        : null,
+                  ),
+                  const SizedBox(height: GoldenitySpacing.xs),
+                  _buildNavItem(
+                    textTheme,
+                    icon: Icons.receipt_long_rounded,
+                    label: 'Riwayat Penjualan',
+                    tab: GoldenitySidebarTab.salesHistory,
+                    onTap: onTabChanged != null
+                        ? () => onTabChanged!(GoldenitySidebarTab.salesHistory)
+                        : null,
+                  ),
+                  const SizedBox(height: GoldenitySpacing.xs),
+                  _buildNavItem(
+                    textTheme,
+                    icon: Icons.account_balance_wallet_rounded,
+                    label: 'Keuangan',
+                    tab: GoldenitySidebarTab.finance,
+                    onTap: onTabChanged != null
+                        ? () => onTabChanged!(GoldenitySidebarTab.finance)
+                        : null,
+                  ),
+                  const SizedBox(height: GoldenitySpacing.xs),
+                  _buildNavItem(
+                    textTheme,
+                    icon: Icons.inventory_2_rounded,
+                    label: 'Daftar Produk',
+                    tab: GoldenitySidebarTab.inventory,
+                    onTap: onTabChanged != null
+                        ? () => onTabChanged!(GoldenitySidebarTab.inventory)
+                        : null,
+                  ),
+                  const SizedBox(height: GoldenitySpacing.xs),
+                  _buildNavItem(
+                    textTheme,
+                    icon: Icons.label_rounded,
+                    label: 'Kategori Produk',
+                    tab: GoldenitySidebarTab.categories,
+                    onTap: onTabChanged != null
+                        ? () => onTabChanged!(GoldenitySidebarTab.categories)
+                        : null,
+                  ),
+                  const SizedBox(height: GoldenitySpacing.xs),
+                  _buildNavItem(
+                    textTheme,
+                    icon: Icons.settings_rounded,
+                    label: 'Pengaturan',
+                    tab: GoldenitySidebarTab.settings,
+                    onTap: onTabChanged != null
+                        ? () => onTabChanged!(GoldenitySidebarTab.settings)
+                        : null,
+                  ),
+                  const SizedBox(height: GoldenitySpacing.xs),
+                  _buildNavItem(
+                    textTheme,
+                    icon: Icons.receipt_long_rounded,
+                    label: 'Shift Kasir',
+                    tab: GoldenitySidebarTab.shift,
+                    onTap: onTabChanged != null
+                        ? () => onTabChanged!(GoldenitySidebarTab.shift)
+                        : null,
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: GoldenitySpacing.xs),
-          _buildNavItem(
-            textTheme,
-            icon: Icons.dashboard_rounded,
-            label: 'Dashboard',
-            tab: GoldenitySidebarTab.dashboard,
-            onTap: onTabChanged != null
-                ? () => onTabChanged!(GoldenitySidebarTab.dashboard)
-                : null,
-          ),
-          const SizedBox(height: GoldenitySpacing.xs),
-          _buildNavItem(
-            textTheme,
-            icon: Icons.receipt_long_rounded,
-            label: 'Riwayat Penjualan',
-            tab: GoldenitySidebarTab.salesHistory,
-            onTap: onTabChanged != null
-                ? () => onTabChanged!(GoldenitySidebarTab.salesHistory)
-                : null,
-          ),
-          const SizedBox(height: GoldenitySpacing.xs),
-          _buildNavItem(
-            textTheme,
-            icon: Icons.account_balance_wallet_rounded,
-            label: 'Keuangan',
-            tab: GoldenitySidebarTab.finance,
-            onTap: onTabChanged != null
-                ? () => onTabChanged!(GoldenitySidebarTab.finance)
-                : null,
-          ),
-          const SizedBox(height: GoldenitySpacing.xs),
-          _buildNavItem(
-            textTheme,
-            icon: Icons.inventory_2_rounded,
-            label: 'Daftar Produk',
-            tab: GoldenitySidebarTab.inventory,
-            onTap: onTabChanged != null
-                ? () => onTabChanged!(GoldenitySidebarTab.inventory)
-                : null,
-          ),
-          const SizedBox(height: GoldenitySpacing.xs),
-          _buildNavItem(
-            textTheme,
-            icon: Icons.label_rounded,
-            label: 'Kategori Produk',
-            tab: GoldenitySidebarTab.categories,
-            onTap: onTabChanged != null
-                ? () => onTabChanged!(GoldenitySidebarTab.categories)
-                : null,
-          ),
-          const SizedBox(height: GoldenitySpacing.xs),
-          _buildNavItem(
-            textTheme,
-            icon: Icons.settings_rounded,
-            label: 'Pengaturan',
-            tab: GoldenitySidebarTab.settings,
-            onTap: onTabChanged != null
-                ? () => onTabChanged!(GoldenitySidebarTab.settings)
-                : null,
-          ),
-          const SizedBox(height: GoldenitySpacing.xs),
-          _buildNavItem(
-            textTheme,
-            icon: Icons.receipt_long_rounded,
-            label: 'Shift Kasir',
-            tab: GoldenitySidebarTab.shift,
-            onTap: onTabChanged != null
-                ? () => onTabChanged!(GoldenitySidebarTab.shift)
-                : null,
-          ),
-          const Spacer(),
           _buildUserFooter(context, textTheme, ref, user, session),
           const SizedBox(height: GoldenitySpacing.md),
         ],

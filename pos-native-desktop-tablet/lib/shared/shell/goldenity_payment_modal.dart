@@ -22,6 +22,7 @@ import '../../../features/sales/models/cart_item.dart';
 import '../../../features/sales/providers/cart_provider.dart';
 import '../../../features/sales/screens/payment_success_screen.dart';
 import '../../../features/sales/utils/receipt_generator.dart';
+import '../widgets/goldenity_cash_tender_modal.dart';
 import '../widgets/goldenity_primary_button.dart';
 
 class GoldenityPaymentModal {
@@ -383,12 +384,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     final isCash = paymentMethod == kPaymentMethodCash;
     final isCard = paymentMethod == kPaymentMethodCreditCard;
     final isQris = paymentMethod == kPaymentMethodQris;
-
-    Future<void>.microtask(() {
-      if (mounted && ref.read(paidAmountProvider) == 0 && grandTotal > 0) {
-        ref.read(paidAmountProvider.notifier).state = grandTotal;
-      }
-    });
+    final refNumber = ref.watch(paymentReferenceNumberProvider);
 
     return Center(
       child: Container(
@@ -478,9 +474,19 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                       iconColor: GoldenityColors.success,
                       label: 'Tunai',
                       selected: isCash,
-                      onTap: () {
+                      onTap: () async {
                         ref.read(paymentMethodProvider.notifier).state = kPaymentMethodCash;
                         ref.read(paymentReferenceNumberProvider.notifier).state = null;
+                        final result = await GoldenityCashTenderModal.show(
+                          context,
+                          totalAmount: grandTotal.toDouble(),
+                          initialReceived: ref.read(paidAmountProvider) > 0
+                              ? ref.read(paidAmountProvider).toDouble()
+                              : grandTotal.toDouble(),
+                        );
+                        if (result != null && mounted) {
+                          ref.read(paidAmountProvider.notifier).state = result.received;
+                        }
                       },
                     ),
                   ),
@@ -501,6 +507,14 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                 ],
               ),
               const SizedBox(height: GoldenitySpacing.xl),
+              if (!isCash)
+                _ReferenceNumberInput(
+                  isQris: isQris,
+                  initialValue: refNumber ?? '',
+                  onChanged: (v) =>
+                      ref.read(paymentReferenceNumberProvider.notifier).state = v,
+                ),
+              if (!isCash) const SizedBox(height: GoldenitySpacing.xl),
               GoldenityPrimaryButton(
                 label: _isSubmitting ? 'Memproses...' : '✓ Proses Pembayaran',
                 icon: null,
@@ -575,6 +589,114 @@ class _PaymentMethodCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ReferenceNumberInput extends StatefulWidget {
+  const _ReferenceNumberInput({
+    required this.isQris,
+    required this.initialValue,
+    required this.onChanged,
+  });
+
+  final bool isQris;
+  final String initialValue;
+  final ValueChanged<String> onChanged;
+
+  @override
+  State<_ReferenceNumberInput> createState() => _ReferenceNumberInputState();
+}
+
+class _ReferenceNumberInputState extends State<_ReferenceNumberInput> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReferenceNumberInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialValue != widget.initialValue && _ctrl.text != widget.initialValue) {
+      _ctrl.text = widget.initialValue;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final label = widget.isQris ? 'Nomor Referensi QRIS' : 'Nomor Referensi Kartu Kredit';
+    final hint = widget.isQris
+        ? 'Trace number / kode transaksi QRIS'
+        : 'Nomor approval / trace ID transaksi kartu';
+    final icon = widget.isQris ? Icons.qr_code_2_rounded : Icons.credit_card_rounded;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: GoldenityColors.text2),
+            const SizedBox(width: GoldenitySpacing.xs),
+            Text(
+              label,
+              style: textTheme.labelSmall?.copyWith(
+                color: GoldenityColors.text,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+            Text(
+              ' *wajib',
+              style: textTheme.labelSmall?.copyWith(
+                color: GoldenityColors.error,
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: GoldenitySpacing.xs),
+        TextField(
+          controller: _ctrl,
+          onChanged: widget.onChanged,
+          textInputAction: TextInputAction.done,
+          style: textTheme.bodyMedium?.copyWith(
+            fontFamily: GoldenityTypography.fontFamilyMono,
+            fontWeight: FontWeight.w600,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: textTheme.bodyMedium?.copyWith(
+              color: GoldenityColors.text2,
+              fontWeight: FontWeight.w500,
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: GoldenitySpacing.md,
+              vertical: GoldenitySpacing.md,
+            ),
+            filled: true,
+            fillColor: GoldenityColors.surface2,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(GoldenityRadius.md),
+              borderSide: const BorderSide(color: GoldenityColors.border, width: 1),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(GoldenityRadius.md),
+              borderSide: const BorderSide(color: GoldenityColors.primary, width: 1.5),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

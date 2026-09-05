@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
+import '../../../core/design/goldenity_typography.dart';
 import '../../../core/models/product_profile.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../providers/product_list_provider.dart';
 import '../utils/variant_price_calculator.dart';
 import 'product_builder_screen.dart';
@@ -17,8 +19,78 @@ class ProductManagementListScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductManagementListScreenState extends ConsumerState<ProductManagementListScreen> {
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _onRefresh() async {
     await ref.read(productListNotifierProvider.notifier).load();
+  }
+
+  Future<void> _toggleActive(ProductProfile p) async {
+    try {
+      final auth = ref.read(authNotifierProvider.notifier).session;
+      final token = auth?.token;
+      if (token == null) return;
+      final api = ref.read(productApiServiceProvider);
+      final next = !p.isActive;
+      final payload = ProductProfile(
+        id: p.id,
+        tenantId: p.tenantId,
+        branchId: p.branchId,
+        clientReferenceId: p.clientReferenceId,
+        name: p.name,
+        category: p.category,
+        categoryId: p.categoryId,
+        price: p.price,
+        cost: p.cost,
+        sku: p.sku,
+        barcode: p.barcode,
+        stock: p.stock,
+        isActive: next,
+        imageUrl: p.imageUrl,
+        createdAt: p.createdAt,
+        updatedAt: DateTime.now(),
+        branch: p.branch,
+        description: p.description,
+        variants: p.variants,
+      );
+      await api.updateProduct(
+        authToken: token,
+        productId: p.id,
+        product: payload,
+      );
+      await ref.read(productListNotifierProvider.notifier).load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(next ? 'Produk diaktifkan' : 'Produk dinonaktifkan (diarsipkan)'),
+          backgroundColor: GoldenityColors.success,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Gagal update status: ${e.toString()}'),
+          backgroundColor: GoldenityColors.error,
+        ));
+      }
+    }
+  }
+
+  List<ProductProfile> _filter(List<ProductProfile> all) {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return all;
+    return all.where((p) {
+      if (p.name.toLowerCase().contains(q)) return true;
+      if ((p.sku ?? '').toLowerCase().contains(q)) return true;
+      if (p.category.toLowerCase().contains(q)) return true;
+      return false;
+    }).toList();
   }
 
   @override
@@ -28,6 +100,7 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
     final biz = theme.extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
     final state = ref.watch(productListNotifierProvider);
     final all = state.products;
+    final filtered = _filter(all);
     final totalActive = all.where((p) => p.isActive).length;
     final totalInactive = all.where((p) => !p.isActive).length;
 
@@ -44,7 +117,7 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
             Text('Inventaris', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 2),
             Text(
-              '$totalActive produk aktif · $totalInactive dinonaktifkan',
+              '$totalActive produk aktif · $totalInactive dinonaktifkan · ${filtered.length} tampil',
               style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
             ),
           ],
@@ -105,7 +178,51 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
                     ),
                   ),
                 )
-              : _buildList(context, textTheme, biz, all),
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        GoldenitySpacing.lg,
+                        GoldenitySpacing.md,
+                        GoldenitySpacing.lg,
+                        GoldenitySpacing.sm,
+                      ),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        onChanged: (v) => setState(() => _searchQuery = v),
+                        decoration: InputDecoration(
+                          hintText: 'Cari nama produk, SKU, atau kategori...',
+                          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                  icon: const Icon(Icons.close_rounded, size: 18),
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: GoldenitySpacing.md,
+                            vertical: GoldenitySpacing.md,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                            borderSide: const BorderSide(color: GoldenityColors.border, width: 1),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                            borderSide: BorderSide(color: biz.base, width: 1.5),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(child: _buildList(context, textTheme, biz, filtered)),
+                  ],
+                ),
     );
   }
 
@@ -119,10 +236,17 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
             children: [
               Icon(Icons.inventory_2_outlined, size: 64, color: biz.base.withValues(alpha: 0.6)),
               const SizedBox(height: GoldenitySpacing.md),
-              Text('Belum ada produk', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              Text(
+                _searchQuery.isEmpty ? 'Belum ada produk' : 'Tidak ada produk yang cocok',
+                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
               const SizedBox(height: GoldenitySpacing.xs),
-              Text('Tekan "Tambah Produk" di pojok kanan atas untuk mulai.',
-                  style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2)),
+              Text(
+                _searchQuery.isEmpty
+                    ? 'Tekan "Tambah Produk" di pojok kanan atas untuk mulai.'
+                    : 'Coba kata kunci lain atau hapus filter pencarian.',
+                style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+              ),
             ],
           ),
         ),
@@ -131,32 +255,55 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
     return RefreshIndicator(
       onRefresh: _onRefresh,
       color: biz.base,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(GoldenitySpacing.lg),
+      child: GridView.builder(
+        padding: const EdgeInsets.fromLTRB(
+          GoldenitySpacing.lg,
+          GoldenitySpacing.sm,
+          GoldenitySpacing.lg,
+          GoldenitySpacing.lg,
+        ),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 320,
+          mainAxisSpacing: GoldenitySpacing.md,
+          crossAxisSpacing: GoldenitySpacing.md,
+          childAspectRatio: 1.0 / 1.15,
+        ),
         itemCount: products.length,
-        separatorBuilder: (_, __) => const SizedBox(height: GoldenitySpacing.sm),
         itemBuilder: (context, i) {
           final p = products[i];
-          return _ProductRowCard(p: p, biz: biz, textTheme: textTheme);
+          return _ProductGridCard(
+            p: p,
+            biz: biz,
+            textTheme: textTheme,
+            onToggleActive: () => _toggleActive(p),
+          );
         },
       ),
     );
   }
 }
 
-class _ProductRowCard extends StatelessWidget {
+class _ProductGridCard extends StatelessWidget {
   final ProductProfile p;
   final GoldenityBizColors biz;
   final TextTheme textTheme;
+  final VoidCallback onToggleActive;
 
-  const _ProductRowCard({required this.p, required this.biz, required this.textTheme});
+  const _ProductGridCard({
+    required this.p,
+    required this.biz,
+    required this.textTheme,
+    required this.onToggleActive,
+  });
+
+  static const int kLowStockThreshold = 5;
 
   @override
   Widget build(BuildContext context) {
     final calc = VariantPriceCalculator.calculate(p);
     final stock = VariantPriceCalculator.effectiveStock(p);
     final stockZero = stock <= 0;
-    final stockLow = !stockZero && stock <= 3;
+    final stockLow = !stockZero && stock <= kLowStockThreshold;
 
     String priceDisplay;
     if (calc.hasVariants && calc.maxPrice != calc.minPrice) {
@@ -164,125 +311,258 @@ class _ProductRowCard extends StatelessWidget {
     } else {
       priceDisplay = VariantPriceCalculator.formatPrice(calc.minPrice);
     }
-
     final hasVariants = calc.hasVariants;
     final groupCount = calc.groupCount;
 
     final stockBadgeBg = stockZero
-        ? GoldenityColors.error.withValues(alpha: 0.15)
+        ? GoldenityColors.errorLight
         : stockLow
-            ? GoldenityColors.error.withValues(alpha: 0.12)
+            ? GoldenityColors.warningLight
             : biz.base.withValues(alpha: 0.12);
-    final stockBadgeFg = stockZero || stockLow ? GoldenityColors.error : biz.dark;
+    final stockBadgeFg = stockZero
+        ? GoldenityColors.error
+        : stockLow
+            ? GoldenityColors.warning
+            : biz.dark;
     final stockText = stockZero
         ? 'HABIS'
         : calc.totalTrackedStock != null
-            ? 'Stok: $stock (varian)'
+            ? 'Stok: $stock'
             : 'Stok: $stock';
 
-    final variantBadgeBg = biz.light;
-    final variantBadgeFg = biz.dark;
+    final inactive = !p.isActive;
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
-        border: Border.all(color: GoldenityColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
-      ),
-      padding: const EdgeInsets.all(GoldenitySpacing.md),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: biz.light,
-              borderRadius: BorderRadius.circular(GoldenityRadius.md),
-            ),
-            child: Icon(Icons.inventory_2_rounded, color: biz.dark, size: 28),
+        color: GoldenityColors.surface,
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+        border: Border.all(color: inactive ? GoldenityColors.border2 : GoldenityColors.border),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0F1A1A1A),
+            blurRadius: 3,
+            spreadRadius: 0,
+            offset: Offset(0, 1),
           ),
-          const SizedBox(width: GoldenitySpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Opacity(
+        opacity: inactive ? 0.7 : 1.0,
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(p.name, style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700), maxLines: 1, overflow: TextOverflow.ellipsis),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    GoldenitySpacing.md,
+                    GoldenitySpacing.md,
+                    GoldenitySpacing.md,
+                    GoldenitySpacing.sm,
+                  ),
+                  child: Container(
+                    height: 100,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: GoldenityColors.surface2,
+                      borderRadius: BorderRadius.circular(GoldenityRadius.md),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: (p.isActive ? biz.base : GoldenityColors.text2).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                      ),
-                      child: Text(
-                        p.isActive ? 'Aktif' : 'Nonaktif',
-                        style: textTheme.labelSmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: p.isActive ? biz.dark : GoldenityColors.text2,
+                    child: Icon(Icons.inventory_2_rounded, size: 48, color: biz.dark),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        p.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: inactive ? GoldenityColors.muted : GoldenityColors.text,
+                          height: 1.2,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  [
-                    if (p.sku?.isNotEmpty == true) 'SKU ${p.sku}',
-                    if (p.category.isNotEmpty) p.category,
-                  ].whereType<String>().join(' · '),
-                  style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
-                ),
-                const SizedBox(height: GoldenitySpacing.sm),
-                Wrap(
-                  spacing: GoldenitySpacing.sm,
-                  runSpacing: GoldenitySpacing.xs,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      priceDisplay,
-                      style: textTheme.titleSmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w900, fontFamily: 'RobotoMono'),
-                    ),
-                    if (hasVariants)
+                      const SizedBox(height: 4),
+                      Text(
+                        [
+                          if (p.category.isNotEmpty) p.category,
+                          if (p.sku?.isNotEmpty == true) 'SKU ${p.sku}',
+                          if (hasVariants) '$groupCount varian',
+                        ].whereType<String>().join(' · '),
+                        style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontSize: 11),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: GoldenitySpacing.xs),
+                      Text(
+                        priceDisplay,
+                        style: textTheme.titleSmall?.copyWith(
+                          color: biz.dark,
+                          fontWeight: FontWeight.w900,
+                          fontFamily: GoldenityTypography.fontFamilyMono,
+                        ),
+                      ),
+                      const SizedBox(height: GoldenitySpacing.xs),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(color: variantBadgeBg, borderRadius: BorderRadius.circular(GoldenityRadius.sm)),
+                        decoration: BoxDecoration(
+                          color: stockBadgeBg,
+                          borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                        ),
                         child: Text(
-                          '$groupCount grup varian',
-                          style: textTheme.labelSmall?.copyWith(color: variantBadgeFg, fontWeight: FontWeight.w800),
+                          stockText,
+                          style: textTheme.labelSmall?.copyWith(
+                            color: stockBadgeFg,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 10,
+                          ),
                         ),
                       ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: stockBadgeBg, borderRadius: BorderRadius.circular(GoldenityRadius.sm)),
-                      child: Text(
-                        stockText,
-                        style: textTheme.labelSmall?.copyWith(color: stockBadgeFg, fontWeight: FontWeight.w800),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                const Divider(height: 1, color: GoldenityColors.border),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: GoldenitySpacing.sm,
+                    vertical: GoldenitySpacing.xs,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Tooltip(
+                          message: p.isActive ? 'Nonaktifkan (arsipkan)' : 'Aktifkan kembali',
+                          child: SwitchListTile.adaptive(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            value: p.isActive,
+                            onChanged: (_) => onToggleActive(),
+                            title: Text(
+                              p.isActive ? 'Aktif' : 'Arsip',
+                              style: textTheme.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: p.isActive ? biz.dark : GoldenityColors.text2,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: GoldenitySpacing.xs),
+                      SizedBox(
+                        height: 34,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => ProductBuilderScreen.edit(productId: p.id),
+                              ),
+                            );
+                          },
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                            ),
+                          ),
+                          icon: const Icon(Icons.edit_rounded, size: 15),
+                          label: Text(
+                            'Edit',
+                            style: textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: GoldenitySpacing.xs),
+                      SizedBox(
+                        height: 34,
+                        child: IconButton.filledTonal(
+                          onPressed: p.isActive ? onToggleActive : null,
+                          style: IconButton.styleFrom(
+                            backgroundColor: p.isActive
+                                ? GoldenityColors.errorLight
+                                : GoldenityColors.surface2,
+                            foregroundColor: p.isActive ? GoldenityColors.error : GoldenityColors.disabled,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                            ),
+                          ),
+                          tooltip: p.isActive ? 'Arsipkan Produk' : 'Produk sudah diarsipkan',
+                          icon: const Icon(Icons.archive_outlined, size: 17),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: GoldenitySpacing.md),
-          OutlinedButton.icon(
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(builder: (_) => ProductBuilderScreen.edit(productId: p.id)));
-            },
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md, vertical: GoldenitySpacing.sm),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+            Positioned(
+              top: GoldenitySpacing.md,
+              right: GoldenitySpacing.md,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (p.isActive ? biz.base : GoldenityColors.text2).withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                ),
+                child: Text(
+                  p.isActive ? 'AKTIF' : 'ARSIP',
+                  style: textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 10,
+                    color: p.isActive ? biz.dark : GoldenityColors.text2,
+                  ),
+                ),
+              ),
             ),
-            icon: const Icon(Icons.edit_rounded, size: 16),
-            label: Text('Edit', style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
-          ),
-        ],
+            if (stockZero)
+              Positioned(
+                top: GoldenitySpacing.md,
+                left: GoldenitySpacing.md,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: GoldenityColors.errorLight,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                    border: Border.all(color: GoldenityColors.error.withValues(alpha: 0.35), width: 1),
+                  ),
+                  child: Text(
+                    'HABIS',
+                    style: textTheme.labelSmall?.copyWith(
+                      color: GoldenityColors.error,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              )
+            else if (stockLow)
+              Positioned(
+                top: GoldenitySpacing.md,
+                left: GoldenitySpacing.md,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: GoldenityColors.warningLight,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                    border: Border.all(color: GoldenityColors.warning.withValues(alpha: 0.3), width: 1),
+                  ),
+                  child: Text(
+                    'LOW',
+                    style: textTheme.labelSmall?.copyWith(
+                      color: GoldenityColors.warning,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -71,12 +71,6 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
 
     Future<void>.microtask(() => cartNotifier.ensureTaxConfigCached());
 
-    Future<void>.microtask(() {
-      if (mounted && ref.read(paidAmountProvider) == 0 && grandTotal > 0) {
-        ref.read(paidAmountProvider.notifier).state = grandTotal;
-      }
-    });
-
     return Container(
       width: GoldenityCartPanel.kWidth,
       decoration: const BoxDecoration(

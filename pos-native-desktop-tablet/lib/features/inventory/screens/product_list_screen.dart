@@ -505,7 +505,7 @@ class _ProductGridView extends ConsumerWidget {
               maxCrossAxisExtent: 240,
               mainAxisSpacing: GoldenitySpacing.md,
               crossAxisSpacing: GoldenitySpacing.md,
-              childAspectRatio: 0.86,
+              childAspectRatio: 1.1,
             ),
             delegate: SliverChildBuilderDelegate(
               (ctx, i) => _ProductCard(
@@ -573,103 +573,113 @@ class _ProductCard extends ConsumerWidget {
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
-                  child: Container(
-                    width: 48,
-                    height: 48,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: GoldenityColors.surface2,
-                      borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                    ),
-                    child: const Icon(
-                      Icons.restaurant_menu_rounded,
-                      size: 28,
-                      color: GoldenityColors.text2,
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        product.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: inactive ? GoldenityColors.muted : GoldenityColors.text,
+            Opacity(
+              opacity: outOfStock
+                  ? 0.55
+                  : inactive
+                      ? 0.7
+                      : 1.0,
+              child: AbsorbPointer(
+                absorbing: outOfStock || inactive,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
+                      child: Container(
+                        width: 48,
+                        height: 48,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: GoldenityColors.surface2,
+                          borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                        ),
+                        child: const Icon(
+                          Icons.restaurant_menu_rounded,
+                          size: 28,
+                          color: GoldenityColors.text2,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        currencyFormatter.format(product.price),
-                        style: textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: GoldenityColors.primary,
-                        ),
-                      ),
-                      const SizedBox(height: GoldenitySpacing.sm),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildStepperBtn(
-                            icon: Icons.remove,
-                            enabled: canAdd && qty > 0,
-                            filled: false,
-                            onTap: canAdd && qty > 0
-                                ? () => cartNotifier.updateQuantity(product.id, qty - 1)
-                                : null,
+                          Text(
+                            product.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: inactive ? GoldenityColors.muted : GoldenityColors.text,
+                            ),
                           ),
-                          Expanded(
-                            child: Center(
+                          const SizedBox(height: 2),
+                          Text(
+                            currencyFormatter.format(product.price),
+                            style: textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: GoldenityColors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: GoldenitySpacing.sm),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              _buildStepperBtn(
+                                icon: Icons.remove,
+                                enabled: canAdd && qty > 0,
+                                filled: false,
+                                onTap: canAdd && qty > 0
+                                    ? () => cartNotifier.updateQuantity(product.id, qty - 1)
+                                    : null,
+                              ),
+                              Expanded(
+                                child: Center(
+                                  child: Text(
+                                    '$qty',
+                                    style: textTheme.labelMedium?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      color: GoldenityColors.text,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              _buildStepperBtn(
+                                icon: Icons.add,
+                                enabled: canAdd,
+                                filled: true,
+                                onTap: canAdd ? () => cartNotifier.addToCart(product) : null,
+                              ),
+                            ],
+                          ),
+                          if (!canAdd) ...[
+                            const SizedBox(height: GoldenitySpacing.sm),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              decoration: BoxDecoration(
+                                color: outOfStock ? GoldenityColors.errorLight : GoldenityColors.surface2,
+                                borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                              ),
+                              alignment: Alignment.center,
                               child: Text(
-                                '$qty',
-                                style: textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: GoldenityColors.text,
+                                inactive ? 'Tidak Aktif' : (outOfStock ? 'Stok Habis' : 'Stok ${product.stock}'),
+                                style: textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: outOfStock ? GoldenityColors.error : GoldenityColors.text2,
                                 ),
                               ),
                             ),
-                          ),
-                          _buildStepperBtn(
-                            icon: Icons.add,
-                            enabled: canAdd,
-                            filled: true,
-                            onTap: canAdd ? () => cartNotifier.addToCart(product) : null,
-                          ),
+                          ],
                         ],
                       ),
-                      if (!canAdd) ...[
-                        const SizedBox(height: GoldenitySpacing.sm),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          decoration: BoxDecoration(
-                            color: outOfStock ? GoldenityColors.errorLight : GoldenityColors.surface2,
-                            borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            inactive ? 'Tidak Aktif' : (outOfStock ? 'Stok Habis' : 'Stok ${product.stock}'),
-                            style: textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: outOfStock ? GoldenityColors.error : GoldenityColors.text2,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
             if (lowStock)
               Positioned(
@@ -680,12 +690,35 @@ class _ProductCard extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: GoldenityColors.warningLight,
                     borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                    border: Border.all(color: GoldenityColors.warning.withValues(alpha: 0.3), width: 1),
                   ),
                   child: Text(
                     'LOW',
                     style: textTheme.labelSmall?.copyWith(
                       color: GoldenityColors.warning,
                       fontWeight: FontWeight.w800,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+              ),
+            if (outOfStock)
+              Positioned(
+                top: GoldenitySpacing.sm,
+                right: GoldenitySpacing.sm,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: GoldenityColors.errorLight,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                    border: Border.all(color: GoldenityColors.error.withValues(alpha: 0.35), width: 1),
+                  ),
+                  child: Text(
+                    'HABIS',
+                    style: textTheme.labelSmall?.copyWith(
+                      color: GoldenityColors.error,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 10,
                     ),
                   ),
                 ),

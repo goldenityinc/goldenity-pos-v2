@@ -124,6 +124,7 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
   final _nameCtrl = TextEditingController();
   final _skuCtrl = TextEditingController();
   final _priceCtrl = TextEditingController();
+  final _stockCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   bool _isActive = true;
   CategoryProfile? _selectedCategory;
@@ -169,6 +170,7 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
           _nameCtrl.text = ex.name;
           _skuCtrl.text = ex.sku ?? '';
           _priceCtrl.text = ex.price.toInt().toString();
+          _stockCtrl.text = ex.stock.toInt().toString();
           _descCtrl.text = ex.description ?? '';
           final exNonNull = ex;
           final cats = ref.read(productListNotifierProvider).categories;
@@ -271,6 +273,7 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
     _nameCtrl.dispose();
     _skuCtrl.dispose();
     _priceCtrl.dispose();
+    _stockCtrl.dispose();
     _descCtrl.dispose();
     _newCategoryNameCtrl.dispose();
     for (final g in _groups) {
@@ -330,6 +333,9 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
       }
     }
     if (anyTracked) return trackedSum.toInt();
+    final stockTxt = _stockCtrl.text.replaceAll(RegExp(r'[^0-9\-]'), '');
+    final parsed = num.tryParse(stockTxt);
+    if (parsed != null && parsed >= 0) return parsed.toInt();
     if (!widget.isCreate && _existing != null) {
       return _existing!.stock;
     }
@@ -786,6 +792,29 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: GoldenitySpacing.sm),
+          TextFormField(
+            controller: _stockCtrl,
+            decoration: InputDecoration(
+              labelText: 'Stok Produk',
+              prefixIcon: const Icon(Icons.inventory_2_rounded, size: 18),
+              suffixText: 'unit',
+              hintText: '0',
+              helperText: _groups.isEmpty
+                  ? 'Jumlah stok produk saat ini.'
+                  : 'Stok global: Nilai ini AKAN DI-OVERRIDE dengan jumlah total stok varian yang dilacak.',
+              helperMaxLines: 2,
+            ),
+            keyboardType: TextInputType.number,
+            validator: (v) {
+              if (_groups.isNotEmpty) return null;
+              final cleaned = (v ?? '').replaceAll(RegExp(r'[^0-9\-]'), '');
+              final n = num.tryParse(cleaned);
+              if (n == null || n < 0) return 'Stok tidak valid (minimal 0)';
+              return null;
+            },
+            onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: GoldenitySpacing.sm),
           Row(
