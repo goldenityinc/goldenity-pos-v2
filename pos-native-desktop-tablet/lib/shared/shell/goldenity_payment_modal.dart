@@ -22,7 +22,6 @@ import '../../../features/sales/models/cart_item.dart';
 import '../../../features/sales/providers/cart_provider.dart';
 import '../../../features/sales/screens/payment_success_screen.dart';
 import '../../../features/sales/utils/receipt_generator.dart';
-import '../widgets/goldenity_cash_tender_modal.dart';
 import '../widgets/goldenity_primary_button.dart';
 
 class GoldenityPaymentModal {
@@ -71,6 +70,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     symbol: 'Rp ',
     decimalDigits: 0,
   );
+  final TextEditingController _tunaiNominalCtrl = TextEditingController();
   final Uuid _uuid = const Uuid();
 
   static String _paymentMethodLabel(String method) {
@@ -190,6 +190,24 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     }
   }
 
+  @override
+  void dispose() {
+    _tunaiNominalCtrl.dispose();
+    super.dispose();
+  }
+
+  void _syncTunaiCtrlFromPaid(num paid) {
+    final formatted = _currencyFormatter.format(paid);
+    if (_tunaiNominalCtrl.text != formatted) {
+      _tunaiNominalCtrl.text = formatted;
+    }
+  }
+
+  num _parseTunaiNominal(String raw) {
+    final cleaned = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    return num.tryParse(cleaned) ?? 0;
+  }
+
   Future<void> _submitSale() async {
     final session = ref.read(currentSessionProvider);
     final cart = ref.read(cartNotifierProvider);
@@ -201,17 +219,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     final refRaw = ref.read(paymentReferenceNumberProvider);
     final refClean = (refRaw ?? '').trim();
     final grandTotal = ref.read(cartGrandTotalProvider);
-    num paid = ref.read(paidAmountProvider);
-    if (paymentMethod == kPaymentMethodCash && paid < grandTotal) {
-      final result = await GoldenityCashTenderModal.show(
-        context,
-        totalAmount: grandTotal.toDouble(),
-        initialReceived: paid > 0 ? paid.toDouble() : grandTotal.toDouble(),
-      );
-      if (result == null || !mounted) return;
-      paid = result.received;
-      ref.read(paidAmountProvider.notifier).state = result.received;
-    }
+    final paid = ref.read(paidAmountProvider);
     if (paymentMethod != kPaymentMethodCash && refClean.isEmpty) {
       final msg = paymentMethod == kPaymentMethodQris
           ? 'Nomor referensi QRIS WAJIB diisi (trace number / kode transaksi QRIS).'
@@ -384,76 +392,6 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     );
   }
 
-  Widget _buildCashSummary(BuildContext context, TextTheme textTheme, WidgetRef ref) {
-    final grandTotal = ref.watch(cartGrandTotalProvider);
-    final paid = ref.watch(paidAmountProvider);
-    final change = (paid > grandTotal) ? (paid - grandTotal) : 0;
-    final insufficient = paid < grandTotal;
-    return Material(
-      color: insufficient ? GoldenityColors.errorLight : GoldenityColors.successLight,
-      borderRadius: BorderRadius.circular(GoldenityRadius.md),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () async {
-          final result = await GoldenityCashTenderModal.show(
-            context,
-            totalAmount: grandTotal.toDouble(),
-            initialReceived: paid > 0 ? paid.toDouble() : grandTotal.toDouble(),
-          );
-          if (result != null && mounted) {
-            ref.read(paidAmountProvider.notifier).state = result.received;
-          }
-        },
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm, GoldenitySpacing.md),
-          child: Row(
-            children: [
-              Icon(
-                insufficient ? Icons.warning_amber_rounded : Icons.attach_money_rounded,
-                color: insufficient ? GoldenityColors.error : GoldenityColors.success,
-                size: 22,
-              ),
-              const SizedBox(width: GoldenitySpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      paid <= 0
-                          ? 'Klik untuk input nominal uang diterima'
-                          : insufficient
-                              ? 'Belum cukup. Klik untuk perbaiki nominal'
-                              : 'Tap untuk ubah nominal',
-                      style: textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: insufficient ? GoldenityColors.error : GoldenityColors.success,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Nominal Diterima: ${_currencyFormatter.format(paid)}${change > 0 ? ' · Kembalian: ${_currencyFormatter.format(change)}' : ''}',
-                      style: textTheme.bodySmall?.copyWith(
-                        fontFamily: GoldenityTypography.fontFamilyMono,
-                        color: GoldenityColors.text,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: GoldenitySpacing.xs),
-              Icon(
-                Icons.touch_app_rounded,
-                size: 18,
-                color: insufficient ? GoldenityColors.error : GoldenityColors.success,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -465,10 +403,17 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     final isCard = paymentMethod == kPaymentMethodCreditCard;
     final isQris = paymentMethod == kPaymentMethodQris;
     final refNumber = ref.watch(paymentReferenceNumberProvider);
+    final cart = ref.watch(cartNotifierProvider);
+    final subtotal = ref.watch(cartSubtotalProvider);
+    final discount = ref.watch(cartDiscountAmountProvider);
+    final tax = ref.watch(cartTaxAmountProvider);
+    final serviceCharge = ref.watch(cartServiceChargeAmountProvider);
+    final paid = ref.watch(paidAmountProvider);
+    final change = ref.watch(changeAmountProvider);
 
     return Center(
       child: Container(
-        width: 440,
+        width: 880,
         margin: const EdgeInsets.all(GoldenitySpacing.xl),
         decoration: BoxDecoration(
           color: GoldenityColors.surface,
@@ -496,7 +441,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                       'Konfirmasi Pembayaran',
                       style: textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w700,
-                        fontSize: 16,
+                        fontSize: 18,
                       ),
                     ),
                   ),
@@ -504,16 +449,16 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     padding: EdgeInsets.zero,
                     onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, size: 18),
+                    icon: const Icon(Icons.close_rounded, size: 20),
                     tooltip: 'Batal',
                   ),
                 ],
               ),
               const SizedBox(height: GoldenitySpacing.md),
               Text(
-                'Total',
+                'Total Tagihan',
                 textAlign: TextAlign.center,
-                style: textTheme.bodySmall?.copyWith(
+                style: textTheme.bodyMedium?.copyWith(
                   color: GoldenityColors.text2,
                   fontWeight: FontWeight.w600,
                 ),
@@ -524,7 +469,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                 textAlign: TextAlign.center,
                 style: textTheme.displaySmall?.copyWith(
                   fontWeight: FontWeight.w800,
-                  fontSize: 32,
+                  fontSize: 36,
                   letterSpacing: -1,
                   fontFamily: GoldenityTypography.fontFamilyMono,
                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -532,74 +477,510 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
               ),
               const SizedBox(height: GoldenitySpacing.xl),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: _PaymentMethodCard(
-                      icon: Icons.credit_card_outlined,
-                      iconBg: GoldenityColors.primaryLight,
-                      iconColor: GoldenityColors.primary,
-                      label: 'Kartu',
-                      selected: isCard,
-                      onTap: () {
-                        ref.read(paymentMethodProvider.notifier).state = kPaymentMethodCreditCard;
-                        ref.read(paymentReferenceNumberProvider.notifier).state = null;
-                      },
+                    flex: 5,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: GoldenityColors.surface2,
+                        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+                        border: Border.all(color: GoldenityColors.border),
+                      ),
+                      padding: const EdgeInsets.all(GoldenitySpacing.lg),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                flex: 4,
+                                child: Text(
+                                  'ITEM',
+                                  style: textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: GoldenityColors.text2,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 48,
+                                child: Text(
+                                  'QTY',
+                                  textAlign: TextAlign.center,
+                                  style: textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: GoldenityColors.text2,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(
+                                width: 104,
+                                child: Text(
+                                  'SUBTOTAL',
+                                  textAlign: TextAlign.right,
+                                  style: textTheme.labelSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: GoldenityColors.text2,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: GoldenitySpacing.sm),
+                          Divider(color: GoldenityColors.border, thickness: 1.2, height: 1),
+                          const SizedBox(height: GoldenitySpacing.sm),
+                          if (cart.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+                              child: Text(
+                                '(Keranjang kosong)',
+                                textAlign: TextAlign.center,
+                                style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                              ),
+                            ),
+                          if (cart.isNotEmpty)
+                            ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: cart.length,
+                              separatorBuilder: (_, __) =>
+                                  Divider(color: GoldenityColors.border, height: 1, thickness: 0.5),
+                              itemBuilder: (_, i) {
+                                final item = cart[i]!;
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.sm),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        flex: 4,
+                                        child: Text(
+                                          item.product.name,
+                                          style: textTheme.bodyMedium?.copyWith(
+                                            fontWeight: FontWeight.w500,
+                                            color: GoldenityColors.text,
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 48,
+                                        child: Text(
+                                          'x${item.quantity}',
+                                          textAlign: TextAlign.center,
+                                          style: textTheme.bodyMedium?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            fontFamily: GoldenityTypography.fontFamilyMono,
+                                            color: GoldenityColors.text2,
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 104,
+                                        child: Text(
+                                          _currencyFormatter.format(item.lineSubtotal),
+                                          textAlign: TextAlign.right,
+                                          style: textTheme.bodyMedium?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            fontFamily: GoldenityTypography.fontFamilyMono,
+                                            fontFeatures: const [FontFeature.tabularFigures()],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          if (cart.isNotEmpty) const SizedBox(height: GoldenitySpacing.sm),
+                          Divider(color: GoldenityColors.border, thickness: 1, height: 1),
+                          const SizedBox(height: GoldenitySpacing.md),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Subtotal',
+                                style: textTheme.bodyMedium?.copyWith(color: GoldenityColors.text2),
+                              ),
+                              Text(
+                                _currencyFormatter.format(subtotal),
+                                style: textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  fontFamily: GoldenityTypography.fontFamilyMono,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (discount > 0) ...[
+                            const SizedBox(height: GoldenitySpacing.xs),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Diskon',
+                                  style: textTheme.bodyMedium?.copyWith(color: GoldenityColors.text2),
+                                ),
+                                Text(
+                                  '- ${_currencyFormatter.format(discount)}',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontFamily: GoldenityTypography.fontFamilyMono,
+                                    color: GoldenityColors.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (tax > 0) ...[
+                            const SizedBox(height: GoldenitySpacing.xs),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Pajak',
+                                  style: textTheme.bodyMedium?.copyWith(color: GoldenityColors.text2),
+                                ),
+                                Text(
+                                  '+ ${_currencyFormatter.format(tax)}',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontFamily: GoldenityTypography.fontFamilyMono,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (serviceCharge > 0) ...[
+                            const SizedBox(height: GoldenitySpacing.xs),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Service Charge',
+                                  style: textTheme.bodyMedium?.copyWith(color: GoldenityColors.text2),
+                                ),
+                                Text(
+                                  '+ ${_currencyFormatter.format(serviceCharge)}',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    fontFamily: GoldenityTypography.fontFamilyMono,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                          const SizedBox(height: GoldenitySpacing.md),
+                          Divider(color: GoldenityColors.border, thickness: 1.5, height: 1),
+                          const SizedBox(height: GoldenitySpacing.md),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'TOTAL',
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              Text(
+                                _currencyFormatter.format(grandTotal),
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: GoldenityTypography.fontFamilyMono,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  const SizedBox(width: GoldenitySpacing.sm),
+                  const SizedBox(width: GoldenitySpacing.lg),
                   Expanded(
-                    child: _PaymentMethodCard(
-                      icon: Icons.money_outlined,
-                      iconBg: GoldenityColors.successLight,
-                      iconColor: GoldenityColors.success,
-                      label: 'Tunai',
-                      selected: isCash,
-                      onTap: () async {
-                        ref.read(paymentMethodProvider.notifier).state = kPaymentMethodCash;
-                        ref.read(paymentReferenceNumberProvider.notifier).state = null;
-                        final result = await GoldenityCashTenderModal.show(
-                          context,
-                          totalAmount: grandTotal.toDouble(),
-                          initialReceived: ref.read(paidAmountProvider) > 0
-                              ? ref.read(paidAmountProvider).toDouble()
-                              : grandTotal.toDouble(),
-                        );
-                        if (result != null && mounted) {
-                          ref.read(paidAmountProvider.notifier).state = result.received;
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: GoldenitySpacing.sm),
-                  Expanded(
-                    child: _PaymentMethodCard(
-                      icon: Icons.qr_code_2_outlined,
-                      iconBg: const Color(0xFFF5F3FF),
-                      iconColor: const Color(0xFF7C3AED),
-                      label: 'QRIS',
-                      selected: isQris,
-                      onTap: () {
-                        ref.read(paymentMethodProvider.notifier).state = kPaymentMethodQris;
-                        ref.read(paymentReferenceNumberProvider.notifier).state = null;
-                      },
+                    flex: 4,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _PaymentMethodCard(
+                                icon: Icons.credit_card_outlined,
+                                iconBg: GoldenityColors.primaryLight,
+                                iconColor: GoldenityColors.primary,
+                                label: 'Kartu',
+                                selected: isCard,
+                                onTap: () {
+                                  ref.read(paymentMethodProvider.notifier).state = kPaymentMethodCreditCard;
+                                  ref.read(paymentReferenceNumberProvider.notifier).state = null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: GoldenitySpacing.sm),
+                            Expanded(
+                              child: _PaymentMethodCard(
+                                icon: Icons.money_outlined,
+                                iconBg: GoldenityColors.successLight,
+                                iconColor: GoldenityColors.success,
+                                label: 'Tunai',
+                                selected: isCash,
+                                onTap: () {
+                                  ref.read(paymentMethodProvider.notifier).state = kPaymentMethodCash;
+                                  ref.read(paymentReferenceNumberProvider.notifier).state = null;
+                                  final current = ref.read(paidAmountProvider);
+                                  final initial = current > 0 ? current : grandTotal;
+                                  ref.read(paidAmountProvider.notifier).state = initial;
+                                  _syncTunaiCtrlFromPaid(initial);
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: GoldenitySpacing.sm),
+                            Expanded(
+                              child: _PaymentMethodCard(
+                                icon: Icons.qr_code_2_outlined,
+                                iconBg: const Color(0xFFF5F3FF),
+                                iconColor: const Color(0xFF7C3AED),
+                                label: 'QRIS',
+                                selected: isQris,
+                                onTap: () {
+                                  ref.read(paymentMethodProvider.notifier).state = kPaymentMethodQris;
+                                  ref.read(paymentReferenceNumberProvider.notifier).state = null;
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: GoldenitySpacing.xl),
+                        if (isCash) ...[
+                          Container(
+                            decoration: BoxDecoration(
+                              color: GoldenityColors.surface2,
+                              borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+                              border: Border.all(color: GoldenityColors.border),
+                            ),
+                            padding: const EdgeInsets.all(GoldenitySpacing.lg),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Total Tagihan',
+                                      style: textTheme.bodyMedium?.copyWith(
+                                        color: GoldenityColors.text2,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      _currencyFormatter.format(grandTotal),
+                                      style: textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        fontFamily: GoldenityTypography.fontFamilyMono,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: GoldenitySpacing.md),
+                                TextFormField(
+                                  controller: _tunaiNominalCtrl,
+                                  keyboardType: TextInputType.number,
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: GoldenityTypography.fontFamilyMono,
+                                    fontFeatures: const [FontFeature.tabularFigures()],
+                                  ),
+                                  onChanged: (v) {
+                                    final val = _parseTunaiNominal(v);
+                                    ref.read(paidAmountProvider.notifier).state = val;
+                                  },
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: GoldenitySpacing.md,
+                                      vertical: GoldenitySpacing.md,
+                                    ),
+                                    prefixIcon: Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.payments_outlined, size: 18, color: GoldenityColors.primary),
+                                          const SizedBox(width: GoldenitySpacing.xs),
+                                          Text(
+                                            'Rp ',
+                                            style: textTheme.titleMedium?.copyWith(
+                                              fontWeight: FontWeight.w700,
+                                              color: GoldenityColors.primary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+                                      borderSide: BorderSide(color: GoldenityColors.border),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+                                      borderSide: BorderSide(color: GoldenityColors.border),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+                                      borderSide: BorderSide(color: GoldenityColors.primary, width: 1.5),
+                                    ),
+                                    filled: true,
+                                    fillColor: GoldenityColors.surface,
+                                    hintText: 'Masukkan nominal uang diterima',
+                                    hintStyle: textTheme.bodyMedium?.copyWith(color: GoldenityColors.muted),
+                                  ),
+                                ),
+                                const SizedBox(height: GoldenitySpacing.md),
+                                Wrap(
+                                  spacing: GoldenitySpacing.sm,
+                                  runSpacing: GoldenitySpacing.sm,
+                                  children: [
+                                    _buildQuickAmountChip(context, 50000, 'Rp 50.000'),
+                                    _buildQuickAmountChip(context, 100000, 'Rp 100.000'),
+                                    _buildQuickAmountChip(context, 200000, 'Rp 200.000'),
+                                    _buildQuickAmountChip(context, 500000, 'Rp 500.000'),
+                                    _buildExactChip(context, grandTotal),
+                                  ],
+                                ),
+                                if (change > 0) ...[
+                                  const SizedBox(height: GoldenitySpacing.md),
+                                  Container(
+                                    padding: const EdgeInsets.all(GoldenitySpacing.md),
+                                    decoration: BoxDecoration(
+                                      color: GoldenityColors.successLight,
+                                      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+                                      border: Border.all(color: GoldenityColors.success.withOpacity(0.3)),
+                                    ),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          'Kembalian',
+                                          style: textTheme.bodyMedium?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                            color: GoldenityColors.success,
+                                          ),
+                                        ),
+                                        Text(
+                                          _currencyFormatter.format(change),
+                                          style: textTheme.titleSmall?.copyWith(
+                                            fontWeight: FontWeight.w800,
+                                            color: GoldenityColors.success,
+                                            fontFamily: GoldenityTypography.fontFamilyMono,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                if (paid > 0 && paid < grandTotal) ...[
+                                  const SizedBox(height: GoldenitySpacing.md),
+                                  Container(
+                                    padding: const EdgeInsets.all(GoldenitySpacing.md),
+                                    decoration: BoxDecoration(
+                                      color: GoldenityColors.errorLight,
+                                      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+                                      border: Border.all(color: GoldenityColors.error.withOpacity(0.3)),
+                                    ),
+                                    child: Text(
+                                      '⚠️  Kurang: ${_currencyFormatter.format(grandTotal - paid)}',
+                                      style: textTheme.bodyMedium?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        color: GoldenityColors.error,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (!isCash) ...[
+                          _ReferenceNumberInput(
+                            isQris: isQris,
+                            initialValue: refNumber ?? '',
+                            onChanged: (v) =>
+                                ref.read(paymentReferenceNumberProvider.notifier).state = v,
+                          ),
+                        ],
+                        if (isQris) ...[
+                          const SizedBox(height: GoldenitySpacing.md),
+                          Container(
+                            width: double.infinity,
+                            height: 260,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+                              border: Border.all(color: GoldenityColors.border, width: 1.5),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0x1A0F172A),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.qr_code_2_rounded, size: 96, color: const Color(0xFF7C3AED)),
+                                const SizedBox(height: GoldenitySpacing.sm),
+                                Text(
+                                  'Scan QRIS Static',
+                                  style: textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: GoldenitySpacing.xs),
+                                Text(
+                                  'Transfer sesuai jumlah tagihan',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: GoldenityColors.text2,
+                                  ),
+                                ),
+                                const SizedBox(height: GoldenitySpacing.xs),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: GoldenitySpacing.md,
+                                    vertical: GoldenitySpacing.xs,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: GoldenityColors.primaryLight,
+                                    borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                                  ),
+                                  child: Text(
+                                    _currencyFormatter.format(grandTotal),
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: GoldenityColors.primary,
+                                      fontFamily: GoldenityTypography.fontFamilyMono,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: GoldenitySpacing.xl),
-              if (isCash)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: GoldenitySpacing.lg),
-                  child: _buildCashSummary(context, textTheme, ref),
-                ),
-              if (!isCash)
-                _ReferenceNumberInput(
-                  isQris: isQris,
-                  initialValue: refNumber ?? '',
-                  onChanged: (v) =>
-                      ref.read(paymentReferenceNumberProvider.notifier).state = v,
-                ),
-              if (!isCash) const SizedBox(height: GoldenitySpacing.xl),
               GoldenityPrimaryButton(
                 label: _isSubmitting ? 'Memproses...' : '✓ Proses Pembayaran',
                 icon: null,
@@ -607,6 +988,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                 backgroundColor: const Color(0xFF16A34A),
                 foregroundColor: Colors.white,
                 shadow: GoldenityElevation.btnSuccess,
+                height: 48,
                 onPressed: (_isSubmitting || grandTotal <= 0) ? null : _submitSale,
               ),
             ],
@@ -615,6 +997,74 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
       ),
     );
   }
+
+  Widget _buildQuickAmountChip(BuildContext context, num amount, String label) {
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    return Material(
+      color: GoldenityColors.surface,
+      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+        onTap: () {
+          ref.read(paidAmountProvider.notifier).state = amount;
+          _syncTunaiCtrlFromPaid(amount);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: GoldenitySpacing.md,
+            vertical: GoldenitySpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+            border: Border.all(color: GoldenityColors.border),
+          ),
+          child: Text(
+            label,
+            style: textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontFamily: GoldenityTypography.fontFamilyMono,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExactChip(BuildContext context, num grandTotal) {
+    final theme = Theme.of(context);
+    final textTheme = theme.textTheme;
+    return Material(
+      color: GoldenityColors.primaryLight,
+      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+        onTap: () {
+          ref.read(paidAmountProvider.notifier).state = grandTotal;
+          _syncTunaiCtrlFromPaid(grandTotal);
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: GoldenitySpacing.md,
+            vertical: GoldenitySpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+            border: Border.all(color: GoldenityColors.primary),
+          ),
+          child: Text(
+            'PAS = ${_currencyFormatter.format(grandTotal)}',
+            style: textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: GoldenityColors.primary,
+              fontFamily: GoldenityTypography.fontFamilyMono,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
 }
 
 class _PaymentMethodCard extends StatelessWidget {

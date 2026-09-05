@@ -1203,18 +1203,13 @@ class _PrinterSlotCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: GoldenitySpacing.md),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: onSave,
-              style: FilledButton.styleFrom(
-                backgroundColor: biz.base,
-                padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.sm),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
-              ),
-              icon: const Icon(Icons.save_rounded, size: 18),
-              label: Text('Simpan Slot $slotLabel', style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
-            ),
+          GoldenityPrimaryButton(
+            label: 'Simpan Slot $slotLabel',
+            icon: Icons.save_rounded,
+            backgroundColor: biz.base,
+            shadow: GoldenityElevation.btnPrimary,
+            height: 44,
+            onPressed: onSave,
           ),
         ],
       ),

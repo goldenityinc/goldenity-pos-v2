@@ -624,6 +624,7 @@ class _ProductCard extends ConsumerWidget {
                               color: GoldenityColors.primary,
                             ),
                           ),
+                          const Spacer(),
                           const SizedBox(height: GoldenitySpacing.sm),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.center,

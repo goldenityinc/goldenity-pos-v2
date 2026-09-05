@@ -207,6 +207,389 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
 
   bool _canBeVoided(String status) => status == 'COMPLETED' || status == 'PARTIALLY_REFUNDED';
 
+  Future<void> _showSaleDetail(Map<String, dynamic> sale) async {
+    final textTheme = Theme.of(context).textTheme;
+    final biz = Theme.of(context).extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
+
+    final id = sale['id']?.toString() ?? '-';
+    final refId = sale['referenceId']?.toString();
+    final statusRaw = sale['status']?.toString() ?? 'COMPLETED';
+    final (chipBg, chipFg) = _statusColor(statusRaw);
+    final createdAtRaw = sale['createdAt']?.toString();
+    final createdAt = createdAtRaw != null && DateTime.tryParse(createdAtRaw) != null
+        ? DateTime.tryParse(createdAtRaw)!
+        : DateTime.now();
+    final cashierName = sale['cashierName']?.toString() ?? 'Kasir';
+    final orderTypeLabel = sale['orderType']?.toString() == 'TAKE_AWAY'
+        ? 'Bawa Pulang'
+        : 'Makan di Tempat';
+    final paymentMethod = sale['paymentMethod']?.toString() ?? 'CASH';
+    final paymentLabel = _paymentMethodLabel(paymentMethod);
+    final paymentRef = sale['paymentReferenceNumber']?.toString();
+    final cashReceived = num.tryParse(sale['cashReceived']?.toString() ?? '0') ?? 0;
+    final cashChange = num.tryParse(sale['cashChange']?.toString() ?? '0') ?? 0;
+
+    final subtotal = num.tryParse(sale['subtotal']?.toString() ?? '0') ?? 0;
+    final discountAmount = num.tryParse(sale['discountAmount']?.toString() ?? '0') ?? 0;
+    final discountPercent = num.tryParse(sale['discountPercent']?.toString() ?? '0') ?? 0;
+    final taxAmount = num.tryParse(sale['taxAmount']?.toString() ?? '0') ?? 0;
+    final serviceChargeAmount = num.tryParse(sale['serviceChargeAmount']?.toString() ?? '0') ?? 0;
+    final total = num.tryParse(sale['total']?.toString() ?? '0') ?? 0;
+
+    final itemsRaw = sale['items'];
+    final List<Map<String, dynamic>> items = itemsRaw is List
+        ? itemsRaw.whereType<Map<String, dynamic>>().toList(growable: false)
+        : const [];
+
+    final canVoid = _canBeVoided(statusRaw);
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.xxxl)),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: GoldenitySpacing.xl),
+        child: SizedBox(
+          width: 640,
+          child: Padding(
+            padding: const EdgeInsets.all(GoldenitySpacing.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('Detail Transaksi',
+                                  style: textTheme.titleLarge?.copyWith(
+                                      fontWeight: FontWeight.w800)),
+                              const SizedBox(width: GoldenitySpacing.sm),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: GoldenitySpacing.sm, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: chipBg,
+                                  borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                                ),
+                                child: Text(
+                                  _statusLabel(statusRaw),
+                                  style: TextStyle(
+                                    fontFamily: GoldenityTypography.fontFamilySans,
+                                    color: chipFg,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '#$id · ${_dateFormatter.format(createdAt)}',
+                            style: textTheme.bodySmall?.copyWith(
+                                color: GoldenityColors.text2, fontWeight: FontWeight.w600),
+                          ),
+                          Text(
+                            '$cashierName · $orderTypeLabel${refId != null && refId.trim().isNotEmpty ? ' · Ref: $refId' : ''}',
+                            style: textTheme.bodySmall?.copyWith(
+                                color: GoldenityColors.text2, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      padding: EdgeInsets.zero,
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      icon: const Icon(Icons.close_rounded, size: 20),
+                      tooltip: 'Tutup',
+                    ),
+                  ],
+                ),
+                const SizedBox(height: GoldenitySpacing.lg),
+                Flexible(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: GoldenityColors.surface,
+                      borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+                      border: Border.all(color: GoldenityColors.border),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(
+                              GoldenitySpacing.md, GoldenitySpacing.sm, GoldenitySpacing.md, 0),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child: Text('Item',
+                                    style: textTheme.labelSmall?.copyWith(
+                                        fontWeight: FontWeight.w800, color: GoldenityColors.text2)),
+                              ),
+                              SizedBox(
+                                width: 56,
+                                child: Text('Qty',
+                                    textAlign: TextAlign.center,
+                                    style: textTheme.labelSmall?.copyWith(
+                                        fontWeight: FontWeight.w800, color: GoldenityColors.text2)),
+                              ),
+                              SizedBox(
+                                width: 110,
+                                child: Text('Subtotal',
+                                    textAlign: TextAlign.right,
+                                    style: textTheme.labelSmall?.copyWith(
+                                        fontWeight: FontWeight.w800, color: GoldenityColors.text2)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1, color: GoldenityColors.border, thickness: 0.8),
+                        Flexible(
+                          fit: FlexFit.loose,
+                          child: items.isEmpty
+                              ? const Padding(
+                                  padding: EdgeInsets.all(GoldenitySpacing.md),
+                                  child: Text('(tidak ada detail item)',
+                                      style: TextStyle(color: GoldenityColors.muted)),
+                                )
+                              : ListView.separated(
+                                  shrinkWrap: true,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: GoldenitySpacing.md, vertical: 2),
+                                  itemCount: items.length,
+                                  separatorBuilder: (_, __) => const Divider(
+                                      height: 1, color: GoldenityColors.border, thickness: 0.4),
+                                  itemBuilder: (_, idx) {
+                                    final it = items[idx];
+                                    final name = it['productName']?.toString() ?? 'Produk';
+                                    final variantName = it['variantName']?.toString();
+                                    final note = it['note']?.toString();
+                                    final qty = num.tryParse(it['qty']?.toString() ?? '0') ?? 0;
+                                    final unitPrice = num.tryParse(it['unitPrice']?.toString() ?? '0') ?? 0;
+                                    final lineTotal = num.tryParse(it['lineTotal']?.toString() ?? '0') ?? 0;
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: GoldenitySpacing.sm),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            flex: 2,
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(name,
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: textTheme.bodySmall?.copyWith(
+                                                        fontWeight: FontWeight.w700,
+                                                        color: GoldenityColors.text)),
+                                                if (variantName != null &&
+                                                    variantName.trim().isNotEmpty)
+                                                  Text('  Var: $variantName',
+                                                      style: textTheme.labelSmall?.copyWith(
+                                                          color: GoldenityColors.text2)),
+                                                if (note != null && note.trim().isNotEmpty)
+                                                  Text('  Note: $note',
+                                                      style: textTheme.labelSmall?.copyWith(
+                                                          color: GoldenityColors.muted)),
+                                                Text(
+                                                    '  @ ${_currencyFormatter.format(unitPrice)}',
+                                                    style: textTheme.labelSmall?.copyWith(
+                                                        color: GoldenityColors.text2,
+                                                        fontFamily: GoldenityTypography
+                                                            .fontFamilyMono)),
+                                              ],
+                                            ),
+                                          ),
+                                          SizedBox(
+                                            width: 56,
+                                            child: Text('$qty',
+                                                textAlign: TextAlign.center,
+                                                style: textTheme.bodySmall?.copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontFamily: GoldenityTypography
+                                                        .fontFamilyMono)),
+                                          ),
+                                          SizedBox(
+                                            width: 110,
+                                            child: Text(_currencyFormatter.format(lineTotal),
+                                                textAlign: TextAlign.right,
+                                                style: textTheme.bodySmall?.copyWith(
+                                                    fontWeight: FontWeight.w800,
+                                                    fontFamily: GoldenityTypography
+                                                        .fontFamilyMono,
+                                                    color: biz.dark)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                Container(
+                  padding: const EdgeInsets.all(GoldenitySpacing.md),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+                    border: Border.all(color: GoldenityColors.border),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildSummaryRow(
+                          context, 'Subtotal', _currencyFormatter.format(subtotal)),
+                      if (discountAmount > 0)
+                        _buildSummaryRow(
+                          context,
+                          discountPercent > 0
+                              ? 'Diskon (${discountPercent.toStringAsFixed(0)}%)'
+                              : 'Diskon',
+                          '- ${_currencyFormatter.format(discountAmount)}',
+                          fgColor: GoldenityColors.error,
+                        ),
+                      if (serviceChargeAmount > 0)
+                        _buildSummaryRow(context, 'Service Charge',
+                            '+ ${_currencyFormatter.format(serviceChargeAmount)}'),
+                      if (taxAmount > 0)
+                        _buildSummaryRow(
+                            context, 'Pajak', '+ ${_currencyFormatter.format(taxAmount)}'),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: GoldenitySpacing.xs),
+                        child: Divider(height: 1, color: GoldenityColors.border2, thickness: 1),
+                      ),
+                      _buildSummaryRow(context, 'TOTAL', _currencyFormatter.format(total),
+                          isBold: true, fgColor: biz.dark, totalMode: true),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                Container(
+                  padding: const EdgeInsets.all(GoldenitySpacing.md),
+                  decoration: BoxDecoration(
+                    color: GoldenityColors.surface2,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildSummaryRow(context, 'Metode Bayar', paymentLabel),
+                      if (paymentRef != null && paymentRef.trim().isNotEmpty)
+                        _buildSummaryRow(context, 'Ref. Pembayaran', paymentRef),
+                      if (paymentMethod == 'CASH' && cashReceived > 0) ...[
+                        _buildSummaryRow(context, 'Uang Diterima',
+                            _currencyFormatter.format(cashReceived)),
+                        _buildSummaryRow(
+                          context,
+                          'Kembalian',
+                          cashChange > 0 ? _currencyFormatter.format(cashChange) : '-',
+                          fgColor: GoldenityColors.success,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: GoldenitySpacing.lg),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                        label: Text('Tutup',
+                            style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(44),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(GoldenityRadius.xl)),
+                        ),
+                      ),
+                    ),
+                    if (canVoid) ...[
+                      const SizedBox(width: GoldenitySpacing.sm),
+                      Expanded(
+                        child: GoldenityPrimaryButton(
+                          label: 'Batalkan (Void)',
+                          icon: Icons.block_rounded,
+                          backgroundColor: GoldenityColors.error,
+                          shadow: const [
+                            BoxShadow(color: Color(0x4DDC2626), blurRadius: 12, offset: Offset(0, 4))
+                          ],
+                          height: 44,
+                          onPressed: () async {
+                            Navigator.of(ctx).pop();
+                            await _openVoidDialog(sale);
+                          },
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryRow(BuildContext context, String label, String value,
+      {Color? fgColor, bool isBold = false, bool totalMode = false}) {
+    final textTheme = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+              child: Text(label,
+                  style: textTheme.labelSmall?.copyWith(
+                      fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+                      color: GoldenityColors.text2,
+                      fontSize: totalMode ? 14 : 12))),
+          Text(value,
+              style: textTheme.labelSmall?.copyWith(
+                  fontWeight: isBold ? FontWeight.w900 : FontWeight.w700,
+                  color: fgColor ?? GoldenityColors.text,
+                  fontSize: totalMode ? 16 : 13,
+                  fontFamily: GoldenityTypography.fontFamilyMono)),
+        ],
+      ),
+    );
+  }
+
+  String _paymentMethodLabel(String method) {
+    switch (method.toUpperCase()) {
+      case 'QRIS':
+        return 'QRIS';
+      case 'CREDIT_CARD':
+      case 'DEBIT_CARD':
+        return 'Kartu';
+      case 'CASH':
+      default:
+        return 'Tunai';
+    }
+  }
+
   void _showSnackBar(String message, {bool isError = false}) {
     final biz = Theme.of(context).extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
     ScaffoldMessenger.of(context).clearSnackBars();
@@ -331,13 +714,13 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(172),
+          preferredSize: const Size.fromHeight(145),
           child: Column(
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   GoldenitySpacing.lg,
-                  GoldenitySpacing.xs,
+                  0,
                   GoldenitySpacing.lg,
                   GoldenitySpacing.sm,
                 ),
@@ -526,7 +909,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                                   elevation: 0,
                                   shadowColor: Colors.transparent,
                                   child: InkWell(
-                                    onTap: () => _openVoidDialog(sale),
+                                    onTap: () => _showSaleDetail(sale),
                                     borderRadius: BorderRadius.circular(GoldenityRadius.xl),
                                     child: Padding(
                                       padding: const EdgeInsets.all(GoldenitySpacing.lg),

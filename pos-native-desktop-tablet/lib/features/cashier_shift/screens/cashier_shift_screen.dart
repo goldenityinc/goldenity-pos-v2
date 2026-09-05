@@ -472,18 +472,13 @@ class _CashierShiftScreenState extends ConsumerState<CashierShiftScreen> {
                   },
                 ),
                 const SizedBox(height: GoldenitySpacing.xl),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _loading ? null : _openShift,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: biz.base,
-                      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
-                    ),
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: Text('BUKA SHIFT', style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900)),
-                  ),
+                GoldenityPrimaryButton(
+                  label: 'BUKA SHIFT',
+                  icon: Icons.play_arrow_rounded,
+                  backgroundColor: biz.base,
+                  shadow: GoldenityElevation.btnPrimary,
+                  height: 48,
+                  onPressed: _loading ? null : _openShift,
                 ),
               ],
             ),
@@ -723,18 +718,13 @@ class _CashierShiftScreenState extends ConsumerState<CashierShiftScreen> {
                   ),
                 ),
                 const SizedBox(height: GoldenitySpacing.lg),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _loading ? null : _closeShift,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: GoldenityColors.error,
-                      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
-                    ),
-                    icon: const Icon(Icons.stop_rounded),
-                    label: Text('TUTUP SHIFT', style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w900)),
-                  ),
+                GoldenityPrimaryButton(
+                  label: 'TUTUP SHIFT',
+                  icon: Icons.stop_rounded,
+                  backgroundColor: GoldenityColors.error,
+                  shadow: const [BoxShadow(color: Color(0x4DDC2626), blurRadius: 12, offset: Offset(0, 4))],
+                  height: 48,
+                  onPressed: _loading ? null : _closeShift,
                 ),
               ],
             ),
