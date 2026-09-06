@@ -14,6 +14,8 @@ import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
+import '../../../core/models/printer_config_profile.dart';
+import '../../../core/services/hardware_connection_service.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../core/models/shift_profile.dart';
 import '../../../features/cashier_shift/screens/cashier_shift_screen.dart';
@@ -208,6 +210,56 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     return num.tryParse(cleaned) ?? 0;
   }
 
+  List<num> _suggestedCashAmounts(num grandTotal) {
+    if (grandTotal <= 0) return <num>[];
+    const denominations = <int>[50000, 100000, 200000, 500000, 1000000, 2000000, 5000000];
+    final candidates = <num>{};
+    for (final d in denominations) {
+      if (d >= grandTotal) {
+        candidates.add(d);
+      } else {
+        final multiple = (grandTotal / d).ceil() * d;
+        if (multiple >= grandTotal) candidates.add(multiple);
+      }
+    }
+    final sorted = candidates.toList()..sort();
+    return sorted.take(4).toList(growable: false);
+  }
+
+  HardwareConnectionConfig _convertPrinterProfileToHwConfig(PrinterConfigProfile p) {
+    final ConnectionType hwType = switch (p.connectionType) {
+      PrinterConnectionTypeDto.bluetooth => ConnectionType.bluetooth,
+      PrinterConnectionTypeDto.usb => ConnectionType.usb,
+      PrinterConnectionTypeDto.network => ConnectionType.network,
+      _ => ConnectionType.none,
+    };
+    final String addr = (p.address ?? '').trim();
+    final bool isNetwork = hwType == ConnectionType.network;
+    final bool isUsb = hwType == ConnectionType.usb;
+    String usbName = '';
+    String vid = '';
+    String pid = '';
+    if (isUsb && addr.isNotEmpty) {
+      final parts = addr.split('|');
+      if (parts.length >= 3) {
+        usbName = parts[0].trim();
+        vid = parts[1].trim();
+        pid = parts[2].trim();
+      } else {
+        usbName = addr;
+      }
+    }
+    return HardwareConnectionConfig(
+      connectionType: hwType,
+      deviceName: isUsb ? usbName : '',
+      deviceAddress: isNetwork ? '' : addr,
+      vendorId: vid,
+      productId: pid,
+      networkIp: isNetwork ? addr : '',
+      networkPort: isNetwork && p.port != null && p.port! > 0 ? p.port! : 9100,
+    );
+  }
+
   Future<void> _submitSale() async {
     final session = ref.read(currentSessionProvider);
     final cart = ref.read(cartNotifierProvider);
@@ -345,6 +397,84 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                 '[RECEIPT ESC/POS] ${bytes.length} bytes siap dikirim ke printer.',
                 name: 'payment.receipt',
               );
+              // ============ BRIDGE: Settings BE PrinterConfigProfile → HardwareConnectionService SEND PRINT ============
+              try {
+                final branchId = session.user.branchId!;
+                final token = session.token;
+                final printersUrl = ApiConstants.salesEndpoint()
+                    .toString()
+                    .replaceFirst('/sales', '/settings/printers?branchId=$branchId');
+                final printersRes = await http.get(
+                  Uri.parse(printersUrl),
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer $token',
+                  },
+                );
+                List<PrinterConfigProfile> profiles = <PrinterConfigProfile>[];
+                if (printersRes.statusCode == 200) {
+                  dynamic pBody;
+                  try { pBody = jsonDecode(printersRes.body); } catch(_) { pBody = null; }
+                  if (pBody is Map && pBody['success'] == true && pBody['data'] is List) {
+                    profiles = (pBody['data'] as List)
+                        .whereType<Map>()
+                        .map((m) => PrinterConfigProfile.fromJson(Map<String, dynamic>.from(m)))
+                        .toList(growable: false);
+                  }
+                }
+                PrinterConfigProfile? chosen;
+                if (profiles.isNotEmpty) {
+                  chosen = profiles.firstWhere(
+                    (p) => p.slot == PrinterSlotDto.cashier && p.connectionType != PrinterConnectionTypeDto.none,
+                    orElse: () => profiles.firstWhere(
+                      (p) => p.slot == PrinterSlotDto.defaultPrinter && p.connectionType != PrinterConnectionTypeDto.none,
+                      orElse: () => profiles.firstWhere(
+                        (p) => p.connectionType != PrinterConnectionTypeDto.none,
+                        orElse: () => const PrinterConfigProfile(
+                          id: '', branchId: '', slot: PrinterSlotDto.defaultPrinter,
+                          connectionType: PrinterConnectionTypeDto.none,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                if (chosen != null && chosen.connectionType != PrinterConnectionTypeDto.none) {
+                  final hwConfig = _convertPrinterProfileToHwConfig(chosen);
+                  if (hwConfig.isConfigured && bytes.isNotEmpty) {
+                    final hwSvc = HardwareConnectionService();
+                    await hwSvc.sendRawBytes(hwConfig, bytes, onProgress: null);
+                    dev.log(
+                      '[RECEIPT SENT] ${bytes.length} bytes → slot ${chosen.slot.name} type ${hwConfig.connectionType.name}.',
+                      name: 'payment.receipt',
+                    );
+                    if (mounted) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Struk berhasil dikirim ke printer (${hwConfig.connectionType.name}).'),
+                            backgroundColor: GoldenityColors.success,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      });
+                    }
+                  }
+                }
+              } on Exception catch (sendErr, st) {
+                dev.log('[RECEIPT SEND FAILED] $sendErr', name: 'payment.receipt', error: sendErr, stackTrace: st);
+                if (mounted) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Transaksi tersimpan. Struk gagal dicetak: $sendErr'),
+                        backgroundColor: GoldenityColors.warning,
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
+                  });
+                }
+              }
+              // ============ END BRIDGE PRINT ============
             } catch (printErr) {
               dev.log('[RECEIPT ERROR] $printErr', name: 'payment.receipt', error: printErr);
             }
@@ -404,6 +534,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     final isQris = paymentMethod == kPaymentMethodQris;
     final refNumber = ref.watch(paymentReferenceNumberProvider);
     final cart = ref.watch(cartNotifierProvider);
+    final cartList = cart.values.toList(growable: false);
     final subtotal = ref.watch(cartSubtotalProvider);
     final discount = ref.watch(cartDiscountAmountProvider);
     final tax = ref.watch(cartTaxAmountProvider);
@@ -552,20 +683,16 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                                 style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
                               ),
                             ),
-                          if (cart.isNotEmpty)
+                          if (cartList.isNotEmpty)
                             Expanded(
                               child: ListView.separated(
                                 shrinkWrap: true,
                                 physics: const ClampingScrollPhysics(),
-                                itemCount: cart.length,
+                                itemCount: cartList.length,
                                 separatorBuilder: (_, __) =>
                                     const Divider(color: GoldenityColors.border, height: 1, thickness: 0.5),
                                 itemBuilder: (_, i) {
-                                  // ignore: collection_methods_unrelated_type
-                                  final item = cart[i];
-                                  if (item == null) {
-                                    return const SizedBox.shrink();
-                                  }
+                                  final item = cartList[i];
                                   final String name = item.product.name.trim().isEmpty
                                       ? 'Produk'
                                       : item.product.name;
@@ -860,10 +987,11 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                                   spacing: GoldenitySpacing.sm,
                                   runSpacing: GoldenitySpacing.sm,
                                   children: [
-                                    _buildQuickAmountChip(context, 50000, 'Rp 50.000'),
-                                    _buildQuickAmountChip(context, 100000, 'Rp 100.000'),
-                                    _buildQuickAmountChip(context, 200000, 'Rp 200.000'),
-                                    _buildQuickAmountChip(context, 500000, 'Rp 500.000'),
+                                    ..._suggestedCashAmounts(grandTotal).map((n) => _buildQuickAmountChip(
+                                      context,
+                                      n.toInt(),
+                                      'Rp ${_currencyFormatter.format(n)}',
+                                    )),
                                     _buildExactChip(context, grandTotal),
                                   ],
                                 ),

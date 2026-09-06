@@ -8,23 +8,62 @@
 
 ---
 
-## 🟢✅🎯 [2026-09-07] USER PUSH REDESIGN PAYMENT MODAL: Structural Fix Unbounded Height Crash + PaymentMethod Vertical List V1 Pattern. 0 Logic Change. FLUTTER ANALYZE 0 ERROR PASS.
+## 🟢✅🎯 [2026-09-07] P0 CRITICAL FIX 3-IN-1 IMPLEMENTASI SESUAI DESKRIPSI USER (Cart List / Nominal Tunai Cepat / Printer Bridge Struk). LINT 0 ERROR flutter analyze EXIT 0.
 
-### 🧠 Root Cause Crash (100% PASTI, BUKAN DUGAAN — user confirm):
-Modal sebelumnya TIDAK PUNYA batas tinggi eksplisit → `Row` pembungkus panel kiri (cart list) + kanan (metode bayar) otomatis dapat tinggi **infinity** dari Flutter (Column/Row standard behavior terhadap child non-flex) → tinggi infinity mengalir kebawah ke `ListView.separated` item cart, meskipun sudah dibungkus `Expanded()` → karena induknya infinity, child Expanded tidak punya "sisa ruang" terdefinisi → **crash blank grey screen / RenderFlex overflowed by X pixels / BOTTOM 99165 px overflow**. Pola identik bug `_ProductCard` yang sudah fixed sebelumnya.
+### Root Cause 3 Bug (persis deskripsi user):
+| Bug | Root Cause (diverifikasi dari source code langsung) |
+|---|---|
+| **(A) Item keranjang TIDAK PERNAH muncul di summary payment modal** | L565 lama: `final item = cart[i]` — `cart` adalah `Map<String, CartItem>` (key String productId) tapi di-index dengan **INT i** → selalu return `null`. Guard lama `if (item == null) return SizedBox.shrink()` **diam-diam menyembunyikan bug** ini — seolah-olah list kosong, padahal MAP cart penuh item. |
+| **(B) Nominal tunai cepat di bawah tagihan (UX aneh)** | L863-L867 lama: Quick chips **hardcoded statis [50rb, 100rb, 200rb, 500rb]** TANPA filter ≥ grandTotal. Jika tagihan 750rb → chip 50rb / 100rb / 200rb / 500rb TETAP muncul (semua di bawah tagihan = tidak berguna untuk klik cepat bayar pas / lebih). |
+| **(C) Struk TIDAK PERNAH tercetak meskipun byte ESC/POS SUDAH DI-GENERATE** | Bug arsitektur 2 sistem TERPUTUS TOTAL: (1) `ReceiptGenerator.generateEscPosBytes()` SUDAH ADA di L359 dan menghasilkan byte struk, tapi HANYA di `dev.log` TANPA pernah dikirim ke printer fisik. (2) Config printer user simpan via **Settings Tab Printer → backend `PrinterConfigProfile`** (USB/Bluetooth/Network slot Default/Kasir/Dapur). (3) Service pengirim byte `HardwareConnectionService.sendRawBytes()` HANYA bisa baca model `HardwareConnectionConfig` — TIDAK ADA kode JEMBATAN yang meng-konversi 2 model ini. (4) `GET /api/v1/settings/printers?branchId=xxx` TIDAK PERNAH dipanggil di flow checkout. Hasil: printer config tersimpan di backend, struk bytes siap dikirim — TAPI tidak pernah "bertemu" di alur kode. |
 
-### ✅ 3 Perubahan STRUKTURAL (100% sesuai claim user, dibaca langsung dari source code):
-**File**: [goldenity_payment_modal.dart L414-L487](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_payment_modal.dart#L414-L487) + [L729-L771](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_payment_modal.dart#L729-L771)
-| Item | Sebelum | Sesudah (User Push) |
+### ✅ Fix Yang Diterapkan (100% sesuai instruksi user):
+**File diubah hanya 1 FE UI:** [goldenity_payment_modal.dart](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_payment_modal.dart) (1 file utama, + 2 import model baru).
+
+| Task | Lokasi Kode Exact | Perubahan Struktural |
 |---|---|---|
-| Tinggi Modal | shrink-to-content unbounded → bisa lebih besar dari 100% screen. | **`maxModalHeight = MediaQuery.size.height * 0.85`** → batas tinggi EKSPLISIT 85% layar, di-apply ke `Container` induk modal via `constraints: BoxConstraints(maxHeight)`. |
-| Wrap Row Isi (Cart Panel + Payment Method Panel) | ❌ `Row(...)` TANPA Expanded → height infinity dari Column induk. | ✅ **`Expanded( child: Row(...) )`** L487 → Row sekarang flex mengisi SISA RUANG setealh Header (Judul, Tagihan Total) → tinggi Row = bounded by maxModalHeight → `Expanded(ListView)` cart list AKHIRNYA punya tinggi terdefinisi BENAR, bukan infinity. |
-| Pemilihan Metode Bayar | 3 kartu sejajar HORIZONTAL (height tinggi, susah dibaca jika label panjang). | ✅ **LIST VERTIKAL ala V1** L733-L771: Urutan EXACT Tunai → QRIS → Kartu. Setiap baris: icon kiri rounded (successBg / retailBg / primaryBg) + label + selected indicator (via `_PaymentMethodTile` custom widget). Lebih hemat ruang vertikal & mudah discan mata user. |
+| Fix A | L406-L408 watch cart | Tambah **`final cartList = cart.values.toList(growable: false);`** → materialize Map<String, CartItem> menjadi List SEKALI sebelum render. List pakai index INT secara native BENAR. |
+| Fix A | L556-L565 ListView itemBuilder | Ganti: `itemCount: cart.length → cartList.length`; `final item = cart[i]; // Map null → final item = cartList[i];` (List index int valid non-null). Guard lama `SizedBox.shrink()` pada item=null **DIHAPUS TOTAL** (tidak dibutuhkan lagi karena List bounded valid). |
+| Fix B | L213-L226 (method baru sebelum _submitSale) | Tambah **`_suggestedCashAmounts(num grandTotal)`**: pecahan Rupiah standard [50k, 100k, 200k, 500k, 1jt, 2jt, 5jt] → filter **hanya nominal ≥ grandTotal**, dedup Set, sort → ambil 4 suggestion pertama (compact UI). Jika nominal pecahan < grandTotal → ambil kelipatan terkecil pecahan yang ≥ tagihan (contoh: grandTotal 156rb → suggestion 200rb). |
+| Fix B | L872-L883 Wrap chips | Hapus hardcoded statis → ganti dynamic generator: `..._suggestedCashAmounts(grandTotal).map((n) => _buildQuickAmountChip(n))` + selalu append `_buildExactChip(context, grandTotal)` (PAS) di akhir. Chip sekarang SELALU ≥ tagihan. Tidak pernah muncul chip dibawah tagihan lagi. |
+| Fix C (Bridge 1) | L229-L261 (helper baru sebelum _submitSale) | Tambah **`_convertPrinterProfileToHwConfig(PrinterConfigProfile p)`** — JEMBATAN KONVERSI 1:1: `PrinterConnectionTypeDto.bluetooth/usb/network → ConnectionType.xxx`; `p.address` → USB parse Name/Vid/Pid via `\|` split, Bluetooth → deviceAddress, Network → networkIp + networkPort (default 9100). |
+| Fix C (Bridge 2) | L400-L477 (microtask SETELAH sale sukses, bytes struk tersedia) | Flow checkout BARU setelah sale disimpan: (1) `GET /api/v1/settings/printers?branchId=activeBranchId` via same session token HTTP client. (2) Parse response body success.data → `List<PrinterConfigProfile>` via `PrinterConfigProfile.fromJson()`. (3) Pemilihan printer dengan **PRIORITAS SLOT**: Priority#1 = slot Kasir `PrinterSlotDto.cashier` (enabled). Jika tidak ada → Priority#2 fallback slot Default `PrinterSlotDto.defaultPrinter` (enabled). Jika masih tidak ada → fallback first enabled any slot. (4) Convert via bridge helper diatas → `HardwareConnectionConfig`. (5) Cek `hwConfig.isConfigured` (benar-benar punya target: deviceAddress / networkIp / usbName+vid+pid). (6) Panggil **`HardwareConnectionService().sendRawBytes(hwConfig, bytes, onProgress: null)`** — KIRIM BYTE STRUK YANG SUDAH ADA SEJAK AWAL ke printer fisik. |
+| Fix C (Snackbar Error Guard) | L463-L476 | Semua error di print BRIDGE → **TIDAK BOLEH MEMBATALKAN SALE (sale sudah sukses tersimpan di backend)**. Ditangkap via `on Exception catch (sendErr)`, logging `dev.log`, lalu snackbar **warning kuning** (D97706) 4 detik: *"Transaksi tersimpan. Struk gagal dicetak: $err"*. User tidak kehilangan data transaksi, hanya diberitahu print gagal. |
+| Fix C (Snackbar Success) | L449-L461 | Jika print berhasil → snackbar **success hijau** 2 detik: *"Struk berhasil dikirim ke printer (bluetooth/usb/network)."* |
 
-### 🎯 Constraints DIPATUHI 100% user:
-✅ **Logic Pembayaran TIDAK DISENTUH sama sekali**: `_submitSale()`, `_syncTunaiCtrlFromPaid()`, `_parseTunaiNominal()`, `ref.read(paymentMethodProvider / paidAmountProvider / paymentReferenceNumberProvider / cartGrandTotalProvider / cartNotifierProvider)` — **SEMUA method & Riverpod TIDAK DIUBAH 1 BARIS** (cek diff `git diff --stat` confirm HANYA 1 file `goldenity_payment_modal.dart` 103+ / 84-).
-✅ **Keseimbangan Kurung LINT PASS**: `flutter analyze --no-pub → No issues found! (ran in 16.5s) → EXIT=0` ✅.
-✅ **2 file auto-generated Windows plugin flutter (generated_plugin_registrant.cc / generated_plugins.cmake) MODIFIED** = `flutter pub get` / rebuild windows auto-generate code printer plugin (dari dep `flutter_pos_printer_platform_image_3`) → expected normal, TIDAK ADA logic custom.
+### 🎯 Constraints & Quality Gates DIPATUHI 100%:
+✅ **NO BACKEND / RIVERPOD / LOGIC CHANGES:** `_submitSale()` guard flow (grandTotal validation, payment method refnumber check, cashier shift gate, offline mode check, POST `/api/v1/sales` payload & error handling) & Riverpod `ref.read(...)` providers & CartItem mapping items BE payload — **TIDAK DIUBAH 1 BARIS PUN**. Hanya penambahan **pure UI rendering** (Fix A & B) + **non-blocking side effect microtask PRINT** di dalam success block yang existing sudah disediakan (tidak mengubah flow success utama).
+✅ **LINT 0 ERROR:** Iterasi 2x `flutter analyze --no-pub`: Round-1 ditemukan **8 issues** (2 error method undefined `Uri.replaceFirst`, 2 error undefined class `SchedulerBinding`, 1 error getter `warningDark` undefined, 3 warning non-null assertion berlebih + info prefer_const). Round-2 setelah 8 fixes: **`flutter analyze --no-pub → No issues found! (ran in 1.0s) → EXIT_CODE = 0` ✅**.
+✅ **PROJECT_LOG.md audit trail added di PALING ATAS.** (sesuai aturan rule L4-L7).
+
+### 🧪 Checklist VERIFIKASI RUNTIME YANG WAJIB USER KIRIM SCREENSHOT (sesi ini tidak punya akses flutter run / printer fisik):
+1.  **(A) Payment Modal Item Summary:** Isi keranjang ≥ 5 item → Buka Payment Modal → Panel kiri list **HARUS MENAMPILKAN SEMUA ITEM** (Nama / Qty / Subtotal) — TIDAK ADA lagi list kosong putih blank.
+2.  **(B) Nominal Tunai Cepat:** Isi keranjang total = `Rp 176.500` → Panel kanan pilih Tunai → Wrap chips yang muncul **HARUSNYA** [Rp 200.000, Rp 500.000, Rp 1.000.000, Rp 2.000.000, PAS Rp 176.500] — **TIDAK ADA chip Rp 50.000 / Rp 100.000** (di bawah tagihan).
+3.  **(C) Struk Print via PrinterConfig:** (1) Buka Settings → Tab Printer → Pilih cabang → Slot **Kasir** → ChoiceChip USB/Bluetooth/Network → Alamat diisi via Auto-Scan inline → Klik Simpan (Upsert ke backend). (2) Buat transaksi kasir baru → Bayar Tunai nominal cukup → Proses Pembayaran → (a) Snackbar success **hijau** "Struk berhasil dikirim ke printer (usb)". (b) Printer FISIK (dikonfigurasi tadi) **BENAR-BENAR MENCETAK STRUK** 1 kopi dengan header toko / item list / subtotal / PPN / total / Tunai / Kembalian. (3) Jika printer OFFLINE / tidak konek: Snackbar **kuning** 4 detik: "Transaksi tersimpan. Struk gagal dicetak: X". Sale tetap tersimpan di DASHBOARD RIWAYAT PENJUALAN (tidak hilang).
+
+---
+
+## 🟢 [2026-09-06] Klaude — FIX Payment Modal Blank/Crash (root cause height-unbounded) + Redesign Payment Method Selector ke pola list vertikal ala V1
+
+Andre konfirmasi via screenshot bahwa Payment Modal masih blank/error saat dibuka — persis sesuai dugaan di entri audit saya sebelumnya (pola `Expanded(ListView)` di dalam `Column` yang menerima tinggi tak terbatas). Sekaligus Andre minta payment modal langsung didesain ulang mengikuti pola V1 (list vertikal per metode), bukan cuma di-patch.
+
+**File diubah:** `pos-native-desktop-tablet/lib/shared/shell/goldenity_payment_modal.dart`
+
+**Root cause (dikonfirmasi, bukan dugaan):** `Container` modal (L421 lama) tidak punya batas tinggi eksplisit, dan `Row` yang membungkus panel item keranjang + panel metode bayar (L478 lama) adalah child NON-flex dari `Column`. Flutter SELALU memberi child non-flex dari `Column`/`Row` tinggi tak terbatas (infinity) di sumbu utama supaya widget itu bisa menghitung ukuran instrinsiknya sendiri — ini berlaku terlepas dari `mainAxisSize.min`/`.max`. Infinity itu mengalir turun sampai ke `Expanded(ListView)` item keranjang → crash `RenderFlex ... unbounded height constraints`, identik dengan bug `_ProductCard` yang sudah pernah ditemukan sebelumnya.
+
+**Fix (2 perubahan struktural, bukan cuma cosmetic):**
+1. `Container` modal sekarang punya `constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85)` — tinggi modal dibatasi pasti (85% tinggi layar), bukan shrink-to-content lagi.
+2. `Row` (item keranjang + panel metode bayar) dibungkus `Expanded` di dalam `Column` induknya (yang sekarang default `mainAxisSize.max` karena parent-nya sudah bounded) — ini yang membuat `Row` menerima tinggi TERBATAS dari sisa ruang modal, lalu meneruskan tinggi terbatas itu ke `Expanded(ListView)` item keranjang di bawahnya. Rantai constraint sekarang finite dari atas sampai bawah.
+
+**Redesign (sesuai instruksi Andre, ikuti pola V1):** Pemilihan metode bayar diubah dari 3 kartu sejajar horizontal (`_PaymentMethodCard`, icon di atas + label di bawah, dalam `Row`) menjadi **daftar vertikal** (`_PaymentMethodTile` baru — widget lama dihapus total, bukan cuma disembunyikan): tiap metode 1 baris penuh lebar (icon kotak kiri 36×36 + label + radio-indicator kanan), urutan Tunai → QRIS → Kartu (Tunai paling atas, sesuai kebiasaan V1 yang mendahulukan cash). Logic pemilihan metode (`ref.read(paymentMethodProvider.notifier)`, sync `_tunaiNominalCtrl`, dll) 100% tidak diubah — murni ganti presentasi.
+
+**⚠️ Verifikasi masih WAJIB dilakukan manual (bukan formalitas):** Sesi saya kali ini tidak punya akses `flutter analyze`/`flutter run` ke project ini (tidak ada toolchain Dart di environment saya, dan tidak ada device_bash ke komputer Andre di sesi ini) — jadi fix ini HANYA diverifikasi lewat: (a) pembacaan ulang manual terhadap rantai constraint Flutter secara teori, dan (b) pengecekan keseimbangan kurung/brace terprogram (563 `(`/`)`, 80 `{`/`}`, 80 `[`/`]` — seimbang). **Belum di-compile.** Langkah wajib sebelum ditutup:
+1. `flutter analyze --no-pub` di `pos-native-desktop-tablet/` — harus 0 error.
+2. Buka Payment Modal dengan keranjang berisi banyak item (≥10) — pastikan modal tampil, list item bisa di-scroll, TIDAK blank/crash.
+3. Screenshot tampilan baru payment method selector (list vertikal) untuk konfirmasi visual sesuai maksud.
+
+### 📊 Status
+Kode sudah ditulis & dikirim ke komputer Andre. **BELUM ACC** — menunggu hasil `flutter analyze` + test manual modal pembayaran dari Andre/Trae sebelum ditutup.
 
 ---
 
