@@ -105,11 +105,32 @@ class ProductListNotifier extends Notifier<ProductListState> {
     final auth = ref.read(authNotifierProvider.notifier);
     final session = auth.session;
 
+    // ============================================================
+    // [DEBUG PRINT TIKET 86eyup3pz STEP 3]
+    // Capture timing selectedBranchId saat load() di-trigger PERTAMA KALI.
+    // POS (halaman default post-login) fire ini LEBIH AWAL dari callback
+    // onboarding selectBranch() → dugaan kuat selectedBranchId NULL saat ini.
+    // ============================================================
+    final debugTime = DateTime.now().toIso8601String();
+    final debugSessionBranchId = session?.selectedBranchId;
+    final debugProviderHash = identityHashCode(this);
+    final debugAuthState = state; // ProductListStatus saat ini
+    print('[LOAD_DEBUG_86eyup3pz_ENTRY] '
+          'time=$debugTime | '
+          'providerHash=$debugProviderHash | '
+          'authState=$debugAuthState | '
+          'session==null? ${session == null} | '
+          'session.selectedBranchId=$debugSessionBranchId | '
+          'session.user.username=${session?.user.username ?? '-'} | '
+          'session.tenant.slug=${session?.tenant.slug ?? '-'} | '
+          'session.tenant.branches_count=${session?.tenant.branches.length ?? -1}');
+
     if (session == null) {
       state = state.copyWith(
         status: ProductListStatus.error,
         errorMessage: 'Sesi login tidak ditemukan. Silakan login kembali.',
       );
+      print('[LOAD_DEBUG_86eyup3pz_EARLY_EXIT] time=$debugTime session==null');
       return;
     }
 
@@ -163,6 +184,21 @@ class ProductListNotifier extends Notifier<ProductListState> {
     }
 
     if (!result.success || result.products.isEmpty) {
+      final debugResultCount = result.products.length;
+      final debugSuccess = result.success;
+      final debugTier = result.tierReached;
+      final debugMsg = result.errorMessage ?? '-';
+      print('[LOAD_DEBUG_86eyup3pz_ERROR_EXIT] '
+            'time=$debugTime | '
+            'providerHash=$debugProviderHash | '
+            'result.success=$debugSuccess | '
+            'result.tier=$debugTier | '
+            'productsCount=$debugResultCount | '
+            'errorMessage=$debugMsg | '
+            'usedTier2Fallback=$usedTier2 | '
+            'usedTier3CacheFallback=$usedTier3 | '
+            'offlineMode=$offline | '
+            'session.selectedBranchId=$debugSessionBranchId');
       state = state.copyWith(
         status: ProductListStatus.error,
         categories: categories,
@@ -193,6 +229,16 @@ class ProductListNotifier extends Notifier<ProductListState> {
       isOfflineMode: offline,
       errorMessage: null,
     );
+    final debugFinalCount = result.products.length;
+    print('[LOAD_DEBUG_86eyup3pz_SUCCESS_EXIT] '
+          'time=$debugTime | '
+          'providerHash=$debugProviderHash | '
+          'productsCountFinal=$debugFinalCount | '
+          'usedTier2Fallback=$usedTier2 | '
+          'usedTier3CacheFallback=$usedTier3 | '
+          'offlineMode=$offline | '
+          'categoriesCount=${categories.length} | '
+          'session.selectedBranchId=$debugSessionBranchId');
   }
 
   Future<void> addOfflineLocalOnly(ProductProfile product) async {

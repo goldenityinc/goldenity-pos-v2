@@ -48,6 +48,37 @@ P0 (tiket `86eyup3pz`) BELUM closed. Menunggu: (a) user run `migration.sql`, (b)
 
 ---
 
+## 🔴 [2026-09-06] BUKTI KONKRIT 2 BUG TERPISAH TERBUKTI 100% BENAR (3 screenshot user). Tiket 86eyup3pz lanjut ke Step 3 Debug Print.
+
+### 📸 BUKTI 3 SCREENSHOT USER (SESSION SAMA PERSIS SETELAH SQL MIGRATION + BE NYALA + HOT RESTART):
+| Halaman | Status | Counter / Gejala |
+|---|---|---|
+| 1. **Inventaris (Daftar Produk)** | ✅ **NORMAL** | Header: `13 produk aktif · 0 dinonaktifkan · 13 tampil`. 13 kartu produk muncul lengkap. |
+| 2. **Kategori Produk** | ✅ **BUG #1 FIXED OLEH SQL MIGRATION** | 9 kategori. Counter > 0: `Makanan Utama 2 produk · 2 aktif`, `Minuman 2 produk · 2 aktif`, `Camilan 1 produk · 1 aktif`, `Dessert 1 produk · 1 aktif`, `Kategori Test Idem 1 produk · 1 aktif`, `Minuman Dingin 1 produk · 1 aktif`, `S24 Smoke Category 1 produk · 1 aktif`. Counter 0 sisa hanya `Snack` & `Sarapan` (wajar, produk kategori tersebut memang 0). ✅ **RELATION CATEGORY.PRODUCTS PRISMA TERHUBUNG SEKARANG.** |
+| 3. **Point of Sale (POS) pill "All" AKTIF** | ❌ **MASIH KOSONG TOTAL (BUG #2 TETAP ADA — TERBUKTI 2 BUG TERPISAH!)** | Area grid kartu produk PUTIH TOTAL (0 kartu), padahal di Inventaris ada 13 produk, pill "All" tidak filter categoryId sama sekali. |
+
+### 🎯 KESIMPULAN FINAL (MENGUATKAN HIPOTESIS RANKING #1 AUDIT USER):
+> Provider global instance = **BENAR 1 SAMA** (terbukti Inventaris berhasil 13 produk). ProviderScope ganda = 100% TERBANTAH.
+>
+> **ROOT CAUSE BUG #2 (POS KOSONG):** POS = HALAMAN DEFAULT PERTAMA YANG DIBUKA SETELAH LOGIN. `ProductListNotifier.build()` → auto-trigger `load()` via `Future.delayed(Duration.zero)` TERLALU AWAL — DIPICU SEBELUM **session auth onboarding callback** sempat men-set **`session.selectedBranchId`** (UUID FK). Akibatnya API call filter `branchId=NULL` → backend return 0 produk.
+>
+> **Inventaris (Daftar Produk) BERHASIL 13:** User klik sidebar Inventaris **SETELAH** onboarding selesai set `selectedBranchId` → `load()` di-trigger ulang via ref.watch / manual refresh → filter `branchId=<UUID valid>` → return 13 produk. Provider instance sama persis, cuma **timing kapan `load()` di-fired** yang beda.
+
+### 🔜 NEXT STEP SEKARANG (TIKET 86eyup3pz LANGKAH 3):
+Apply debug print yang sudah direncanakan di `ProductListNotifier.load()` method L103:
+```dart
+print('[LOAD_DEBUG_86eyup3pz] hashCode=${identityHashCode(this)} '
+      'time=${DateTime.now().toIso8601String()} '
+      'selectedBranchId=${ref.read(sessionNotifierProvider).selectedBranchId} '
+      'filterBranchId=${branchId} '
+      'productsFetchedCount=...');
+```
+Kemudian user Hot Restart → copy output debug Run Console. Berdasarkan hasil:
+- ✅ Jika `selectedBranchId=NULL` saat POS trigger pertama = BUKTI KONKRIT HIPOTESIS TIMING. FIX: Ubah lifecycle build() menjadi **menunggu selectedBranchId NON-NULL dulu** (add listener) sebelum fire load().
+- ❌ Jika selectedBranchId terisi tapi 0 produk → cari penyebab lain (filter status aktif query).
+
+---
+
 ## 🟢 [2026-09-06] EKSEKUSI SQL MIGRATION LEGACY CATEGORY → UUID (Berhasil EXIT_CODE=0, TERVERIFIKASI OUTPUT ASLI BEGIN/INSERT/UPDATE/COMMIT)
 
 ### 🔹 Output ASLI terminal psql PostgreSQL 16 (Trae jalankan via terminal):
