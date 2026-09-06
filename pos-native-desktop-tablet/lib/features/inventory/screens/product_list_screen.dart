@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/design/goldenity_colors.dart';
+import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
+import '../../../core/design/goldenity_typography.dart';
 import '../../../core/models/product_profile.dart';
 import '../../../features/sales/providers/cart_provider.dart';
 import '../../../shared/shell/goldenity_cart_panel.dart';
@@ -502,10 +504,10 @@ class _ProductGridView extends ConsumerWidget {
           ),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 240,
+              maxCrossAxisExtent: 220,
               mainAxisSpacing: GoldenitySpacing.md,
               crossAxisSpacing: GoldenitySpacing.md,
-              childAspectRatio: 1.1,
+              childAspectRatio: 0.82,
             ),
             delegate: SliverChildBuilderDelegate(
               (ctx, i) => _ProductCard(
@@ -561,14 +563,7 @@ class _ProductCard extends ConsumerWidget {
           border: Border.all(
             color: inactive ? GoldenityColors.border2 : GoldenityColors.border,
           ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0F1A1A1A),
-              blurRadius: 3,
-              spreadRadius: 0,
-              offset: Offset(0, 1),
-            ),
-          ],
+          boxShadow: GoldenityElevation.card,
         ),
         clipBehavior: Clip.antiAlias,
         child: Stack(
@@ -585,10 +580,10 @@ class _ProductCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
+                      padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.xs),
                       child: Container(
-                        width: 48,
-                        height: 48,
+                        width: 40,
+                        height: 40,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: GoldenityColors.surface2,
@@ -596,8 +591,8 @@ class _ProductCard extends ConsumerWidget {
                         ),
                         child: const Icon(
                           Icons.restaurant_menu_rounded,
-                          size: 28,
-                          color: GoldenityColors.text2,
+                          size: 22,
+                          color: GoldenityColors.muted,
                         ),
                       ),
                     ),
@@ -609,18 +604,20 @@ class _ProductCard extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.bodyMedium?.copyWith(
                           fontWeight: FontWeight.w700,
+                          height: 1.2,
                           color: inactive ? GoldenityColors.muted : GoldenityColors.text,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: GoldenitySpacing.xs),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
                       child: Text(
                         currencyFormatter.format(product.price),
-                        style: textTheme.bodySmall?.copyWith(
+                        style: textTheme.labelLarge?.copyWith(
                           fontWeight: FontWeight.w800,
                           color: GoldenityColors.primary,
+                          fontFamily: GoldenityTypography.fontFamilyMono,
                         ),
                       ),
                     ),
@@ -645,6 +642,7 @@ class _ProductCard extends ConsumerWidget {
                                 style: textTheme.labelMedium?.copyWith(
                                   fontWeight: FontWeight.w800,
                                   color: GoldenityColors.text,
+                                  fontFamily: GoldenityTypography.fontFamilyMono,
                                 ),
                               ),
                             ),
@@ -664,7 +662,7 @@ class _ProductCard extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.symmetric(vertical: 5),
                           decoration: BoxDecoration(
                             color: GoldenityColors.surface2,
                             borderRadius: BorderRadius.circular(GoldenityRadius.sm),
@@ -673,7 +671,7 @@ class _ProductCard extends ConsumerWidget {
                           child: Text(
                             'Tidak Aktif',
                             style: textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                               color: GoldenityColors.text2,
                             ),
                           ),

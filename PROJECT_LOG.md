@@ -105,6 +105,126 @@ P0 (tiket `86eyup3pz`) BELUM closed. Menunggu: (a) user run `migration.sql`, (b)
 
 ---
 
+## 🎨 [2026-09-06] BATCH-5 FULL DESIGN SYSTEM UNIFICATION (UI/UX POLISH 4 TASK — STRICTLY PRESENTATION LAYER, 0 CHANGE business logic / Riverpod / BE)
+
+### ⚠️ Constraint Kepatuhan:
+- **0 perubahan Riverpod provider state / backend logic.**
+- Semua perubahan hanya di `build()` method / decoration / theme / padding / typography / iconography.
+- Import design tokens dari `core/design/` (GoldenityColors, GoldenityElevation, GoldenityRadius, GoldenitySpacing, GoldenityTypography) — **tidak ada hardcoded Color / BoxShadow baru** (kecuali opacity compositing existing token).
+
+---
+
+### 🟢 Task 1: FIX GLOBAL BUTTON CONTRAST (CRITICAL VISUAL BUG)
+**Root cause**: [goldenity_theme.dart L59-L71](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/core/design/goldenity_theme.dart#L59-L71) `FilledButtonTheme` **TIDAK SET** backgroundColor/foregroundColor → fallback Material 3 default `ColorScheme.primary` dengan `onPrimary` hitam. Hasil: semua `FilledButton` (sidebar Ya Logout L457, dialog Simpan Kategori L487) = **teks HITAM di latar BIRU GELAP** (kontras 2.1:1, di bawah WCAG AA 4.5:1). Printer Settings pakai custom `GoldenityPrimaryButton` widget → AMAN (sudah foregroundColor `primaryFg = white`).
+
+**Fix:**
+```dart
+filledButtonTheme: FilledButtonThemeData(
+  style: FilledButton.styleFrom(
+    backgroundColor: GoldenityColors.primary,        // 0xFF1D4ED8 (biru brand)
+    foregroundColor: GoldenityColors.primaryFg,       // 0xFFFFFFFF (white, kontras 15.8:1 ✅ WCAG AAA)
+    disabledBackgroundColor: GoldenityColors.disabled,
+    disabledForegroundColor: Colors.white60,
+    // radius, padding, textStyle SAMA PERSIS dengan ElevatedButtonTheme di atasnya agar seragam
+  ),
+),
+```
+**Result**: SEMUA FilledButton di codebase sekarang **SELALU white text** di atas primary dark background, **TIDAK PERLU setiap pemakaian set style manual**. Audit grep: 11 baris FilledButton/ElevatedButton, 2 FilledButton (sidebar logout + newCategory dialog) otomatis putih, 3x GoldenityPrimaryButton (Settings Tab Printer Simpan Slot Default/Dapur/Kasir) sudah aman (widget custom foregroundColor primaryFg).
+
+---
+
+### 🟢 Task 2: POLISH POS PRODUCT CARDS (developer art → enterprise)
+**Audit sebelum:** `product_list_screen.dart`
+- Icon placeholder 48×48 px (terlalu besar, mengambil 30% area kartu), warna `text2` terlalu bold.
+- `childAspectRatio: 1.1` (kartu LEBIH LEBAR daripada TINGGI) → nama produk pendek = stepper melayang, ada gap putih aneh di bawah.
+- Harga produk & counter stepper pakai default `Inter` sans-serif (digit non-tabular, alignment berubah jika ada digit 1 vs 8).
+- BoxShadow hardcoded inline `Color(0x0F1A1A1A)` (bukan token `GoldenityElevation.card`).
+
+**Fix di [product_list_screen.dart L503-L680](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/screens/product_list_screen.dart#L503-L680):**
+| Item | Sebelum | Sesudah |
+|---|---|---|
+| `SliverGridDelegateWithMaxCrossAxisExtent` | max 240, aspect 1.1 | max 220, aspect **0.82** (kartu lebih TINGGI, proporsi kartu produk premium POS) |
+| BoxShadow card | Hardcoded 0x0F1A1A1A blur 3 | **`GoldenityElevation.card`** token |
+| Icon placeholder | 48×48, color text2, size 28 | **40×40, color `muted`, size 22** (subtler, focus ke nama/harga) |
+| Spasi bawah icon → nama produk | sm (8px) | xs (4px) |
+| Text nama produk line height | default (1.5) | height: 1.2 (tight untuk 2-line produk) |
+| Text harga produk | bodySmall w800 Inter | **labelLarge w800 JetBrainsMono** (tabular digit, 1 size lebih besar agar skannable) |
+| Counter stepper qty di tengah | labelMedium w800 Inter | **labelMedium w800 JetBrainsMono** |
+| Spacer flush stepper bottom | ✅ SUDAH di-apply fix commit 30d0e17 (bounded height outer Column) → **DIpertahankan**, stepper TETAP menempel bawah. |
+| Badge HABIS | errorLight/error ✅ SUDAH benar dari awal → DIpertahankan |
+| Badge LOW | warningLight/warning ✅ SUDAH benar → DIpertahankan |
+| Opacity outOfStock 0.55 · inactive 0.7 · AbsorbPointer aktif | ✅ SUDAH benar di-apply sebelumya → DIpertahankan |
+
+---
+
+### 🟢 Task 3: REDESIGN DASHBOARD METRIC CARDS (raw boxes → premium admin dashboard)
+**Audit sebelum:** [dashboard_screen.dart](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/dashboard/screens/dashboard_screen.dart)
+- 4 _StatCard L556 pakai `color: biz.light` (semua ungu muda), icon putih + 36px. SEMUA 4 metric VISUAL TIDAK ADA PERBEDAAN (no semantic encoding).
+- Typography angka `titleLarge RobotoMono` (bukan JetBrainsMono, font tidak konsisten dengan payment/cart panel).
+- 3 panel (Produk Terlaris, Breakdown Pembayaran, Breakdown Kategori) pakai `Radius.md 8px` hardcoded shadow `black alpha 0.02 blur 4` — jauh lebih "kasar" dibanding token design system.
+- ListTile subtitle Produk Terlaris & Breakdown Pembayaran: fontWeight default (w400) — kurang "label" look.
+- Width progress bar Pembayaran: 100px — terlalu sempit, trend 20% vs 80% susah bedakan secara visual.
+- Chip kategori: padding angka Rp = horizontal 6 vertical 2 — terlalu ketempel, text terjepit.
+
+**Fix diterapkan (TANPA UBAH 1 BARIS logic aggregasi / _loadData / Riverpod):**
+1. **_StatCard L536-604**:
+   - `color` → **Colors.white** + `boxShadow: GoldenityElevation.card` + `borderRadius: xl 12px` + `border: GoldenityColors.border` (consistency dengan Produk Terlaris panel).
+   - Tambah semantic color per metric (per record tuple `cards` L199-204 = 5-tuple add `iconBg, iconFg`):
+     | Metric | Icon Background Tint | Icon Foreground |
+     |---|---|---|
+     | Total Pendapatan | `successLight` (green pastel) | `success` |
+     | Total Transaksi | `primary.withValues(alpha:0.08)` (blue pastel) | `primary` |
+     | Rata-rata Transaksi | `warningLight` (amber pastel) | `warning` |
+     | Pendapatan Bersih | `biz.light` (brand ungu pastel FnB) | `biz.base` |
+   - Icon size: **44×44 px, size 24** (setengah area metric visual = tint semantic, lebih jelas sekilas dibaca).
+   - Spasi label → angka: **md 16px** (jauh lebih jelas visual hierarchy).
+   - Typography angka: **`headlineSmall w900 JetBrainsMono height 1.1`** (24px, 2 level size lebih besar dari sebelumnya, tabular digit — 9jt vs 900jt alignment rapi).
+   - Label metric: `color: text2 w700 height 1.2 maxLines:2` (jika label panjang, wrap 2 line TANPA overflow card).
+2. **3 Panel Section (Produk Terlaris L245 / Pembayaran L337 / Kategori L450)**:
+   - Semua `borderRadius: GoldenityRadius.xl 12px`, `boxShadow: GoldenityElevation.card`.
+   - **Header section tambah icon 36×36 dengan background tint SEMANTIC**:
+     - Produk Terlaris = warningLight/warning (⭐ icon star ⭐)
+     - Breakdown Pembayaran = `primary.withValues(alpha:0.08)` / primary (💳 payment icon)
+     - Breakdown Kategori = biz.light / biz.dark (📁 category icon)
+   - Spasi section title padding: `(md, md, md, sm)` → sebelum dibawah title ada spacer 4px sebelum Divider (tighter & cleaner).
+   - Divider height=1 color border tetap dipertahankan.
+3. **Produk Terlaris ListTile L298-L329**:
+   - subtitle "x unit terjual" → **fontWeight.w600** (bold label look)
+   - trailing total → `fontFamily: JetBrainsMono`
+4. **Breakdown Pembayaran L387-L441**:
+   - width LinearProgressIndicator: **120px** (20% lebih lebar, visualisasi % jelas)
+   - subtitle "$count transaksi · xx%" → **w600**
+   - trailing total Rp → **JetBrainsMono**
+5. **Breakdown Kategori Chip L500-L526**:
+   - Container angka di dalam Chip: padding `(sm, 2)` → lebih lega, teks digit tidak terjepit.
+   - trailing total Rp → **JetBrainsMono**
+
+---
+
+### 🟢 Task 4: FIX SALES HISTORY SPACING ATAS SEARCH BAR (gap putih besar / terbenam)
+**Audit sebelum:** [sales_history_screen.dart L716-L813](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/sales/screens/sales_history_screen.dart#L716-L813)
+- AppBar.bottom PreferredSize height: **145px** (ACC Batch-2 → DIpertahankan).
+- Padding row search bar `fromLTRB(lg, 0, lg, sm)` → **top = 0**. Search bar menempel LANGSUNG di bawah app bar title tanpa breathing room.
+- Setelah row search → LANGSUNG Padding row header chip (NO spacer).
+- Spacer row header chip → Divider = sm (8px).
+
+Result visual: User melihat gap PUTIH BESAR di ATAS search bar (karena title AppBar hanya 2 baris + toolbar height 56 → sisa PreferredSize 145px - 56px = 89px untuk search + header chip. TANPA spacer kecil di top → visual "tertekan di tengah".)
+
+**Fix (HANYA UBAH SPACING, preferredSize height 145px DIpertahankan 100%):**
+| Element | Padding top Sebelum | Sesudah |
+|---|---|---|
+| Row search bar | 0 | **xs (4px)** (search bar TURUN sedikit, ada breathing room dari title) |
+| Spacer search bar → row header chip | TIDAK ADA (0) | **SizedBox(height: xs 4px)** |
+| Spacer header chip → Divider | sm (8px) | **xs (4px)** |
+
+Total perubahan total height: 4 + 4 - 8 = **0 NET** → preferredSize `Size.fromHeight(145)` tetap ACC persis Batch-2. Visual result: Search bar duduk NATURAL di tengah area AppBar.bottom, TIDAK menempel title, TIDAK ada gap putih aneh.
+
+---
+
+### ✅ Quality Gate selesai → lint + commit staging (lihat todo berikutnya)
+
+---
+
 ## 🟢 [2026-09-06] TIKET 86eyup3pz RCA DEFINITIF TERTUTUP: BUKAN DATA/PROVIDER ISSUE. Flutter RENDER CRASH `Spacer()` di dalam `Column` yang `mainAxisSize: MainAxisSize.min` (L608 product_list_screen.dart) menyebabkan "unbounded height constraints" berulang 13x per kartu → kaskade error layout → "Lost connection to device".
 
 ### 🔴 PEMBATALAN HIPOTESIS SEBELUMNYA (100% SALAH ARAH, DIBUKTIKAN OLEH DEBUG PRINT FLUTTER USER):

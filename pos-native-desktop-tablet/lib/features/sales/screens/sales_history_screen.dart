@@ -720,7 +720,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   GoldenitySpacing.lg,
-                  0,
+                  GoldenitySpacing.xs,
                   GoldenitySpacing.lg,
                   GoldenitySpacing.sm,
                 ),
@@ -794,6 +794,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: GoldenitySpacing.xs),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
                 child: Row(
@@ -806,7 +807,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: GoldenitySpacing.sm),
+              const SizedBox(height: GoldenitySpacing.xs),
               const Divider(height: 1, color: GoldenityColors.border2, thickness: 1),
             ],
           ),

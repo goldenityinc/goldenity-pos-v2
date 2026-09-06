@@ -58,6 +58,10 @@ ThemeData buildGoldenityTheme() {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
+        backgroundColor: GoldenityColors.primary,
+        foregroundColor: GoldenityColors.primaryFg,
+        disabledBackgroundColor: GoldenityColors.disabled,
+        disabledForegroundColor: Colors.white60,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(12)),
         ),

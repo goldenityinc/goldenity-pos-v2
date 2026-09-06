@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/design/goldenity_colors.dart';
+import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
+import '../../../core/design/goldenity_typography.dart';
 import '../../../core/models/dashboard_profile.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../inventory/providers/product_list_provider.dart';
@@ -194,18 +196,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Widget _buildStatCards(TextTheme textTheme, GoldenityBizColors biz, DashboardSummaryProfile summary) {
-    final List<(String, num, IconData)> cards = [
-      ('Total Pendapatan', summary.totalRevenue, Icons.payments_rounded),
-      ('Total Transaksi', summary.totalTransactions, Icons.receipt_long_rounded),
-      ('Rata-rata Transaksi', summary.avgTransaction, Icons.trending_up_rounded),
-      ('Pendapatan Bersih', summary.netRevenue, Icons.account_balance_wallet_rounded),
+    final List<(String, num, IconData, Color, Color)> cards = [
+      ('Total Pendapatan', summary.totalRevenue, Icons.payments_rounded, GoldenityColors.successLight, GoldenityColors.success),
+      ('Total Transaksi', summary.totalTransactions, Icons.receipt_long_rounded, GoldenityColors.primary.withValues(alpha: 0.08), GoldenityColors.primary),
+      ('Rata-rata Transaksi', summary.avgTransaction, Icons.trending_up_rounded, GoldenityColors.warningLight, GoldenityColors.warning),
+      ('Pendapatan Bersih', summary.netRevenue, Icons.account_balance_wallet_rounded, biz.light, biz.base),
     ];
 
     return Column(
       children: [
         for (int i = 0; i < cards.length; i += 2)
           Padding(
-            padding: EdgeInsets.only(bottom: i + 2 < cards.length ? GoldenitySpacing.sm : 0),
+            padding: EdgeInsets.only(bottom: i + 2 < cards.length ? GoldenitySpacing.md : 0),
             child: Row(
               children: [
                 Expanded(
@@ -213,17 +215,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     label: cards[i].$1,
                     value: cards[i].$2 is int ? '${cards[i].$2}' : _formatCurrency(cards[i].$2),
                     icon: cards[i].$3,
+                    iconBg: cards[i].$4,
+                    iconFg: cards[i].$5,
                     biz: biz,
                     textTheme: textTheme,
                   ),
                 ),
-                const SizedBox(width: GoldenitySpacing.sm),
+                const SizedBox(width: GoldenitySpacing.md),
                 Expanded(
                   child: i + 1 < cards.length
                       ? _StatCard(
                           label: cards[i + 1].$1,
                           value: cards[i + 1].$2 is int ? '${cards[i + 1].$2}' : _formatCurrency(cards[i + 1].$2),
                           icon: cards[i + 1].$3,
+                          iconBg: cards[i + 1].$4,
+                          iconFg: cards[i + 1].$5,
                           biz: biz,
                           textTheme: textTheme,
                         )
@@ -241,22 +247,33 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
         border: Border.all(color: GoldenityColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: GoldenityElevation.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(GoldenitySpacing.md),
+            padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
             child: Row(
               children: [
-                Icon(Icons.star_rounded, color: biz.base),
+                  Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: GoldenityColors.warningLight,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.star_rounded, color: GoldenityColors.warning, size: 20),
+                ),
                 const SizedBox(width: GoldenitySpacing.sm),
-                Text(
-                  'Produk Terlaris',
-                  style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                Expanded(
+                  child: Text(
+                    'Produk Terlaris',
+                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                  ),
                 ),
               ],
             ),
@@ -303,11 +320,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   subtitle: Text(
                     '${p.qty} unit terjual',
-                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
                   ),
                   trailing: Text(
                     _formatCurrency(p.total),
-                    style: textTheme.titleSmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w800, fontFamily: 'RobotoMono'),
+                    style: textTheme.titleSmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w800, fontFamily: GoldenityTypography.fontFamilyMono),
                   ),
                 );
               },
@@ -327,22 +344,33 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
         border: Border.all(color: GoldenityColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: GoldenityElevation.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(GoldenitySpacing.md),
+            padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
             child: Row(
               children: [
-                Icon(Icons.payment_rounded, color: biz.base),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: GoldenityColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.payment_rounded, color: GoldenityColors.primary, size: 20),
+                ),
                 const SizedBox(width: GoldenitySpacing.sm),
-                Text(
-                  'Breakdown Pembayaran',
-                  style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                Expanded(
+                  child: Text(
+                    'Breakdown Pembayaran',
+                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                  ),
                 ),
               ],
             ),
@@ -389,7 +417,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                       const SizedBox(width: GoldenitySpacing.sm),
                       SizedBox(
-                        width: 100,
+                        width: 120,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(GoldenityRadius.full),
                           child: LinearProgressIndicator(
@@ -404,11 +432,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   subtitle: Text(
                     '$count transaksi · ${percent.toStringAsFixed(1)}%',
-                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
                   ),
                   trailing: Text(
                     _formatCurrency(total),
-                    style: textTheme.titleSmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w800, fontFamily: 'RobotoMono'),
+                    style: textTheme.titleSmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w800, fontFamily: GoldenityTypography.fontFamilyMono),
                   ),
                 );
               }).toList(),
@@ -424,22 +452,33 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
         border: Border.all(color: GoldenityColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: GoldenityElevation.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(GoldenitySpacing.md),
+            padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
             child: Row(
               children: [
-                Icon(Icons.category_rounded, color: biz.base),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: biz.light,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(Icons.category_rounded, color: biz.dark, size: 20),
+                ),
                 const SizedBox(width: GoldenitySpacing.sm),
-                Text(
-                  'Breakdown Kategori',
-                  style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                Expanded(
+                  child: Text(
+                    'Breakdown Kategori',
+                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                  ),
                 ),
               ],
             ),
@@ -472,14 +511,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ),
                             const SizedBox(width: GoldenitySpacing.xs),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm, vertical: 2),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(GoldenityRadius.full),
                               ),
                               child: Text(
                                 _formatCurrency(cat.total),
-                                style: textTheme.labelSmall?.copyWith(color: biz.base, fontWeight: FontWeight.w900, fontFamily: 'RobotoMono'),
+                                style: textTheme.labelSmall?.copyWith(color: biz.base, fontWeight: FontWeight.w900, fontFamily: GoldenityTypography.fontFamilyMono),
                               ),
                             ),
                           ],
@@ -498,6 +537,8 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final Color iconBg;
+  final Color iconFg;
   final GoldenityBizColors biz;
   final TextTheme textTheme;
 
@@ -505,6 +546,8 @@ class _StatCard extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
+    required this.iconBg,
+    required this.iconFg,
     required this.biz,
     required this.textTheme,
   });
@@ -513,9 +556,10 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: biz.light,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
-        border: Border.all(color: biz.base.withValues(alpha: 0.1)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+        border: Border.all(color: GoldenityColors.border),
+        boxShadow: GoldenityElevation.card,
       ),
       padding: const EdgeInsets.all(GoldenitySpacing.md),
       child: Column(
@@ -524,29 +568,35 @@ class _StatCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.md),
                 ),
-                child: Icon(icon, color: biz.dark, size: 20),
+                alignment: Alignment.center,
+                child: Icon(icon, color: iconFg, size: 24),
               ),
               const SizedBox(width: GoldenitySpacing.sm),
               Expanded(
                 child: Text(
                   label,
-                  style: textTheme.bodySmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w700),
-                  maxLines: 1,
+                  style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w700, height: 1.2),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: GoldenitySpacing.sm),
+          const SizedBox(height: GoldenitySpacing.md),
           Text(
             value,
-            style: textTheme.titleLarge?.copyWith(color: biz.dark, fontWeight: FontWeight.w900, fontFamily: 'RobotoMono'),
+            style: textTheme.headlineSmall?.copyWith(
+              color: GoldenityColors.text,
+              fontWeight: FontWeight.w900,
+              fontFamily: GoldenityTypography.fontFamilyMono,
+              height: 1.1,
+            ),
           ),
         ],
       ),
