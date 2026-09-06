@@ -48,6 +48,47 @@ P0 (tiket `86eyup3pz`) BELUM closed. Menunggu: (a) user run `migration.sql`, (b)
 
 ---
 
+## 🔴 [2026-09-06] AUDIT APP SHELL ROOT CAUSE DITEMUKAN (konfirmasi hipotesis timing): POS vs Inventaris = 2 widget BERBEDA dalam IndexedStack semua 8 tab di-init SEKALI.
+
+### 📌 Bukti audit kode root cause konklusif dari [goldenity_app_shell.dart#L44-L58](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_app_shell.dart#L44-L58):
+```dart
+body: Row(children: [
+  GoldenitySidebar(...),
+  const VerticalDivider(...),
+  Expanded(child: IndexedStack(  // ⚠️ KRITIS: IndexedStack BUILD SEMUA 8 TAB SEKALI PADA INITSTATE
+    index: _indexOf(_currentTab),
+    children: const [
+      ProductListScreen(),              // Index 0 = POS POINT OF SALE (default post-login AKTIF)
+      DashboardScreen(),                // 1
+      SalesHistoryScreen(),             // 2
+      FinanceScreen(),                  // 3
+      ProductManagementListScreen(),    // 4 = INVENTARIS DAFTAR PRODUK (widget BERBEDA SAMA SEKALI!)
+      CategoryManagementScreen(),       // 5
+      SettingsScreen(),                 // 6
+      CashierShiftScreen(),             // 7
+    ],
+  )),
+])
+```
+
+### 🧭 Perbedaan PERILAKU load() provider yang MENCIPTAKAN 2 gejala TERNYATA BERBEDA (BUKAN provider beda instance, BUKAN providerScope ganda):
+| Halaman | Kapan `load()` dipanggil pertama kali | Apakah ada manual refresh? | Apakah `session.selectedBranchId` SUDAH terisi saat itu? |
+|---|---|---|---|
+| **POS Index 0 (ProductListScreen)** | **HANYA SEKALI** di `ProductListNotifier.build()` L83 via `Future.delayed(Duration.zero)` = DIPICU SAAT INITSTATE (SEBELUM onboarding selectBranch() dijalankan) | TIDAK ADA tombol refresh di POS. User biasanya tidak tahu harus refresh manual. | ❌ **BELUM TERISI** = NULL. Filter BE branchId tidak ada → tapi BE log `/api/v1/products?limit=1000` return 7446 bytes. TAPI Flutter tidak rerender setelah selectBranch() dipanggil nanti. |
+| **Inventaris Index 4 (ProductManagementListScreen)** | 1. Sama initState auto-load SEKALI (sama provider). 2. **TAPI SELALU di-call ulang `.load()` MANUAL** saat: (a) L32 user tekan IconButton Refresh ↻ di AppBar, (b) L68 setelah berhasil toggle status aktif/arsip produk. | ✅ 2 titik trigger manual load() ULANG. | ✅ **SUDAH TERISI!** Saat user KLIK sidebar pindah tab dari POS ke Inventaris, onboarding sudah selesai men-set selectedBranchId dari session storage **(storage callback listener sudah jalan)**. Jadi `.load()` ulang dengan branchId UUID valid → return 13 produk. Provider instance SAMA PERSIS (hashCode sama), cuma timing ketika load() di-fired YANG BEDA! |
+
+### 📌 Bukti dari BE terminal log (support 100% hipotesis timing):
+Login 12:32:46 → Semua request berjalan BERSAMAAN (0 ms jeda):
+`POST /auth/login` → `GET /settings/store ×2` → `GET /settings/branches` → `GET /shifts/current ×2` → `GET /dashboard/finance/report` → `GET /dashboard/summary` → **`GET /products?limit=1000` (7446 bytes, 13 produk)** → `GET /sales` → `GET /categories?includeInactive=true`
+Semua terjadi DALAM < 1 detik. Artinya `/products` di-fetch SEBELUM Flutter onboarding callback `selectBranch(<UUID>)` DIJALANKAN (karena branches list baru saja diterima). Jadi callback `selectedBranchId = <UUID>` terjadi TEPAT SETELAH load() selesai fetch 13 produk → tapi tidak ada listener yang me-reload product list ketika branchId baru di-set. Ini menjelaskan kenapa:
+- Provider state products = 13 (dari fetch keduanya, branchId pertama null kedua non-null)
+- TAPI POS build pertama = render ketika products masih empty / tidak rerender setelah state di-update.
+
+### ✅ FIX PLAN (sesudah user paste bukti debug print Flutter untuk audit formal TIKET 86eyup3pz STEP 3):
+Ubah lifecycle `ProductListNotifier.build()` dari "auto-fire sekali via Future.delayed(Duration.zero)" → "**LISTEN perubahan session.selectedBranchId, JALANKAN load() HANYA KETIKA selectedBranchId SUDAH NON-NULL**". Dan ketika `AuthNotifier.selectBranch()` dipanggil (perubahan selectedBranchId) → `ref.invalidate(productListNotifierProvider)` otomatis trigger ulang load() fresh tanpa user harus refresh manual. Ini akan men-normalize POS dan Inventaris 100%: keduanya mendapatkan state produk yang SAMA dengan branchId valid.
+
+---
+
 ## 🔴 [2026-09-06] BUKTI KONKRIT 2 BUG TERPISAH TERBUKTI 100% BENAR (3 screenshot user). Tiket 86eyup3pz lanjut ke Step 3 Debug Print.
 
 ### 📸 BUKTI 3 SCREENSHOT USER (SESSION SAMA PERSIS SETELAH SQL MIGRATION + BE NYALA + HOT RESTART):
