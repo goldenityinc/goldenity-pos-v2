@@ -36,6 +36,48 @@ P0 (tiket `86eyup3pz`) BELUM closed. Menunggu: (a) user run `migration.sql`, (b)
 
 ---
 
+## 🟡 [2026-09-06] VALIDASI USER: Audit SQL migration safe + DITEMUKAN KEMUNGKINAN 2 BUG TERPISAH (Kategori vs POS Grid kosong). Aturan BARU: 1 Tiket ClickUp = 1 Topik (Dilarang batch campur 5 topik ke depan).
+
+### ✅ VALIDASI USER (100% DITERIMA):
+User telah AUDIT baris per baris file [20260906050000_category_legacy_name_to_uuid/migration.sql](file:///E:/Goldenity/goldenity-pos-v2/pos-backend/prisma/migrations/20260906050000_category_legacy_name_to_uuid/migration.sql) + entry BATCH-4 di PROJECT_LOG.md. Hasil audit user:
+1. **✅ SQL migration AMAN, BOLEH DIJALANKAN.**
+   - BUKAN edit schema.prisma → 100% compliant SCHEMA GATE permanen.
+   - Dibungkus PostgreSQL transaction BEGIN/COMMIT (gagal 1 step = rollback total, 0 data corruption).
+   - Kedua langkah (INSERT + UPDATE) benar-benar idempotent, aman dijalankan berkali-kali tanpa duplikat.
+2. **⚠️ Catatan kecil non-blocking (opsional dicek sebelum run):**
+   Nama kategori yang beda huruf besar/kecil tapi sama (contoh "Minuman" vs "minuman") kemungkinan kecil ke-split menjadi 2 baris kategori berbeda. Query pre-check opsional (bisa di-skip juga):
+   ```sql
+   SELECT "tenantId", LOWER(TRIM("category")) AS nama_normal, COUNT(*),
+          STRING_AGG(DISTINCT "category", ', ') AS varian_nama
+   FROM "Product" WHERE "category" IS NOT NULL
+   GROUP BY "tenantId", LOWER(TRIM("category"))
+   HAVING COUNT(DISTINCT "category") > 1;
+   ```
+   Jika 0 row = lanjut run migration langsung aman.
+
+### 🔴 TEMUAN KRITIS DARI AUDIT USER (menyanggah sebagian klaim saya BATCH-4):
+> Klaim saya di BATCH-4: "Product.categoryId NULL = ROOT CAUSE POS Grid kosong TOTAL"
+> ❌ TIDAK 100% BENAR.
+
+Alasan bukti dari audit user (baca [product_list_provider.dart](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/providers/product_list_provider.dart) filter kategori pill "All" yang default AKTIF di POS:
+- Pill **"All"** (default yang aktif di screenshot user POS) = **TIDAK PERNAH** menyaring produk berdasarkan `categoryId` sama sekali.
+- Artinya: Kalau `state.products` benar-benar keisi data (mis. 13 produk dari Daftar Produk), maka walau SEMUA categoryId NULL, POS Grid dengan pill "All" **MASIH HARUS MENAMPILKAN 13 kartu produk**.
+- Screenshot user = POS Grid 0 kartu produk TOTAL meski pill "All" aktif → BUKAN semata-mata disebabkan categoryId NULL.
+
+### 🎯 KESIMPULAN BARU (setelah audit user): ADA KEMUNGKINAN 2 BUG TERPISAH:
+| Bug | Gejala | Root Cause (dugaan terkuat) | Apakah diperbaiki oleh SQL migration? |
+|---|---|---|---|
+| **#1 (Kategori Produk)** | 9 kategori baris semua menunjukkan "0 produk · 0 aktif" | Product.categoryId UUID FK SEMUA NULL → perhitungan `Category.products.length` relation Prisma = 0 | ✅ **YA — diperbaiki 100% oleh SQL migration** (setelah product.categoryId terisi UUID) |
+| **#2 (POS Grid kosong TOTAL)** | Pill "All" aktif tapi kartu produk 0 sama sekali | `selectedBranchId` NULL saat POS (halaman DEFAULT post-login) memicu auto-`load()` provider **SEBELUM** session auth onboarding set `selectedBranchId` → filter branchId return 0 produk. Daftar Produk berhasil karena user klik sidebar BELAKANG (selectedBranchId sudah keisi saat itu). | ❌ **TIDAK** — kemungkinan BUG TERSEPISAH tetap ada meski migration dijalankan. |
+
+### 🚩 ATURAN BAKU BARU DARI USER (WAJIB DIPATUHI MULAI PUTARAN INI SELESAI P0):
+**1 Tiket ClickUp = 1 Topik Kerja.**
+- DILARANG KERAS menggabungkan 5 topik berbeda (migration + token warna + printer + dashboard spec + tunai UX) ke dalam 1 "BATCH" lagi.
+- Setiap eksekusi perubahan kode ke depan = 1 tiket ClickUp / 1 tujuan spesifik saja.
+- BATCH-4 hari ini (campur 5 topik) = PENGECOUALAN TERAKHIR, ke depan TIDAK BOLEH.
+
+---
+
 ## 🟣 [2026-09-06] BATCH-4.1 QUICK WINS DESIGN SYSTEM (Tokenisasi 8 line exact match 100%, 0 risk beda visual). User OPSI B (Tetap Biru Primary) + OPSI X (SQL Migration duluan). Lint 0 PASS.
 
 ### 📌 Alur eksekusi sesuai jawaban user AskUserQuestion:
