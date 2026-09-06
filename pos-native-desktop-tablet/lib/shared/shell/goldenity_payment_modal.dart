@@ -411,15 +411,18 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     final paid = ref.watch(paidAmountProvider);
     final change = ref.watch(changeAmountProvider);
 
-    return Material(
-      type: MaterialType.transparency,
-      child: Center(
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(24),
+      child: Material(
+        borderRadius: BorderRadius.circular(20),
+        color: GoldenityColors.surface,
+        clipBehavior: Clip.antiAlias,
         child: Container(
           width: 880,
-          margin: const EdgeInsets.all(GoldenitySpacing.xl),
           decoration: BoxDecoration(
             color: GoldenityColors.surface,
-            borderRadius: BorderRadius.circular(GoldenityRadius.xxxl),
+            borderRadius: BorderRadius.circular(20),
             border: Border.all(color: GoldenityColors.border),
             boxShadow: GoldenityElevation.modal,
           ),

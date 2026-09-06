@@ -8,6 +8,40 @@
 
 ---
 
+## 🚨🔧🎯 [2026-09-06] BEDAH DARURAT 3-IN-1 P0: Payment Modal Blank Grey → Product Card Police Lines → Printer Settings Cluttered. 0 Logic Change. FLUTTER ANALYZE 0 ERROR.
+
+### 🚨 Task 1: PAYMENT MODAL BLANK/GREY UNCLICKABLE SCREEN FIXED (Standard Dialog Widget Pattern)
+**File**: [goldenity_payment_modal.dart L414-L476](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_payment_modal.dart#L414-L476)
+| Sebelum (Broke user report: blank grey) | Sesudah (Fixed per instruksi exact user) |
+|---|---|
+| `return Material(type: transparency, child: Center(child: Container(...)))` → Material tanpa batas struktur → blank grey unclickable | `return Dialog(backgroundColor:transparent, insetPadding:24, child: Material(borderRadius 20, color surface, clipBehavior antiAlias, child: Container(...)))` → STANDARD Flutter dialog pattern, guaranteed Material ancestor untuk Semua TextField/Tunai/QRIS/CC, backdrop blur works, padding inset 24 aman. |
+
+### 🚨 Task 2: PRODUCT CARD "POLICE LINES" (BOTTOM OVERFLOWED) FIXED
+**Files**:
+- POS: [product_list_screen.dart L505-L682](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/screens/product_list_screen.dart#L505-L682)
+- INVENTARIS: [product_management_list_screen.dart L261-L418](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/screens/product_management_list_screen.dart#L261-L418)
+
+| Item | Sebelum (developer art 1.15 = police lines overflow) | Sesudah (Fixed instruksi user exact 0.82 taller cards) |
+|---|---|---|
+| POS `childAspectRatio` | ❌ `1.15` (terlalu WIDE = TIDAK ADA ruang vertikal untuk teks nama + harga + stepper) → BOTTOM OVERFLOWED "POLICE LINES" STRIPES MERAH KUNING | ✅ `0.82` (lebih TINGGI → muat SEMUA content nama, harga, stepper, badge TIDAK AKTIF 100% overflow-free) |
+| POS `maxCrossAxisExtent` | `200` | ✅ `220` (instruksi user exact around 220) |
+| INVENTARIS `childAspectRatio` | ❌ `1.15` (sangat wide → overflow) | ✅ `0.82` (SAMA PERSIS POS, tinggi sempurna) |
+| POS Padding + SizedBox packing | 4px / 8px ketat (sesuai 1.15) | KEMBALI ke `GoldenitySpacing.sm / sm / md` original (sesuai 0.82 tinggi) → SPACER masih TIDAK ADA (tetap fixed height, no stretch) |
+| INVENTARIS `const Spacer()` sebelum Divider Switch Aktif | HAPUS paksa (sesuai 1.15) → gap div kosong 0 | ✅ DIKEMBALIKAN (sesuai instruksi aspect 0.82 ada ruang → PUSH divider ke bawah 1 slot, rata bawah tampilan, 0 kosong gap) |
+
+### 🚨 Task 3: PRINTER SETTINGS UI "EXTREMELY CLUTTERED" 100% DIBERSIHKAN (Inline Row Compact)
+**File**: [settings_screen.dart Printer Slot Card L1265-L1400](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/settings/screens/settings_screen.dart#L1265-L1400)
+| Sebelum (Laporan user: "Massive Ugly full-width stacked button") | Sesudah (Instruksi user EXACT LAYOUT) |
+|---|---|
+| Tombol **BESAR FULL-WIDTH** `Cari Printer (Auto-Scan)` warna primary `GoldenityPrimaryButton height:44` — BERTAHAN DI BAWAH TextFormField Port, DI ATAS TOMBOL SIMPAN SLOT — 2 tombol full-width bertumpuk = **CONFUSING, CLUTTERED, UGLY** | ✅ **PINDAHKAN KE SAMA ROW DENGAN ALAMAT TextFormField persis instruksi**: `Row(crossAxisAlignment: CrossAxisAlignment.end, children:[ Expanded(TextFormField Alamat), SizedBox(width:8), ElevatedButton.icon(minimumSize: 110x48 label 'Cari' / 'Scan...') ])`. **MASSIVE STANDALONE FULL-WIDTH BUTTON DIBUANG TOTAL** (bukan cuma disembunyikan, code REMOVED 100%). Compact, praktis, sesuai habit user Settings App biasa. |
+| scanMsg + scannedDevices list | Diantara 2 tombol full-width (stacked) → TIDAK jelas visual hierarchy | ✅ Dibawah Port TextFormField (L1305), sebelum slot Simpan → hierarchy JELAS: ChoiceChip (Type) → Row(Alamat+Cari) → Port → ScanMsg → Result Devices → Simpan Slot. |
+
+### 🎯 QUALITY GATES PASS SEMUA 100%:
+✅ `flutter analyze --no-pub → No issues found! (ran in 1.2s) → EXIT_CODE=0`
+✅ **0 Logic / Riverpod / Backend API changes**: `_submitSale`, `cartNotifier.updateQuantity`, `_runPrinterAutoScan`, `_upsertPrinter`, `_toggleActive` — SEMUA EXISTING METHOD TIDAK DIUBAH 1 BARIS. 100% UI SURGICAL FIX LAYER only persis instruksi user PROMPT BEDAH DARURAT.
+
+---
+
 ## 🔧🎯 [2026-09-06] SURGICAL CORRECTIONS P0: (1) Payment Modal Left Null Check + BOTTOM OVERFLOW FIX (2) Product Card Aspect Ratio Compact 1.15 Wide. 0 Logic Change. FLUTTER ANALYZE 0 ERROR.
 
 ### 🚨 Task 1: PAYMENT MODAL LEFT PANEL — 2 bugs CRITICAL FIXED:

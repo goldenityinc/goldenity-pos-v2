@@ -1263,13 +1263,43 @@ class _PrinterSlotCard extends StatelessWidget {
             }).toList(),
           ),
           const SizedBox(height: GoldenitySpacing.md),
-          TextFormField(
-            controller: addressCtrl,
-            enabled: connType != PrinterConnectionTypeDto.none,
-            decoration: const InputDecoration(
-              labelText: 'Alamat / MAC / IP Address',
-              hintText: 'Contoh: 192.168.1.100 atau AA:BB:CC:DD:EE:FF',
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: addressCtrl,
+                  enabled: connType != PrinterConnectionTypeDto.none,
+                  decoration: const InputDecoration(
+                    labelText: 'Alamat / MAC / IP Address',
+                    hintText: 'Contoh: 192.168.1.100 atau AA:BB:CC:DD:EE:FF',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: onAutoScan,
+                icon: Icon(
+                  scanning ? Icons.wifi_tethering_rounded : Icons.manage_search_rounded,
+                  size: 18,
+                ),
+                label: scanning
+                    ? const Text('Scan...', style: TextStyle(fontWeight: FontWeight.w700))
+                    : const Text('Cari', style: TextStyle(fontWeight: FontWeight.w700)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: scanning ? GoldenityColors.disabled : GoldenityColors.primary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: GoldenityColors.disabled,
+                  disabledForegroundColor: GoldenityColors.text2,
+                  minimumSize: const Size(110, 48),
+                  padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: GoldenitySpacing.md),
           TextFormField(
@@ -1280,17 +1310,6 @@ class _PrinterSlotCard extends StatelessWidget {
               labelText: 'Port (Network saja)',
               hintText: 'Contoh: 9100',
             ),
-          ),
-          const SizedBox(height: GoldenitySpacing.md),
-          GoldenityPrimaryButton(
-            label: scanning ? 'Sedang Scan...' : 'Cari Printer (Auto-Scan)',
-            icon: scanning ? Icons.wifi_tethering_rounded : Icons.manage_search_rounded,
-            backgroundColor: scanning ? GoldenityColors.disabled : GoldenityColors.primary,
-            foregroundColor: Colors.white,
-            isLoading: scanning,
-            shadow: GoldenityElevation.btnPrimary,
-            height: 44,
-            onPressed: onAutoScan,
           ),
           if (scanMsg.isNotEmpty) ...[
             const SizedBox(height: GoldenitySpacing.sm),
