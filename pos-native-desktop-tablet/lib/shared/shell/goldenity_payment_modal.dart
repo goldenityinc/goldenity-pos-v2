@@ -411,6 +411,11 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     final paid = ref.watch(paidAmountProvider);
     final change = ref.watch(changeAmountProvider);
 
+    // Tinggi modal DIBATASI EKSPLISIT (bukan shrink-to-content) — ini fix untuk bug
+    // "RenderFlex ... unbounded height" yang sebelumnya bikin crash/blank screen saat
+    // keranjang berisi banyak item: tanpa batas tinggi pasti, Expanded(ListView) di
+    // dalam Column tidak pernah tahu berapa sisa ruang yang boleh dipakai.
+    final maxModalHeight = MediaQuery.of(context).size.height * 0.85;
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(24),
@@ -420,6 +425,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
         clipBehavior: Clip.antiAlias,
         child: Container(
           width: 880,
+          constraints: BoxConstraints(maxHeight: maxModalHeight),
           decoration: BoxDecoration(
             color: GoldenityColors.surface,
             borderRadius: BorderRadius.circular(20),
@@ -429,7 +435,6 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
         child: Padding(
           padding: const EdgeInsets.all(GoldenitySpacing.xl),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
@@ -475,7 +480,12 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                 ),
               ),
               const SizedBox(height: GoldenitySpacing.xl),
-              Row(
+              // Dibungkus Expanded: sekarang Column induk (di atas) sudah punya batas
+              // tinggi pasti (lihat maxModalHeight), jadi Row ini boleh flex mengisi
+              // sisa ruang — inilah yang membuat Expanded(ListView) item keranjang di
+              // bawah akhirnya punya tinggi terbatas yang benar, bukan infinity.
+              Expanded(
+                child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
@@ -717,54 +727,47 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _PaymentMethodCard(
-                                icon: Icons.credit_card_outlined,
-                                iconBg: GoldenityColors.primaryLight,
-                                iconColor: GoldenityColors.primary,
-                                label: 'Kartu',
-                                selected: isCard,
-                                onTap: () {
-                                  ref.read(paymentMethodProvider.notifier).state = kPaymentMethodCreditCard;
-                                  ref.read(paymentReferenceNumberProvider.notifier).state = null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: GoldenitySpacing.sm),
-                            Expanded(
-                              child: _PaymentMethodCard(
-                                icon: Icons.money_outlined,
-                                iconBg: GoldenityColors.successLight,
-                                iconColor: GoldenityColors.success,
-                                label: 'Tunai',
-                                selected: isCash,
-                                onTap: () {
-                                  ref.read(paymentMethodProvider.notifier).state = kPaymentMethodCash;
-                                  ref.read(paymentReferenceNumberProvider.notifier).state = null;
-                                  final current = ref.read(paidAmountProvider);
-                                  final initial = current > 0 ? current : grandTotal;
-                                  ref.read(paidAmountProvider.notifier).state = initial;
-                                  _syncTunaiCtrlFromPaid(initial);
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: GoldenitySpacing.sm),
-                            Expanded(
-                              child: _PaymentMethodCard(
-                                icon: Icons.qr_code_2_outlined,
-                                iconBg: GoldenityBizColors.retail.light,
-                                iconColor: GoldenityBizColors.retail.base,
-                                label: 'QRIS',
-                                selected: isQris,
-                                onTap: () {
-                                  ref.read(paymentMethodProvider.notifier).state = kPaymentMethodQris;
-                                  ref.read(paymentReferenceNumberProvider.notifier).state = null;
-                                },
-                              ),
-                            ),
-                          ],
+                        // Pola daftar vertikal ala V1 (bukan 3 kartu sejajar horizontal):
+                        // tiap metode = 1 baris penuh, icon kiri + label + tanda selected
+                        // kanan — lebih mudah dibaca & lebih hemat ruang vertikal.
+                        _PaymentMethodTile(
+                          icon: Icons.money_outlined,
+                          iconBg: GoldenityColors.successLight,
+                          iconColor: GoldenityColors.success,
+                          label: 'Tunai',
+                          selected: isCash,
+                          onTap: () {
+                            ref.read(paymentMethodProvider.notifier).state = kPaymentMethodCash;
+                            ref.read(paymentReferenceNumberProvider.notifier).state = null;
+                            final current = ref.read(paidAmountProvider);
+                            final initial = current > 0 ? current : grandTotal;
+                            ref.read(paidAmountProvider.notifier).state = initial;
+                            _syncTunaiCtrlFromPaid(initial);
+                          },
+                        ),
+                        const SizedBox(height: GoldenitySpacing.sm),
+                        _PaymentMethodTile(
+                          icon: Icons.qr_code_2_outlined,
+                          iconBg: GoldenityBizColors.retail.light,
+                          iconColor: GoldenityBizColors.retail.base,
+                          label: 'QRIS',
+                          selected: isQris,
+                          onTap: () {
+                            ref.read(paymentMethodProvider.notifier).state = kPaymentMethodQris;
+                            ref.read(paymentReferenceNumberProvider.notifier).state = null;
+                          },
+                        ),
+                        const SizedBox(height: GoldenitySpacing.sm),
+                        _PaymentMethodTile(
+                          icon: Icons.credit_card_outlined,
+                          iconBg: GoldenityColors.primaryLight,
+                          iconColor: GoldenityColors.primary,
+                          label: 'Kartu',
+                          selected: isCard,
+                          onTap: () {
+                            ref.read(paymentMethodProvider.notifier).state = kPaymentMethodCreditCard;
+                            ref.read(paymentReferenceNumberProvider.notifier).state = null;
+                          },
                         ),
                         const SizedBox(height: GoldenitySpacing.xl),
                         if (isCash) ...[
@@ -987,6 +990,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                     ),
                   ),
                 ],
+                ),
               ),
               const SizedBox(height: GoldenitySpacing.xl),
               GoldenityPrimaryButton(
@@ -1076,8 +1080,11 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
 
 }
 
-class _PaymentMethodCard extends StatelessWidget {
-  const _PaymentMethodCard({
+/// Baris pilihan metode pembayaran gaya list (mengikuti pola V1: icon kotak
+/// kiri + label + indikator selected kanan, 1 baris penuh lebar) — pengganti
+/// `_PaymentMethodCard` lama yang berupa 3 kartu sejajar horizontal.
+class _PaymentMethodTile extends StatelessWidget {
+  const _PaymentMethodTile({
     required this.icon,
     required this.iconBg,
     required this.iconColor,
@@ -1096,41 +1103,53 @@ class _PaymentMethodCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(GoldenitySpacing.md),
-        decoration: BoxDecoration(
-          color: selected ? GoldenityColors.primaryLight : GoldenityColors.surface,
-          borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-          border: Border.all(
-            color: selected ? GoldenityColors.primary : GoldenityColors.border,
-            width: selected ? 1.5 : 1,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: GoldenitySpacing.md,
+            vertical: GoldenitySpacing.sm,
           ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: iconBg,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              alignment: Alignment.center,
-              child: Icon(icon, size: 22, color: iconColor),
+          decoration: BoxDecoration(
+            color: selected ? GoldenityColors.primaryLight : GoldenityColors.surface,
+            borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+            border: Border.all(
+              color: selected ? GoldenityColors.primary : GoldenityColors.border,
+              width: selected ? 1.5 : 1,
             ),
-            const SizedBox(height: GoldenitySpacing.sm),
-            Text(
-              label,
-              style: textTheme.bodySmall?.copyWith(
-                fontWeight: FontWeight.w600,
-                fontSize: 14,
-                color: GoldenityColors.text,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                ),
+                alignment: Alignment.center,
+                child: Icon(icon, size: 18, color: iconColor),
               ),
-            ),
-          ],
+              const SizedBox(width: GoldenitySpacing.md),
+              Expanded(
+                child: Text(
+                  label,
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: GoldenityColors.text,
+                  ),
+                ),
+              ),
+              Icon(
+                selected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
+                size: 20,
+                color: selected ? GoldenityColors.primary : GoldenityColors.border2,
+              ),
+            ],
+          ),
         ),
       ),
     );
