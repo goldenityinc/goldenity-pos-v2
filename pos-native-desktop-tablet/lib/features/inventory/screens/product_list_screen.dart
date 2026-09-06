@@ -603,81 +603,84 @@ class _ProductCard extends ConsumerWidget {
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+                      child: Text(
+                        product.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: inactive ? GoldenityColors.muted : GoldenityColors.text,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
+                      child: Text(
+                        currencyFormatter.format(product.price),
+                        style: textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: GoldenityColors.primary,
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(
-                            product.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: inactive ? GoldenityColors.muted : GoldenityColors.text,
-                            ),
+                          _buildStepperBtn(
+                            icon: Icons.remove,
+                            enabled: canAdd && qty > 0,
+                            filled: false,
+                            onTap: canAdd && qty > 0
+                                ? () => cartNotifier.updateQuantity(product.id, qty - 1)
+                                : null,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            currencyFormatter.format(product.price),
-                            style: textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              color: GoldenityColors.primary,
-                            ),
-                          ),
-                          const Spacer(),
-                          const SizedBox(height: GoldenitySpacing.sm),
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              _buildStepperBtn(
-                                icon: Icons.remove,
-                                enabled: canAdd && qty > 0,
-                                filled: false,
-                                onTap: canAdd && qty > 0
-                                    ? () => cartNotifier.updateQuantity(product.id, qty - 1)
-                                    : null,
-                              ),
-                              Expanded(
-                                child: Center(
-                                  child: Text(
-                                    '$qty',
-                                    style: textTheme.labelMedium?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: GoldenityColors.text,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              _buildStepperBtn(
-                                icon: Icons.add,
-                                enabled: canAdd,
-                                filled: true,
-                                onTap: canAdd ? () => cartNotifier.addToCart(product) : null,
-                              ),
-                            ],
-                          ),
-                          if (!canAdd && inactive) ...[
-                            const SizedBox(height: GoldenitySpacing.sm),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              decoration: BoxDecoration(
-                                color: GoldenityColors.surface2,
-                                borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                              ),
-                              alignment: Alignment.center,
+                          Expanded(
+                            child: Center(
                               child: Text(
-                                'Tidak Aktif',
-                                style: textTheme.labelSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color: GoldenityColors.text2,
+                                '$qty',
+                                style: textTheme.labelMedium?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: GoldenityColors.text,
                                 ),
                               ),
                             ),
-                          ],
+                          ),
+                          _buildStepperBtn(
+                            icon: Icons.add,
+                            enabled: canAdd,
+                            filled: true,
+                            onTap: canAdd ? () => cartNotifier.addToCart(product) : null,
+                          ),
                         ],
                       ),
                     ),
+                    if (!canAdd && inactive) ...[
+                      const SizedBox(height: GoldenitySpacing.sm),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          decoration: BoxDecoration(
+                            color: GoldenityColors.surface2,
+                            borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'Tidak Aktif',
+                            style: textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: GoldenityColors.text2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: GoldenitySpacing.md),
                   ],
                 ),
               ),
