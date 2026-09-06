@@ -225,6 +225,58 @@ Total perubahan total height: 4 + 4 - 8 = **0 NET** → preferredSize `Size.from
 
 ---
 
+## 🎨 [2026-09-06] BATCH-5.2 EXTENDED (INVENTARIS CARDS + FINANCE SCREEN POLISH SAMA PERSIS PATTERN BATCH-5 POS/DASHBOARD — STRICTLY PRESENTATION LAYER 0 LOGIC DIUBAH)
+
+### 🔁 Pattern Reference 100% = POS Card BATCH-5 + Dashboard StatCard BATCH-5 (sudah ACC visual)
+### 🚫 0 perubahan Riverpod / API call / method logic (_toggleActive, _loadData, _pickDateRange, Riverpod listener TIDAK disentuh 1 baris)
+
+---
+
+### 🟢 File 1: `product_management_list_screen.dart` (Inventaris Daftar Produk Cards)
+Sebelum: Developer art masih jelas terlihat → **icon placeholder = 100×100 px RAKSASA (TINGGI SELURUH KARTU 30% area hanya untuk icon), aspect ratio 0.87, boxShadow hardcoded inline Color(0x0F1A1A1A) blur 3, inner Column.mainAxisSize.min (redundan, tidak ada Spacer di dalamnya), fontSize badge 10/11 hardcoded (non token).**
+
+Sesudah (match 100% POS card BATCH-5 pattern):
+| Item | Sebelum | Sesudah |
+|---|---|---|
+| GridDelegate maxCrossAxisExtent | 320 px | **280 px** (card lebih ramping, 3 per row di tablet 1280, lebih padat) |
+| GridDelegate childAspectRatio | 1 / 1.15 = 0.87 | **0.78** (LEBIH TINGGI, mengakomodasi action bar Switch+Edit+Arsip divisible bawah 48px — flush bottom TIDAK ada gap putih aneh) |
+| Container card decoration boxShadow | Inline hardcoded blur 3 | **`GoldenityElevation.card`** DESIGN TOKEN (consistent dengan POS / Dashboard) |
+| Icon placeholder size | height 100, icon size 48, color `biz.dark` (sangat bold & mengganggu) | **width 40 height 40, icon size 22, color `GoldenityColors.muted`** (subtler, visual focus pindah ke nama + harga) |
+| Padding bottom icon container bottom | sm (8 px) | **xs (4 px)** |
+| SizedBox nama→info produk | height 4 hardcoded | `GoldenitySpacing.xs` (4px) TOKEN CONSISTENT |
+| Info produk (Kategori · SKU · Varian) text | fontSize 11 (hardcoded), fontWeight w400 default | **fontSize bodySmall 12 token, fontWeight w600 bold label look** |
+| Container stock badge padding | horizontal 8 vertical 3 (hardcoded) | **sm/xs TOKEN** |
+| Stock badge fontSize | 10 hardcoded | default labelSmall token (11px), w800 |
+| Top-right AKTIF/ARSIP badge padding | horizontal 8 vertical 4 (hardcoded) | **sm/xs TOKEN** + fontSize default labelSmall token |
+| Top-left HABIS/LOW badge padding | horizontal 6/3 hardcoded | **sm/xs TOKEN** + fontSize default labelSmall token |
+| Spacer L417 flush stepper + action bar | ✅ ADA SUDAH DI POSISI BENAR (bounded height outer Column L344, aspect 0.78 terjamin tinggi) → **DIpertahankan** | ✅ SAMA, action bar Switch Aktif+Edit+Arsip MENEMPEL BAWAH kartu. |
+| Opacity inactive 0.7 + AbsorbPointer via logic onToggle | ✅ SUDAH ADA BAGUS dari awal | ✅ DIpertahankan 100% (TIDAK ADA logic diubah) |
+| Font harga `priceDisplay` | ✅ SUDAH ADA JetBrainsMono w900 → DIPERTAHANKAN | ✅ SAMA |
+
+---
+
+### 🟢 File 2: `finance_screen.dart` (Halaman Keuangan)
+Sebelum: Developer art jelas → **6 _FinanceStatCard seluruh card background WARNA PASTEL (sama total dengan bgColor pastel) sehingga tidak terlihat seperti "card", hanya icon putaran 36x36 kecil. Typography RobotoMono (BUKAN JetBrainsMono). Section panel Payment & Daily = radius md 8px boxShadow hardcoded alpha 0.02 blur 4. Section header NO tinted icon container (hanya icon bertulang tanpa background). Progressbar pembayaran 100px sempit. Subtitle list tile fontWeight w400 (tipis).**
+
+Sesudah (match 100% Dashboard BATCH-5 pattern):
+| Item | Sebelum | Sesudah |
+|---|---|---|
+| 6 _FinanceStatCard card background | `bgColor` (seluruh card = pastel color, tidak seperti card) | **Colors.white + GoldenityElevation.card token + border + radius xl 12px** |
+| _FinanceStatCard icon size | 36×36 size 20, bg = Colors.white (tanpa tint semantic) | **44×44 size 24, bgColor = semantic pastel tint, fgColor = semantic solid** (Pendapatan = green, Diskon = warning amber, Pajak/Service = ungu FnB, Refund = error merah, Pendapatan Bersih = dark ungu) |
+| _FinanceStatCard label metric | 1 line MAX, color fgColor (semantic) | **text2 standar, height 1.2 maxLines 2** (jika nama metric panjang wrap 2 line tanpa overflow card) |
+| _FinanceStatCard typography angka | titleLarge RobotoMono 22px color fg | **headlineSmall JetBrainsMono 24px w900 color fg height 1.1** (TABULAR DIGIT sama persis Dashboard) |
+| Row antar metric _buildTotalsCards | spacing sm | **spacing md** (konsisten Dashboard 16px jarak card) |
+| Section Payment & Daily decoration | radius md 8px, boxShadow hardcoded alpha 0.02 blur 4 | **radius xl 12px, boxShadow `GoldenityElevation.card` DESIGN TOKEN** |
+| Section header Payment & Daily padding | .all(md) → spasi sebelum divider terlalu renggang | **fromLTRB(md, md, md, sm)** (padding bottom 4px sebelum divider, TIGHT & CONSISTENT Dashboard) |
+| Section header icon Payment | `Icon(Icons.payment)` TANPA BACKGROUND | **36×36 container tinted: `primary.withValues(alpha: 0.08)`, icon size 20 color primary** (mirip Dashboard header icon semantic) |
+| Section header icon Daily | `Icon(Icons.calendar_month)` TANPA BACKGROUND | **36×36 container tinted biz.light, icon color biz.dark** |
+| ListTile Payment subtitle & Daily subtitle | fontWeight w400 default (tipis) | **fontWeight w600 bold label look** (standar Dashboard pattern) |
+| ListTile trailing Rp Payment | fontFamily RobotoMono | **fontFamily JetBrainsMono (tabular digit)** |
+| ListTile title Rp Tren Harian (gross) | fontFamily RobotoMono | **fontFamily JetBrainsMono (tabular digit)** |
+| Width LinearProgressIndicator Pembayaran | 100 px | **120 px** (20% lebih lebar, visualisasi 20% vs 80% perbandingan jelas) |
+
+---
+
 ## 🟢 [2026-09-06] TIKET 86eyup3pz RCA DEFINITIF TERTUTUP: BUKAN DATA/PROVIDER ISSUE. Flutter RENDER CRASH `Spacer()` di dalam `Column` yang `mainAxisSize: MainAxisSize.min` (L608 product_list_screen.dart) menyebabkan "unbounded height constraints" berulang 13x per kartu → kaskade error layout → "Lost connection to device".
 
 ### 🔴 PEMBATALAN HIPOTESIS SEBELUMNYA (100% SALAH ARAH, DIBUKTIKAN OLEH DEBUG PRINT FLUTTER USER):

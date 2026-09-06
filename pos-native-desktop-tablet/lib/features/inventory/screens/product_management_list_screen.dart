@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design/goldenity_colors.dart';
+import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
@@ -258,10 +259,10 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
           GoldenitySpacing.lg,
         ),
         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-          maxCrossAxisExtent: 320,
+          maxCrossAxisExtent: 280,
           mainAxisSpacing: GoldenitySpacing.md,
           crossAxisSpacing: GoldenitySpacing.md,
-          childAspectRatio: 1.0 / 1.15,
+          childAspectRatio: 0.78,
         ),
         itemCount: products.length,
         itemBuilder: (context, i) {
@@ -332,14 +333,7 @@ class _ProductGridCard extends StatelessWidget {
         color: GoldenityColors.surface,
         borderRadius: BorderRadius.circular(GoldenityRadius.xl),
         border: Border.all(color: inactive ? GoldenityColors.border2 : GoldenityColors.border),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0F1A1A1A),
-            blurRadius: 3,
-            spreadRadius: 0,
-            offset: Offset(0, 1),
-          ),
-        ],
+        boxShadow: GoldenityElevation.card,
       ),
       clipBehavior: Clip.antiAlias,
       child: Opacity(
@@ -354,23 +348,23 @@ class _ProductGridCard extends StatelessWidget {
                     GoldenitySpacing.md,
                     GoldenitySpacing.md,
                     GoldenitySpacing.md,
-                    GoldenitySpacing.sm,
+                    GoldenitySpacing.xs,
                   ),
                   child: Container(
-                    height: 100,
+                    width: 40,
+                    height: 40,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: GoldenityColors.surface2,
                       borderRadius: BorderRadius.circular(GoldenityRadius.md),
                     ),
-                    child: Icon(Icons.inventory_2_rounded, size: 48, color: biz.dark),
+                    child: const Icon(Icons.inventory_2_rounded, size: 22, color: GoldenityColors.muted),
                   ),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         p.name,
@@ -382,14 +376,14 @@ class _ProductGridCard extends StatelessWidget {
                           height: 1.2,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: GoldenitySpacing.xs),
                       Text(
                         [
                           if (p.category.isNotEmpty) p.category,
                           if (p.sku?.isNotEmpty == true) 'SKU ${p.sku}',
                           if (hasVariants) '$groupCount varian',
                         ].whereType<String>().join(' · '),
-                        style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontSize: 11),
+                        style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -404,7 +398,7 @@ class _ProductGridCard extends StatelessWidget {
                       ),
                       const SizedBox(height: GoldenitySpacing.xs),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
                         decoration: BoxDecoration(
                           color: stockBadgeBg,
                           borderRadius: BorderRadius.circular(GoldenityRadius.sm),
@@ -414,7 +408,6 @@ class _ProductGridCard extends StatelessWidget {
                           style: textTheme.labelSmall?.copyWith(
                             color: stockBadgeFg,
                             fontWeight: FontWeight.w800,
-                            fontSize: 10,
                           ),
                         ),
                       ),
@@ -499,7 +492,7 @@ class _ProductGridCard extends StatelessWidget {
               top: GoldenitySpacing.md,
               right: GoldenitySpacing.md,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
                 decoration: BoxDecoration(
                   color: (p.isActive ? biz.base : GoldenityColors.text2).withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(GoldenityRadius.sm),
@@ -508,7 +501,6 @@ class _ProductGridCard extends StatelessWidget {
                   p.isActive ? 'AKTIF' : 'ARSIP',
                   style: textTheme.labelSmall?.copyWith(
                     fontWeight: FontWeight.w900,
-                    fontSize: 10,
                     color: p.isActive ? biz.dark : GoldenityColors.text2,
                   ),
                 ),
@@ -519,7 +511,7 @@ class _ProductGridCard extends StatelessWidget {
                 top: GoldenitySpacing.md,
                 left: GoldenitySpacing.md,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
                   decoration: BoxDecoration(
                     color: GoldenityColors.errorLight,
                     borderRadius: BorderRadius.circular(GoldenityRadius.sm),
@@ -530,7 +522,6 @@ class _ProductGridCard extends StatelessWidget {
                     style: textTheme.labelSmall?.copyWith(
                       color: GoldenityColors.error,
                       fontWeight: FontWeight.w900,
-                      fontSize: 10,
                     ),
                   ),
                 ),
@@ -540,7 +531,7 @@ class _ProductGridCard extends StatelessWidget {
                 top: GoldenitySpacing.md,
                 left: GoldenitySpacing.md,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
                   decoration: BoxDecoration(
                     color: GoldenityColors.warningLight,
                     borderRadius: BorderRadius.circular(GoldenityRadius.sm),
@@ -551,7 +542,6 @@ class _ProductGridCard extends StatelessWidget {
                     style: textTheme.labelSmall?.copyWith(
                       color: GoldenityColors.warning,
                       fontWeight: FontWeight.w800,
-                      fontSize: 10,
                     ),
                   ),
                 ),

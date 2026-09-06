@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/design/goldenity_colors.dart';
+import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
+import '../../../core/design/goldenity_typography.dart';
 import '../../../core/models/dashboard_profile.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../inventory/providers/product_list_provider.dart';
@@ -212,7 +214,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       children: [
         for (int i = 0; i < cards.length; i += 2)
           Padding(
-            padding: EdgeInsets.only(bottom: i + 2 < cards.length ? GoldenitySpacing.sm : 0),
+            padding: EdgeInsets.only(bottom: i + 2 < cards.length ? GoldenitySpacing.md : 0),
             child: Row(
               children: [
                 Expanded(
@@ -225,7 +227,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                     textTheme: textTheme,
                   ),
                 ),
-                const SizedBox(width: GoldenitySpacing.sm),
+                const SizedBox(width: GoldenitySpacing.md),
                 Expanded(
                   child: i + 1 < cards.length
                       ? _FinanceStatCard(
@@ -255,18 +257,27 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
         border: Border.all(color: GoldenityColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: GoldenityElevation.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(GoldenitySpacing.md),
+            padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
             child: Row(
               children: [
-                Icon(Icons.payment_rounded, color: biz.base),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: GoldenityColors.primary.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(Icons.payment_rounded, color: GoldenityColors.primary, size: 20),
+                ),
                 const SizedBox(width: GoldenitySpacing.sm),
                 Text(
                   'Breakdown Pembayaran',
@@ -317,7 +328,7 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                       ),
                       const SizedBox(width: GoldenitySpacing.sm),
                       SizedBox(
-                        width: 100,
+                        width: 120,
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(GoldenityRadius.full),
                           child: LinearProgressIndicator(
@@ -332,11 +343,11 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                   ),
                   subtitle: Text(
                     '$count transaksi · ${percent.toStringAsFixed(1)}%',
-                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
                   ),
                   trailing: Text(
                     _formatCurrency(total),
-                    style: textTheme.titleSmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w800, fontFamily: 'RobotoMono'),
+                    style: textTheme.titleSmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w800, fontFamily: GoldenityTypography.fontFamilyMono),
                   ),
                 );
               }).toList(),
@@ -359,18 +370,27 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
         border: Border.all(color: GoldenityColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: GoldenityElevation.card,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.all(GoldenitySpacing.md),
+            padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
             child: Row(
               children: [
-                Icon(Icons.calendar_month_rounded, color: biz.base),
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: biz.light,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(Icons.calendar_month_rounded, color: biz.dark, size: 20),
+                ),
                 const SizedBox(width: GoldenitySpacing.sm),
                 Expanded(
                   child: Text(
@@ -417,11 +437,11 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
                   ),
                   title: Text(
                     _formatCurrency(t.grossRevenue),
-                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800, fontFamily: 'RobotoMono', color: biz.dark),
+                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800, fontFamily: GoldenityTypography.fontFamilyMono, color: biz.dark),
                   ),
                   subtitle: Text(
                     '${t.transactions} transaksi · Refund ${_formatCurrency(t.refund)}',
-                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
                   ),
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
@@ -464,9 +484,10 @@ class _FinanceStatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
-        border: Border.all(color: fgColor.withValues(alpha: 0.1)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+        border: Border.all(color: GoldenityColors.border),
+        boxShadow: GoldenityElevation.card,
       ),
       padding: const EdgeInsets.all(GoldenitySpacing.md),
       child: Column(
@@ -475,29 +496,35 @@ class _FinanceStatCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                  color: bgColor,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.md),
                 ),
-                child: Icon(icon, color: fgColor, size: 20),
+                alignment: Alignment.center,
+                child: Icon(icon, color: fgColor, size: 24),
               ),
               const SizedBox(width: GoldenitySpacing.sm),
               Expanded(
                 child: Text(
                   label,
-                  style: textTheme.bodySmall?.copyWith(color: fgColor, fontWeight: FontWeight.w700),
-                  maxLines: 1,
+                  style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w700, height: 1.2),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: GoldenitySpacing.sm),
+          const SizedBox(height: GoldenitySpacing.md),
           Text(
             value,
-            style: textTheme.titleLarge?.copyWith(color: fgColor, fontWeight: FontWeight.w900, fontFamily: 'RobotoMono'),
+            style: textTheme.headlineSmall?.copyWith(
+              color: fgColor,
+              fontWeight: FontWeight.w900,
+              fontFamily: GoldenityTypography.fontFamilyMono,
+              height: 1.1,
+            ),
           ),
         ],
       ),
