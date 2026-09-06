@@ -8,6 +8,36 @@
 
 ---
 
+## 🔧🎯 [2026-09-06] SURGICAL CORRECTIONS P0: (1) Payment Modal Left Null Check + BOTTOM OVERFLOW FIX (2) Product Card Aspect Ratio Compact 1.15 Wide. 0 Logic Change. FLUTTER ANALYZE 0 ERROR.
+
+### 🚨 Task 1: PAYMENT MODAL LEFT PANEL — 2 bugs CRITICAL FIXED:
+**Files**: [goldenity_payment_modal.dart L478-L605](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_payment_modal.dart#L478-L605)
+| Bug | Root Cause | Fix |
+|---|---|---|
+| **Null check operator used on a null value crash** | `itemBuilder L551: cart[i]!` forced unwrap (bangs operator) + `item.product.name` empty bisa throw runtime null. | Hapus `!`, tambah `if (item == null) return SizedBox.shrink()` null guard. Tambah fallback `name = product.name.trim().isEmpty ? 'Produk' : product.name`. |
+| **BOTTOM OVERFLOWED BY 99165 PIXELS** (kartu produk banyak di cart) | `Column` wrap `ListView.separated` **TANPA `Expanded()`** + `NeverScrollableScrollPhysics()` → list cart tidak bounded height → overflow kebawah juta pixel jika cart berisi 20+ item. | Bungkus `ListView.separated` cart items dengan `Expanded()` → physics ganti `ClampingScrollPhysics()` → list cart bounded & scrolls jika melebihi ketinggian panel kiri. |
+
+### 🚨 Task 2: PRODUCT CARD MASSIVE EMPTY SPACE FIX (Aspect Ratio Exact 1.15 — wider than tall, Figma 1:1 compact)
+**Files**:
+- POS: [product_list_screen.dart L506-L682](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/screens/product_list_screen.dart#L506-L682)
+- INVENTARIS: [product_management_list_screen.dart L261-L418](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/screens/product_management_list_screen.dart#L261-L418)
+
+| Item | SEBELUM (stretched, tinggi kosong) | SESUDAH (compact wide aspect 1.15 exact) |
+|---|---|---|
+| POS `childAspectRatio` | 0.88 (tinggi > lebar → stretch kosong) | **EXACT 1.15** (lebar > tinggi → compact squarish match Figma) |
+| INVENTARIS `childAspectRatio` | 0.78 (sangat tinggi stretched) | **EXACT 1.15** (SAMA PERSIS POS compact) |
+| POS Spacer/Expanded vertical gap | `Sm → Sm 8→8` terlalu renggang | **TIGHT PACK 4px/8px**: Nama→Harga `SizedBox(height: 4)`, Harga→Stepper `SizedBox(height: 8)`, Stepper→Akhir `SizedBox(height: sm)` |
+| INVENTARIS `const Spacer()` sebelum Divider (L417) | ❌ ADA → PUSH divider kebawah PAKSA → gap kosong BESAR diatas Divider Switch Aktif/Arsip | ❌ **DIHAPUS TOTAL → ganti `const SizedBox(height: 8)`** sebelum divider. Tight packing Stok Badge→Divider. |
+| Padding Placeholder → Nama Produk POS | sm 8px | xs 4px (semakin compact) |
+| Padding Stepper → akhir | md 12px | sm 8px |
+| Padding INVENTARIS Nama→Kategori→Harga→Stok | xs→xs→xs (3×4px renggang) | 4→4→8px tight packing exact. |
+
+### 🎯 Quality Gates:
+✅ `flutter analyze --no-pub → No issues found! (ran in 5.4s) → EXIT=0` 100% CLEAN 0 ERROR.
+✅ 0 Riverpod / 0 Backend / 0 API / 0 logic change. `_submitSale`, `cartNotifier.updateQuantity`, `_toggleActive` — SEMUA logic existing 100% TIDAK DIUBAH 1 BARIS. Surgical UI rendering bugs ONLY.
+
+---
+
 ## 🔴✅🎯 [2026-09-06] CRITICAL FIX 3 IN 1 (P0 TERTINGGI — User PROMPT PAKSA EXACT ISSUE): Payment Modal RED SCREEN → POS CARD SPACER STRETCHED → PRINTER AUTO-SCAN PORT V1). 0 Business Logic / Riverpod / API Changes. FLUTTER ANALYZE 0 ERROR PASS.
 
 ### 🚨 Task 1: FIX PAYMENT MODAL RED SCREEN OF DEATH (P0 #1)

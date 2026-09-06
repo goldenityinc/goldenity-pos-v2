@@ -507,7 +507,7 @@ class _ProductGridView extends ConsumerWidget {
               maxCrossAxisExtent: 200,
               mainAxisSpacing: GoldenitySpacing.md,
               crossAxisSpacing: GoldenitySpacing.md,
-              childAspectRatio: 0.88,
+              childAspectRatio: 1.15,
             ),
             delegate: SliverChildBuilderDelegate(
               (ctx, i) => _ProductCard(
@@ -580,7 +580,7 @@ class _ProductCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
+                      padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.xs),
                       child: Container(
                         width: 48,
                         height: 48,
@@ -609,7 +609,7 @@ class _ProductCard extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: GoldenitySpacing.sm),
+                    const SizedBox(height: 4),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
                       child: Text(
@@ -621,7 +621,7 @@ class _ProductCard extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: GoldenitySpacing.sm),
+                    const SizedBox(height: 8),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
                       child: Row(
@@ -657,7 +657,7 @@ class _ProductCard extends ConsumerWidget {
                       ),
                     ),
                     if (!canAdd && inactive) ...[
-                      const SizedBox(height: GoldenitySpacing.sm),
+                      const SizedBox(height: GoldenitySpacing.xs),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
                         child: Container(
@@ -678,7 +678,7 @@ class _ProductCard extends ConsumerWidget {
                         ),
                       ),
                     ],
-                    const SizedBox(height: GoldenitySpacing.md),
+                    const SizedBox(height: GoldenitySpacing.sm),
                   ],
                 ),
               ),

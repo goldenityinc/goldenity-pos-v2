@@ -540,60 +540,68 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                               ),
                             ),
                           if (cart.isNotEmpty)
-                            ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: cart.length,
-                              separatorBuilder: (_, __) =>
-                                  const Divider(color: GoldenityColors.border, height: 1, thickness: 0.5),
-                              itemBuilder: (_, i) {
-                                // ignore: collection_methods_unrelated_type
-                                final item = cart[i]!;
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.sm),
-                                  child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        flex: 4,
-                                        child: Text(
-                                          item.product.name,
-                                          style: textTheme.bodyMedium?.copyWith(
-                                            fontWeight: FontWeight.w500,
-                                            color: GoldenityColors.text,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 48,
-                                        child: Text(
-                                          'x${item.quantity}',
-                                          textAlign: TextAlign.center,
-                                          style: textTheme.bodyMedium?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                            fontFamily: GoldenityTypography.fontFamilyMono,
-                                            color: GoldenityColors.text2,
+                            Expanded(
+                              child: ListView.separated(
+                                shrinkWrap: true,
+                                physics: const ClampingScrollPhysics(),
+                                itemCount: cart.length,
+                                separatorBuilder: (_, __) =>
+                                    const Divider(color: GoldenityColors.border, height: 1, thickness: 0.5),
+                                itemBuilder: (_, i) {
+                                  // ignore: collection_methods_unrelated_type
+                                  final item = cart[i];
+                                  if (item == null) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final String name = item.product.name.trim().isEmpty
+                                      ? 'Produk'
+                                      : item.product.name;
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.sm),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          flex: 4,
+                                          child: Text(
+                                            name,
+                                            style: textTheme.bodyMedium?.copyWith(
+                                              fontWeight: FontWeight.w500,
+                                              color: GoldenityColors.text,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
-                                      ),
-                                      SizedBox(
-                                        width: 104,
-                                        child: Text(
-                                          _currencyFormatter.format(item.lineSubtotal),
-                                          textAlign: TextAlign.right,
-                                          style: textTheme.bodyMedium?.copyWith(
-                                            fontWeight: FontWeight.w600,
-                                            fontFamily: GoldenityTypography.fontFamilyMono,
-                                            fontFeatures: const [FontFeature.tabularFigures()],
+                                        SizedBox(
+                                          width: 48,
+                                          child: Text(
+                                            'x${item.quantity}',
+                                            textAlign: TextAlign.center,
+                                            style: textTheme.bodyMedium?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                              fontFamily: GoldenityTypography.fontFamilyMono,
+                                              color: GoldenityColors.text2,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
+                                        SizedBox(
+                                          width: 104,
+                                          child: Text(
+                                            _currencyFormatter.format(item.lineSubtotal),
+                                            textAlign: TextAlign.right,
+                                            style: textTheme.bodyMedium?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                              fontFamily: GoldenityTypography.fontFamilyMono,
+                                              fontFeatures: const [FontFeature.tabularFigures()],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
                           if (cart.isNotEmpty) const SizedBox(height: GoldenitySpacing.sm),
                           const Divider(color: GoldenityColors.border, thickness: 1, height: 1),

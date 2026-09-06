@@ -262,7 +262,7 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
           maxCrossAxisExtent: 280,
           mainAxisSpacing: GoldenitySpacing.md,
           crossAxisSpacing: GoldenitySpacing.md,
-          childAspectRatio: 0.78,
+          childAspectRatio: 1.15,
         ),
         itemCount: products.length,
         itemBuilder: (context, i) {
@@ -376,7 +376,7 @@ class _ProductGridCard extends StatelessWidget {
                           height: 1.2,
                         ),
                       ),
-                      const SizedBox(height: GoldenitySpacing.xs),
+                      const SizedBox(height: 4),
                       Text(
                         [
                           if (p.category.isNotEmpty) p.category,
@@ -387,7 +387,7 @@ class _ProductGridCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: GoldenitySpacing.xs),
+                      const SizedBox(height: 4),
                       Text(
                         priceDisplay,
                         style: textTheme.titleSmall?.copyWith(
@@ -396,7 +396,7 @@ class _ProductGridCard extends StatelessWidget {
                           fontFamily: GoldenityTypography.fontFamilyMono,
                         ),
                       ),
-                      const SizedBox(height: GoldenitySpacing.xs),
+                      const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
                         decoration: BoxDecoration(
@@ -414,7 +414,7 @@ class _ProductGridCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(height: 8),
                 const Divider(height: 1, color: GoldenityColors.border),
                 Padding(
                   padding: const EdgeInsets.symmetric(
