@@ -5,6 +5,7 @@ import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_elevation.dart';
+import '../../../core/services/hardware_connection_service.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../../../core/models/branch_profile_extended.dart';
 import '../../../core/models/printer_config_profile.dart';
@@ -22,6 +23,10 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTickerProviderStateMixin {
   bool _loading = false;
   String _errMsg = '';
+  final HardwareConnectionService _hwSvc = HardwareConnectionService();
+  final Map<PrinterSlotDto, List<HardwareDeviceInfo>> _scannedDevices = {};
+  final Map<PrinterSlotDto, bool> _scanning = {};
+  final Map<PrinterSlotDto, String> _scanMsg = {};
 
   late TabController _tabController;
 
@@ -465,6 +470,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       PrinterConnectionTypeDto.network => 'Network (LAN)',
       PrinterConnectionTypeDto.none => 'Tidak Aktif',
     };
+  }
+
+  Future<void> _runPrinterAutoScan(PrinterSlotDto slot) async {
+    if (_scanning[slot] == true) return;
+    final connType = _printerConnTypes[slot] ?? PrinterConnectionTypeDto.none;
+    if (connType == PrinterConnectionTypeDto.none) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: GoldenityColors.warning,
+            content: Text('Pilih tipe koneksi terlebih dahulu (Bluetooth / USB) sebelum Scan.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+        );
+      }
+      return;
+    }
+    if (connType == PrinterConnectionTypeDto.network) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: GoldenityColors.primary,
+            content: Text('Network (LAN) tidak support auto-scan. Masukkan IP & Port secara manual.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+        );
+      }
+      return;
+    }
+    setState(() {
+      _scanning[slot] = true;
+      _scanMsg[slot] = 'Sedang mencari perangkat...';
+      _scannedDevices[slot] = [];
+    });
+    try {
+      final hwType = connType == PrinterConnectionTypeDto.bluetooth ? ConnectionType.bluetooth : ConnectionType.usb;
+      final results = await _hwSvc.discoverDevices(hwType, timeout: const Duration(seconds: 5));
+      setState(() {
+        _scannedDevices[slot] = results;
+        _scanMsg[slot] = results.isEmpty
+            ? 'Tidak ditemukan perangkat. Pastikan printer sudah ON & terkoneksi / ter-pairing.'
+            : 'Ditemukan ${results.length} perangkat. Pilih salah satu dibawah.';
+      });
+    } catch (e) {
+      setState(() {
+        _scanMsg[slot] = 'Scan gagal: ${e.toString()}';
+      });
+    } finally {
+      if (mounted) setState(() => _scanning[slot] = false);
+    }
+  }
+
+  void _applyScannedDevice(PrinterSlotDto slot, HardwareDeviceInfo d) {
+    setState(() {
+      if (d.connectionType == ConnectionType.bluetooth) {
+        _printerConnTypes[slot] = PrinterConnectionTypeDto.bluetooth;
+      } else if (d.connectionType == ConnectionType.usb) {
+        _printerConnTypes[slot] = PrinterConnectionTypeDto.usb;
+      }
+      _printerAddressCtrls[slot]?.text = d.address.isNotEmpty ? d.address : d.name;
+    });
   }
 
   @override
@@ -1083,6 +1147,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                         textTheme: textTheme,
                         onConnTypeChanged: (t) => setState(() => _printerConnTypes[slot] = t),
                         onSave: _loading ? null : () => _upsertPrinter(slot),
+                        scanning: _scanning[slot] ?? false,
+                        scanMsg: _scanMsg[slot] ?? '',
+                        scannedDevices: _scannedDevices[slot] ?? const [],
+                        onAutoScan: _loading ? null : () => _runPrinterAutoScan(slot),
+                        onApplyDevice: (d) => _applyScannedDevice(slot, d),
                       ),
                     );
                   }).toList(),
@@ -1106,6 +1175,11 @@ class _PrinterSlotCard extends StatelessWidget {
   final TextTheme textTheme;
   final ValueChanged<PrinterConnectionTypeDto> onConnTypeChanged;
   final VoidCallback? onSave;
+  final bool scanning;
+  final String scanMsg;
+  final List<HardwareDeviceInfo> scannedDevices;
+  final VoidCallback? onAutoScan;
+  final ValueChanged<HardwareDeviceInfo> onApplyDevice;
 
   const _PrinterSlotCard({
     required this.slot,
@@ -1118,6 +1192,11 @@ class _PrinterSlotCard extends StatelessWidget {
     required this.textTheme,
     required this.onConnTypeChanged,
     required this.onSave,
+    required this.scanning,
+    required this.scanMsg,
+    required this.scannedDevices,
+    required this.onAutoScan,
+    required this.onApplyDevice,
   });
 
   @override
@@ -1202,6 +1281,114 @@ class _PrinterSlotCard extends StatelessWidget {
               hintText: 'Contoh: 9100',
             ),
           ),
+          const SizedBox(height: GoldenitySpacing.md),
+          GoldenityPrimaryButton(
+            label: scanning ? 'Sedang Scan...' : 'Cari Printer (Auto-Scan)',
+            icon: scanning ? Icons.wifi_tethering_rounded : Icons.manage_search_rounded,
+            backgroundColor: scanning ? GoldenityColors.disabled : GoldenityColors.primary,
+            foregroundColor: Colors.white,
+            isLoading: scanning,
+            shadow: GoldenityElevation.btnPrimary,
+            height: 44,
+            onPressed: onAutoScan,
+          ),
+          if (scanMsg.isNotEmpty) ...[
+            const SizedBox(height: GoldenitySpacing.sm),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm),
+              child: Text(
+                scanMsg,
+                style: textTheme.bodySmall?.copyWith(
+                  color: scanMsg.toLowerCase().contains('gagal') || scanMsg.toLowerCase().contains('tidak ditemukan')
+                      ? GoldenityColors.error
+                      : GoldenityColors.text2,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+          if (scannedDevices.isNotEmpty) ...[
+            const SizedBox(height: GoldenitySpacing.sm),
+            Container(
+              padding: const EdgeInsets.all(GoldenitySpacing.xs),
+              decoration: BoxDecoration(
+                color: GoldenityColors.surface,
+                borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+                border: Border.all(color: GoldenityColors.border),
+              ),
+              child: Column(
+                children: scannedDevices.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final d = entry.value;
+                  return Padding(
+                    padding: EdgeInsets.only(bottom: i == scannedDevices.length - 1 ? 0 : GoldenitySpacing.xs),
+                    child: Material(
+                      color: GoldenityColors.surface,
+                      borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                        onTap: () => onApplyDevice(d),
+                        child: Padding(
+                          padding: const EdgeInsets.all(GoldenitySpacing.sm),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 32,
+                                height: 32,
+                                decoration: BoxDecoration(
+                                  color: GoldenityColors.surface2,
+                                  borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                                ),
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  d.connectionType == ConnectionType.bluetooth
+                                      ? Icons.bluetooth_rounded
+                                      : Icons.usb_rounded,
+                                  size: 16,
+                                  color: GoldenityColors.text2,
+                                ),
+                              ),
+                              const SizedBox(width: GoldenitySpacing.sm),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      d.name.isEmpty ? 'Perangkat Tanpa Nama' : d.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: textTheme.bodySmall?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                        color: GoldenityColors.text,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      [
+                                        connectionTypeLabel(d.connectionType),
+                                        if (d.address.isNotEmpty) d.address,
+                                        if (d.vendorId != null && d.productId != null)
+                                          'USB: ${d.vendorId}/${d.productId}',
+                                      ].join('  ·  '),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: textTheme.labelSmall?.copyWith(color: GoldenityColors.text2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: GoldenitySpacing.sm),
+                              const Icon(Icons.chevron_right_rounded, size: 18, color: GoldenityColors.muted),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
           const SizedBox(height: GoldenitySpacing.md),
           GoldenityPrimaryButton(
             label: 'Simpan Slot $slotLabel',

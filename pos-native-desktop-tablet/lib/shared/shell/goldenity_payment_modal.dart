@@ -411,16 +411,18 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     final paid = ref.watch(paidAmountProvider);
     final change = ref.watch(changeAmountProvider);
 
-    return Center(
-      child: Container(
-        width: 880,
-        margin: const EdgeInsets.all(GoldenitySpacing.xl),
-        decoration: BoxDecoration(
-          color: GoldenityColors.surface,
-          borderRadius: BorderRadius.circular(GoldenityRadius.xxxl),
-          border: Border.all(color: GoldenityColors.border),
-          boxShadow: GoldenityElevation.modal,
-        ),
+    return Material(
+      type: MaterialType.transparency,
+      child: Center(
+        child: Container(
+          width: 880,
+          margin: const EdgeInsets.all(GoldenitySpacing.xl),
+          decoration: BoxDecoration(
+            color: GoldenityColors.surface,
+            borderRadius: BorderRadius.circular(GoldenityRadius.xxxl),
+            border: Border.all(color: GoldenityColors.border),
+            boxShadow: GoldenityElevation.modal,
+          ),
         child: Padding(
           padding: const EdgeInsets.all(GoldenitySpacing.xl),
           child: Column(
@@ -990,8 +992,9 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildQuickAmountChip(BuildContext context, num amount, String label) {
     final theme = Theme.of(context);

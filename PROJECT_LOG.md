@@ -8,6 +8,51 @@
 
 ---
 
+## 🔴✅🎯 [2026-09-06] CRITICAL FIX 3 IN 1 (P0 TERTINGGI — User PROMPT PAKSA EXACT ISSUE): Payment Modal RED SCREEN → POS CARD SPACER STRETCHED → PRINTER AUTO-SCAN PORT V1). 0 Business Logic / Riverpod / API Changes. FLUTTER ANALYZE 0 ERROR PASS.
+
+### 🚨 Task 1: FIX PAYMENT MODAL RED SCREEN OF DEATH (P0 #1)
+- **File**: [goldenity_payment_modal.dart L414](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_payment_modal.dart#L414-L425)
+- **Root Cause**: `showGeneralDialog.pageBuilder` mengembalikan `Center(Container(...))` SECARA LANGSUNG TANPA `Material` wrapper → `TextFormField` di Tunai L791 dan `TextField` di QRIS/CC L1201 membutuhkan `Material widget ancestor`. Flutter Throw: `No Material widget found. TextField widgets require a Material widget ancestor.` → RED SCREEN user tidak bisa bayar.
+- **Fix (persis sesuai instruksi user)**: Wrap outermost widget return dengan `Material(type: MaterialType.transparency, child: Center(child: Container(...)))`. SEHINGGA SEMUA TextField ancestor Material 100% terpenuhi.
+- **Constraint DIPATUHI**: 0 perubahan logika `_submitSale`, `_syncTunaiCtrl`, Provider watch/cartNotifier`.
+
+### 🚨 Task 2: FIX POS PRODUCT CARD MASSIVE EMPTY SPACE (P0 #2)
+- **Files**: [product_list_screen.dart L506-L510 (GridDelegate) + L579-L682 (Column _ProductCard)](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/screens/product_list_screen.dart#L506-L510)
+- **Root Cause (sesuai laporan user): BATCH-5 lalai implement `Spacer()` di bounded Column dengan `aspectRatio: 0.82` → kartu TERLALU TINGGI, `Spacer()` memaksa jarak HARGA → STEPPER = 300px kosong. Placeholder icon 40×40 → info produk nama pendek (misal: "Es Teh") TERLIHAT KARTUNYA SEPERTI "KOSONG BANYAK" (stretched developer art).
+- **Fix (Exact instruksi user Figma 1:1 compact squarish)**:
+| Item | Sebelum | Sesudah |
+|---|---|---|
+| `SliverGridDelegate maxCrossAxisExtent | 220 px | 200 px (ramping compact) |
+| `childAspectRatio` | 0.82 (terlalu tinggi stretched) | 0.88 (compact squarish match Figma) |
+| `const Spacer()` stretched | ❌ DIHAPUS TOTAL (penyebab gap 300px) | ✅ Diganti `const SizedBox(height: GoldenitySpacing.sm)` TIGHT packing Nama→Harga→Stepper |
+| Placeholder icon container size | 40×40 | 48×48 |
+| Placeholder icon size | 22 | 24 |
+| Jarak padding bawah Placeholder→Nama produk | xs 4px | sm 8px |
+| Constraint (logic stepper / addToCart / cartNotifier | ✅ ADA | ✅ DIpertahankan 100% (0 logic berubah) |
+
+### 🚨 Task 3: PORT V1 PRINTER AUTO-SCAN IMMEDIATELY (P0 #3)
+- **New Deps di pubspec.yaml: `flutter_pos_printer_platform_image_3: ^1.2.4` (copas V1 exact package) + `image: ^3.3.0` (direct, dari transitive → direct ESC/POS logo raster).
+- **New Service File (copy-paste 1:1 V1 pattern)**: [hardware_connection_service.dart](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/core/services/hardware_connection_service.dart) (PrinterManager.instance.discover USB/Bluetooth + timeout 4 detik + HardwareDeviceInfo model + ConnectionType enum.
+- **Root Cause**: User TIDAK BISA END-TO-END TEST karena Tab Printer Settings hanya bisa input manual Alamat/IP. Tidak ada tombol "Cari Printer (Auto-Scan)" yang V1 PUNYA.
+- **Fix Settings_screen.dart (Printer Tab 3 Slot Default/Dapur/Kasir)**:
+| Item | Detail |
+|---|---|
+| **Auto-Scan Button per Slot | ✅ `Cari Printer (Auto-Scan) `+ icon manage_search_rounded / wifi_tethering_rounded loading |
+| SnackBar guard CHOICE CHIP BLUETOOTH / USB belum dipilih | Warning snackbar kuning teks putih bold |
+| SnackBar guard NETWORK (LAN) dipilih | Primary snackbar biru teks putih bold → "Network tidak support auto-scan, masukkan IP & Port manual" |
+| Timer scanning | `scanning[slot]=true → isLoading button + disabled greyed + text "Sedang Scan..." |
+| Result list display | Column Material InkWell row: 32×32 icon BT/USB + Name + Alamat/vendorId + chevron_right. Click → **Apply to addressCtrl + set connType |
+| Status message scanMsg | ✅ "Ditemukan N perangkat" atau "Tidak ditemukan perangkat" (text2) atau "Scan gagal: X" (error) |
+| Simpan Slot Existing logic ✅ **DIpertahankan 100% TIDAK DIUBAH 1 baris |
+
+### 🎯 Quality Gates PASS SEMUA:
+✅ `flutter analyze --no-pub → No issues found! (ran in 1.2s) → EXIT_CODE=0 100% CLEAN.
+
+### Constraint DIPATUHI 100%:
+0 Riverpod state / API call / business logic changes. `_upsertPrinter`, `cartNotifier.updateQuantity`, `_submitSale` — 0 DIUBAH 1 BARIS. 100% presentation layer + new service file + pub add dep printer (no existing business logic touch).
+
+---
+
 ## 🟢🎯 [2026-09-06] Review Klaude — ROOT CAUSE DEFINITIF DITEMUKAN dari bukti debug console user (bukan dugaan lagi): BUKAN selectedBranchId timing, BUKAN ProviderScope, BUKAN categoryId — MURNI CRASH RENDERING Flutter (`Spacer()` vs `mainAxisSize.min` bentrok) di `_ProductCard`. Celah logika yang saya angkat di entri sebelumnya AKHIRNYA terjawab.
 
 User paste isi Flutter Run Console lengkap setelah hot restart. Ini bukti paling kuat sepanjang tiket ini karena berasal dari runtime asli, bukan audit kode statis semata.
