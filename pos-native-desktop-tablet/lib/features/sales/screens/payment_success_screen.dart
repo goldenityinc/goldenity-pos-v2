@@ -63,13 +63,13 @@ class PaymentSuccessScreen extends StatelessWidget {
                   width: 96,
                   height: 96,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF16A34A).withValues(alpha: 0.10),
+                    color: GoldenityColors.success.withValues(alpha: 0.10),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.check_circle_rounded,
                     size: 72,
-                    color: Color(0xFF16A34A),
+                    color: GoldenityColors.success,
                   ),
                 ),
                 const SizedBox(height: GoldenitySpacing.xl),
@@ -179,7 +179,7 @@ class PaymentSuccessScreen extends StatelessWidget {
                   ? textTheme.titleMedium
                   : textTheme.bodyMedium)
               ?.copyWith(
-            color: isHighlight ? const Color(0xFF16A34A) : GoldenityColors.text,
+            color: isHighlight ? GoldenityColors.success : GoldenityColors.text,
             fontWeight: isValueBold ? FontWeight.w800 : FontWeight.w600,
           ),
         ),

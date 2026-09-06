@@ -43,12 +43,12 @@ class GoldenityVariantCheckboxSelector<T> extends StatelessWidget {
             constraints: const BoxConstraints(minWidth: 90),
             decoration: BoxDecoration(
               color: isSelected
-                  ? const Color(0xFFF5F3FF)
+                  ? GoldenityBizColors.retail.light
                   : GoldenityColors.surface,
               borderRadius: BorderRadius.circular(GoldenityRadius.lg),
               border: Border.all(
                 color: isSelected
-                    ? const Color(0xFF7C3AED)
+                    ? GoldenityBizColors.retail.base
                     : GoldenityColors.border,
                 width: isSelected ? 1.5 : 1,
               ),
@@ -62,12 +62,12 @@ class GoldenityVariantCheckboxSelector<T> extends StatelessWidget {
                   margin: const EdgeInsets.only(right: 8),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF7C3AED)
+                        ? GoldenityBizColors.retail.base
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(5),
                     border: Border.all(
                       color: isSelected
-                          ? const Color(0xFF7C3AED)
+                          ? GoldenityBizColors.retail.base
                           : GoldenityColors.border2,
                       width: 2,
                     ),
@@ -83,7 +83,7 @@ class GoldenityVariantCheckboxSelector<T> extends StatelessWidget {
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: isSelected
-                        ? const Color(0xFF7C3AED)
+                        ? GoldenityBizColors.retail.base
                         : GoldenityColors.text2,
                   ),
                 ),
