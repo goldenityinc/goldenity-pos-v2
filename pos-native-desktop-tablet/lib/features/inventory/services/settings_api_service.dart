@@ -197,12 +197,14 @@ class SettingsApiService {
     required PrinterConnectionTypeDto connectionType,
     String? address,
     int? port,
+    int? paperWidth,
   }) async {
     final payload = <String, dynamic>{
       'slot': printerSlotToString(slot),
       'connectionType': printerConnTypeToString(connectionType),
       if (address != null && address.isNotEmpty) 'address': address,
       if (port != null) 'port': port,
+      if (paperWidth != null) 'paperWidth': paperWidth,
     };
     final uri = ApiConstants.settingsPrintersUpsertEndpoint(branchId);
     final resp = await _client

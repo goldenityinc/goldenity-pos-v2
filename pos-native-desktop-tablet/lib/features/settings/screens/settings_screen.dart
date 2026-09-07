@@ -56,18 +56,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   final Map<PrinterSlotDto, TextEditingController> _printerAddressCtrls = {};
   final Map<PrinterSlotDto, TextEditingController> _printerPortCtrls = {};
   final Map<PrinterSlotDto, PrinterConnectionTypeDto> _printerConnTypes = {};
-  // FIX (temuan Andre): pilihan ukuran kertas 58mm/80mm belum ada sama sekali
-  // di UI Settings sebelumnya. Backend (Prisma `PrinterConfig`) BELUM punya
-  // kolom untuk ini — menambah kolom butuh migrasi DB yang tidak bisa
-  // dijalankan dari sesi Claude ini (tidak ada akses shell/DB ke komputer
-  // Andre). Sebagai solusi sementara yang AMAN (tidak menyentuh skema DB /
-  // backend sama sekali): disimpan LOKAL per (cabang, slot) via
-  // SharedPreferences, key harus SAMA PERSIS dengan yang dibaca balik di
-  // goldenity_payment_modal.dart saat generate struk.
+  // Issue #2 — ukuran kertas 58/80mm per slot. Sekarang kolom nyata
+  // `PrinterConfig.paperWidth` di backend (bukan lagi hack SharedPreferences):
+  // di-load dari & disimpan ke `upsertPrinter`, dibaca payment modal dari
+  // profil printer langsung.
   final Map<PrinterSlotDto, int> _printerPaperWidths = {};
-
-  String _paperWidthPrefKey(String branchId, PrinterSlotDto slot) =>
-      'printer_paper_mm_${branchId}_${slot.name}';
 
   @override
   void initState() {
@@ -424,18 +417,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       final settingsApi = ref.read(settingsApiServiceProvider);
       final list =
           await settingsApi.listPrinters(authToken: token, branchId: branchId);
-      final prefs = ref.read(sharedPreferencesProvider);
       if (mounted) {
+        // Reset ke default dulu (slot yang belum ada config-nya di BE).
+        for (final slot in PrinterSlotDto.values) {
+          _printerPaperWidths[slot] = 58;
+        }
         for (final p in list) {
           _printerConnTypes[p.slot] = p.connectionType;
           _printerAddressCtrls[p.slot]?.text = p.address ?? '';
           _printerPortCtrls[p.slot]?.text = p.port != null ? '${p.port}' : '';
-        }
-        // Ukuran kertas: baca dari SharedPreferences lokal (bukan dari BE,
-        // lihat catatan di _printerPaperWidths) untuk SEMUA slot.
-        for (final slot in PrinterSlotDto.values) {
-          _printerPaperWidths[slot] =
-              prefs.getInt(_paperWidthPrefKey(branchId, slot)) ?? 58;
+          // Issue #2 — ukuran kertas sekarang kolom nyata di PrinterConfig BE.
+          _printerPaperWidths[p.slot] = p.paperWidth;
         }
       }
     } catch (e) {
@@ -473,13 +465,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         connectionType: connType,
         address: address != null && address.isNotEmpty ? address : null,
         port: port,
+        paperWidth: _printerPaperWidths[slot] ?? 58,
       );
-      // Simpan ukuran kertas LOKAL (lihat catatan _printerPaperWidths — belum
-      // ada kolomnya di backend, jadi tidak ikut terkirim ke upsertPrinter).
-      await ref.read(sharedPreferencesProvider).setInt(
-            _paperWidthPrefKey(_selectedBranchId!, slot),
-            _printerPaperWidths[slot] ?? 58,
-          );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

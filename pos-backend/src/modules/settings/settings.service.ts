@@ -31,6 +31,11 @@ const UpsertPrinterSchema = z.object({
   connectionType: z.nativeEnum({ bluetooth: 'bluetooth', usb: 'usb', network: 'network', none: 'none' } as Record<PrinterConnectionType, PrinterConnectionType>),
   address: z.string().max(200).optional().nullable(),
   port: z.number().int().min(1).max(65535).optional().nullable(),
+  paperWidth: z
+    .union([z.number(), z.string()])
+    .pipe(z.coerce.number().int())
+    .refine((v) => v === 58 || v === 80, 'paperWidth harus 58 atau 80 (mm)')
+    .optional(),
 });
 
 interface StoreData {
@@ -162,6 +167,7 @@ export class SettingsService {
             connectionType: true,
             address: true,
             port: true,
+            paperWidth: true,
           },
         },
       },

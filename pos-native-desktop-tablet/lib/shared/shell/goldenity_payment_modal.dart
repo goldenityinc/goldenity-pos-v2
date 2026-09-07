@@ -408,7 +408,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                   name: 'payment.receipt');
               // ============ BRIDGE: Settings BE PrinterConfigProfile → HardwareConnectionService SEND PRINT ============
               try {
-                final branchId = session.user.branchId!;
+                final branchId = effectiveBranchId;
                 final token = session.token;
                 // FIX: sebelumnya endpoint printer di-guess manual dengan string
                 // replace dari salesEndpoint() ('/sales' -> '/settings/printers')
@@ -443,25 +443,12 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                     ),
                   );
                 }
-                // FIX (temuan Andre): pilihan ukuran kertas 58mm/80mm belum ada
-                // sama sekali sebelumnya — struk SELALU di-generate pakai
-                // `PaperSize.mm58` hardcoded, apapun printer fisiknya. Ukuran
-                // kertas BELUM ada kolomnya di skema database backend
-                // (`PrinterConfigProfile`/Prisma `PrinterConfig`) — menambah
-                // kolom baru butuh migrasi database yang TIDAK BISA saya
-                // jalankan dari sesi ini (tidak ada akses shell/DB ke komputer
-                // Andre). Sebagai solusi sementara yang aman (tidak menyentuh
-                // skema DB / backend sama sekali): preferensi ukuran kertas
-                // disimpan LOKAL per slot printer via SharedPreferences (diisi
-                // dari Settings > Printer per Cabang, lihat settings_screen.dart
-                // `_printerPaperWidths` + `_PrinterSlotCard`), dibaca balik di
-                // sini pakai key yang SAMA PERSIS.
-                final chosenSlotName = (chosen?.slot ?? PrinterSlotDto.defaultPrinter).name;
-                final paperWidthMm = ref
-                        .read(sharedPreferencesProvider)
-                        .getInt('printer_paper_mm_${branchId}_$chosenSlotName') ??
-                    58;
-                final paperSize = paperWidthMm >= 80 ? PaperSize.mm80 : PaperSize.mm58;
+                // Issue #2 — ukuran kertas dibaca LANGSUNG dari profil printer
+                // yang dipilih (`PrinterConfig.paperWidth`, kolom BE nyata).
+                // Tidak ada lagi hack SharedPreferences / key-matching branchId+slot.
+                final paperWidthMm = chosen?.paperWidth ?? 58;
+                final paperSize =
+                    paperWidthMm >= 80 ? PaperSize.mm80 : PaperSize.mm58;
                 final bytes = await ReceiptGenerator.generateEscPosBytes(
                   receiptData,
                   paperSize: paperSize,

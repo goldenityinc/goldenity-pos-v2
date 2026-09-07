@@ -36,6 +36,10 @@ class PrinterConfigProfile {
   final String? address;
   final int? port;
 
+  /// Lebar kertas thermal slot ini: 58 atau 80 (mm). Default 58.
+  /// Issue #2 — sebelumnya di-hack di SharedPreferences, sekarang kolom DB nyata.
+  final int paperWidth;
+
   const PrinterConfigProfile({
     required this.id,
     required this.branchId,
@@ -43,6 +47,7 @@ class PrinterConfigProfile {
     required this.connectionType,
     this.address,
     this.port,
+    this.paperWidth = 58,
   });
 
   factory PrinterConfigProfile.fromJson(Map<String, dynamic> json) {
@@ -54,6 +59,7 @@ class PrinterConfigProfile {
           json['connectionType'] as String? ?? 'none'),
       address: json['address'] as String?,
       port: (json['port'] as num?)?.toInt(),
+      paperWidth: (json['paperWidth'] as num?)?.toInt() == 80 ? 80 : 58,
     );
   }
 
@@ -64,5 +70,6 @@ class PrinterConfigProfile {
         'connectionType': printerConnTypeToString(connectionType),
         if (address != null) 'address': address,
         if (port != null) 'port': port,
+        'paperWidth': paperWidth,
       };
 }

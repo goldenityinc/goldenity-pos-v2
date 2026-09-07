@@ -303,6 +303,7 @@ model PrinterConfig {
   connectionType PrinterConnectionType @default(none)
   address        String?
   port           Int?
+  paperWidth     Int                   @default(58) // 58 | 80 (mm) — lebar kertas thermal per slot
   branch         Branch                @relation(fields: [branchId], references: [id])
 
   @@unique([branchId, slot])
