@@ -23,6 +23,9 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
   bool _includeInactive = false;
   String _errMsg = '';
   late TextEditingController _editNameCtrl;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _search = '';
+  int _kategoriTab = 0; // 0 = Produk, 1 = Pengeluaran (belum ada backend)
 
   @override
   void initState() {
@@ -33,6 +36,7 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
   @override
   void dispose() {
     _editNameCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -251,7 +255,7 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: GoldenityPageHeader(
-          title: 'Manajemen Kategori',
+          title: 'Kategori Produk',
           subtitle:
               '$totalKategori kategori aktif · $totalNonaktif dinonaktifkan',
           dense: true,
@@ -331,6 +335,101 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
   }
 
   Widget _buildList(BuildContext context, TextTheme textTheme, GoldenityBizColors biz, List<CategoryProfile> categories) {
+    final filtered = _search.trim().isEmpty
+        ? categories
+        : categories
+            .where((c) => c.name.toLowerCase().contains(_search.trim().toLowerCase()))
+            .toList();
+    final header = Padding(
+      padding: const EdgeInsets.fromLTRB(
+          GoldenitySpacing.lg, GoldenitySpacing.md, GoldenitySpacing.lg, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              for (final t in const [(0, 'Produk'), (1, 'Pengeluaran')]) ...[
+                GestureDetector(
+                  onTap: () => setState(() => _kategoriTab = t.$1),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: _kategoriTab == t.$1 ? GoldenityColors.primary : GoldenityColors.surface,
+                      borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                      border: Border.all(
+                          color: _kategoriTab == t.$1
+                              ? GoldenityColors.primary
+                              : GoldenityColors.border),
+                    ),
+                    child: Text(t.$2,
+                        style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: _kategoriTab == t.$1 ? Colors.white : GoldenityColors.muted)),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+            ],
+          ),
+          const SizedBox(height: GoldenitySpacing.md),
+          if (_kategoriTab == 0)
+            TextField(
+              controller: _searchCtrl,
+              onChanged: (v) => setState(() => _search = v),
+              decoration: InputDecoration(
+                hintText: 'Cari kategori...',
+                prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                isDense: true,
+                filled: true,
+                fillColor: GoldenityColors.surface2,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                  borderSide: const BorderSide(color: GoldenityColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                  borderSide: const BorderSide(color: GoldenityColors.primary, width: 1.5),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+
+    if (_kategoriTab == 1) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          header,
+          const Expanded(
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(GoldenitySpacing.xl),
+                child: Text(
+                  'Kategori pengeluaran akan tersedia setelah modul Keuangan/Pengeluaran aktif.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: GoldenityColors.muted, fontSize: 13),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        header,
+        Expanded(child: _buildGrid(context, textTheme, biz, filtered)),
+      ],
+    );
+  }
+
+  Widget _buildGrid(BuildContext context, TextTheme textTheme, GoldenityBizColors biz,
+      List<CategoryProfile> categories) {
     if (categories.isEmpty) {
       return Center(
         child: Padding(

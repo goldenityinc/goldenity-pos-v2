@@ -1,13 +1,18 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 
+import '../../../core/config/api_constants.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
 import '../../../core/models/dashboard_profile.dart';
+import '../../../core/models/shift_profile.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../inventory/providers/product_list_provider.dart';
 
@@ -23,6 +28,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   String _errMsg = '';
   String _range = 'today';
   DashboardSummaryProfile? _summary;
+  ShiftProfile? _activeShift;
+  List<num> _hourly = const []; // 24 slot, penjualan kotor hari ini per jam
 
   final NumberFormat _currency =
       NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
@@ -48,6 +55,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       final summary =
           await dashboardApi.getSummary(authToken: token, range: _range);
       if (mounted) setState(() => _summary = summary);
+      // Shift aktif (badge) — best effort.
+      try {
+        final shift = await ref.read(shiftApiServiceProvider).getCurrentShift(authToken: token);
+        if (mounted) setState(() => _activeShift = shift);
+      } catch (_) {}
+      // Penjualan per jam hari ini — hitung dari daftar penjualan (best effort).
+      try {
+        final r = await http.get(ApiConstants.salesEndpoint(),
+            headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'});
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        final sales = (body['data']?['sales'] as List<dynamic>?) ?? const [];
+        final buckets = List<num>.filled(24, 0);
+        final today = DateTime.now();
+        for (final raw in sales) {
+          if (raw is! Map) continue;
+          final dt = DateTime.tryParse('${raw['createdAt']}')?.toLocal();
+          if (dt == null || dt.year != today.year || dt.month != today.month || dt.day != today.day) {
+            continue;
+          }
+          if ((raw['status']?.toString() ?? '') == 'VOIDED') continue;
+          buckets[dt.hour] += num.tryParse('${raw['total'] ?? 0}') ?? 0;
+        }
+        if (mounted) setState(() => _hourly = buckets);
+      } catch (_) {}
     } catch (e) {
       if (mounted) {
         setState(() => _errMsg = e.toString().replaceAll('Exception: ', ''));
@@ -119,14 +150,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ],
                 ),
               ),
-              _RangeTabs(
-                value: _range,
-                onChanged: _loading
-                    ? null
-                    : (v) {
-                        setState(() => _range = v);
-                        _loadData();
-                      },
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _ShiftBadge(shift: _activeShift),
+                  const SizedBox(height: 8),
+                  _RangeTabs(
+                    value: _range,
+                    onChanged: _loading
+                        ? null
+                        : (v) {
+                            setState(() => _range = v);
+                            _loadData();
+                          },
+                  ),
+                ],
               ),
             ],
           ),
@@ -161,11 +199,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             _KpiCard(label: 'PENDAPATAN BERSIH', value: _fmt(s.netRevenue)),
           ]),
           const SizedBox(height: GoldenitySpacing.lg),
-          // ── Two columns: payment summary + top products ──
+          // ── Two columns: hourly chart + top products ──
           LayoutBuilder(
             builder: (context, c) {
               final twoCol = c.maxWidth >= 900;
-              final left = _PaymentSummaryCard(summary: s, fmt: _fmt);
+              final left = _range == 'today'
+                  ? _HourlyChartCard(hourly: _hourly, fmt: _fmt)
+                  : _PaymentSummaryCard(summary: s, fmt: _fmt);
               final right = _TopProductsCard(summary: s, fmt: _fmt);
               if (!twoCol) {
                 return Column(children: [
@@ -186,6 +226,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               );
             },
           ),
+          if (_range == 'today') ...[
+            const SizedBox(height: GoldenitySpacing.lg),
+            _PaymentSummaryCard(summary: s, fmt: _fmt),
+          ],
           if (lowStock.isNotEmpty) ...[
             const SizedBox(height: GoldenitySpacing.lg),
             _LowStockStrip(
@@ -249,6 +293,90 @@ class _RangeTabs extends StatelessWidget {
           );
         }).toList(),
       ),
+    );
+  }
+}
+
+class _ShiftBadge extends StatelessWidget {
+  const _ShiftBadge({required this.shift});
+  final ShiftProfile? shift;
+
+  @override
+  Widget build(BuildContext context) {
+    final open = shift != null;
+    final text = open
+        ? 'Shift Aktif • buka ${DateFormat('HH:mm').format(shift!.openedAt)}'
+        : 'Belum Buka Shift';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: open ? GoldenityColors.primaryLight : GoldenityColors.surface2,
+        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+      ),
+      child: Text(text,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: open ? GoldenityColors.primary : GoldenityColors.muted,
+          )),
+    );
+  }
+}
+
+class _HourlyChartCard extends StatelessWidget {
+  const _HourlyChartCard({required this.hourly, required this.fmt});
+  final List<num> hourly;
+  final String Function(num) fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    // Tampilkan jam operasional 7–22 (16 bar) supaya terbaca.
+    const from = 7, to = 22;
+    final slice = hourly.length >= 24
+        ? [for (int h = from; h <= to; h++) hourly[h]]
+        : List<num>.filled(to - from + 1, 0);
+    final maxVal = slice.fold<num>(0, (m, e) => e > m ? e : m);
+    return _Card(
+      title: 'Penjualan per Jam',
+      child: slice.every((e) => e == 0)
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: GoldenitySpacing.lg),
+              child: Center(
+                child: Text('Belum ada penjualan hari ini',
+                    style: TextStyle(color: GoldenityColors.muted, fontSize: 13)),
+              ),
+            )
+          : SizedBox(
+              height: 150,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (int i = 0; i < slice.length; i++)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            Container(
+                              height: maxVal <= 0
+                                  ? 2
+                                  : (120 * (slice[i] / maxVal)).clamp(2, 120).toDouble(),
+                              decoration: BoxDecoration(
+                                color: GoldenityColors.primary,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text('${from + i}',
+                                style: const TextStyle(fontSize: 8.5, color: GoldenityColors.muted)),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
     );
   }
 }
