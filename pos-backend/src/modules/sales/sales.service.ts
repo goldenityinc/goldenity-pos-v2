@@ -333,11 +333,38 @@ export class SalesService {
     const serviceChargeN = Number(payload.serviceChargeAmount ?? 0);
     const totalN = Number(payload.total);
 
-    const expectedTotal = subtotalN - discountN + taxN + serviceChargeN;
+    // Story 3.2 — PPN dinamis. Mode tenant menentukan cara total dihitung:
+    //  - exclusive (default): total = subtotal - discount + tax + serviceCharge (pajak ditambah di atas)
+    //  - inclusive: pajak SUDAH di dalam subtotal → total = subtotal - discount + serviceCharge,
+    //    taxN hanya nilai display (embedded) = (subtotal-discount) * rate / (100+rate).
+    const taxCfg = await prisma.tenant.findUnique({
+      where: { id: effectiveTenantId },
+      select: { pricesIncludeTax: true, taxEnabled: true, taxRatePercentage: true },
+    });
+    const pricesIncludeTax = taxCfg?.pricesIncludeTax === true;
+
+    const expectedTotal = pricesIncludeTax
+      ? subtotalN - discountN + serviceChargeN
+      : subtotalN - discountN + taxN + serviceChargeN;
     if (Math.abs(expectedTotal - totalN) > 0.01) {
       return fail(
-        `Perhitungan total tidak konsisten: subtotal(${subtotalN}) - discount(${discountN}) + tax(${taxN}) + serviceCharge(${serviceChargeN}) = ${expectedTotal}, tapi payload.total=${totalN} (selisih > 0.01)`
+        `Perhitungan total tidak konsisten (mode ${pricesIncludeTax ? 'inclusive' : 'exclusive'}): ` +
+        `subtotal(${subtotalN}) - discount(${discountN})${pricesIncludeTax ? '' : ` + tax(${taxN})`} + serviceCharge(${serviceChargeN}) = ${expectedTotal}, ` +
+        `tapi payload.total=${totalN} (selisih > 0.01)`
       );
+    }
+
+    // Sanity-check nilai pajak embedded untuk mode inclusive (toleransi 1 rupiah pembulatan).
+    if (pricesIncludeTax && taxCfg?.taxEnabled === true && taxN > 0) {
+      const rate = Number(taxCfg.taxRatePercentage ?? 11);
+      const taxable = subtotalN - discountN;
+      const expectedEmbeddedTax = rate > 0 ? (taxable * rate) / (100 + rate) : 0;
+      if (Math.abs(expectedEmbeddedTax - taxN) > 1.0) {
+        return fail(
+          `taxAmount tidak konsisten dengan mode inclusive: embedded seharusnya ~${expectedEmbeddedTax.toFixed(2)} ` +
+          `((subtotal-discount) * ${rate} / ${100 + rate}), tapi payload.taxAmount=${taxN}.`
+        );
+      }
     }
 
     const cashReceivedN = payload.cashReceived === undefined || payload.cashReceived === null ? null : Number(payload.cashReceived);

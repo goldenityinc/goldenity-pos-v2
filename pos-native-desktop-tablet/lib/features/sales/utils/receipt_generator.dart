@@ -66,6 +66,7 @@ class ReceiptData {
   final int paperWidthColumns;
   final bool taxEnabled;
   final num taxRatePercentage;
+  final bool pricesIncludeTax;
   final ManualDiscountType? manualDiscountType;
   final num? manualDiscountValue;
 
@@ -87,6 +88,7 @@ class ReceiptData {
     this.paperWidthColumns = 48,
     this.taxEnabled = true,
     this.taxRatePercentage = 11,
+    this.pricesIncludeTax = false,
     this.manualDiscountType,
     this.manualDiscountValue,
   });
@@ -234,7 +236,7 @@ abstract class ReceiptGenerator {
       if (data.discountAmount > 0)
         ReceiptSummaryRow(label: _discountLabel(data), value: data.discountAmount, isNegative: true),
       if (data.taxEnabled)
-        ReceiptSummaryRow(label: 'Pajak (PPn ${data.taxRatePercentage}%)', value: data.taxAmount),
+        ReceiptSummaryRow(label: data.pricesIncludeTax ? 'PPN ${data.taxRatePercentage}% (termasuk)' : 'Pajak (PPn ${data.taxRatePercentage}%)', value: data.taxAmount),
       if (data.serviceChargeAmount > 0)
         ReceiptSummaryRow(label: 'Service Charge', value: data.serviceChargeAmount),
       ReceiptSummaryRow(label: 'TOTAL BAYAR', value: data.grandTotal, isBold: true),
@@ -376,7 +378,7 @@ abstract class ReceiptGenerator {
       if (data.discountAmount > 0)
         ReceiptSummaryRow(label: _discountLabel(data), value: data.discountAmount, isNegative: true),
       if (data.taxEnabled)
-        ReceiptSummaryRow(label: 'Pajak (PPn ${data.taxRatePercentage}%)', value: data.taxAmount),
+        ReceiptSummaryRow(label: data.pricesIncludeTax ? 'PPN ${data.taxRatePercentage}% (termasuk)' : 'Pajak (PPn ${data.taxRatePercentage}%)', value: data.taxAmount),
       if (data.serviceChargeAmount > 0)
         ReceiptSummaryRow(label: 'Service Charge', value: data.serviceChargeAmount),
       ReceiptSummaryRow(label: 'TOTAL BAYAR', value: data.grandTotal, isBold: true),

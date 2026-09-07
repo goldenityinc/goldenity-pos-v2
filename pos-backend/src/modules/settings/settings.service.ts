@@ -16,6 +16,7 @@ const UpdateStoreSchema = z.object({
   blindShiftClose: z.boolean().optional(),
   taxEnabled: z.boolean().optional(),
   taxRatePercentage: z.union([z.string(), z.number()]).pipe(z.coerce.number().int().min(0).max(100, 'taxRate maksimal 100%')).optional(),
+  pricesIncludeTax: z.boolean().optional(),
   taxSettings: z.any().optional().nullable(),
 });
 
@@ -46,6 +47,7 @@ interface StoreData {
   blindShiftClose: boolean;
   taxEnabled: boolean;
   taxRatePercentage: number;
+  pricesIncludeTax: boolean;
   taxSettings: any;
   createdAt: Date;
   updatedAt: Date;
@@ -79,6 +81,7 @@ export class SettingsService {
         blindShiftClose: true,
         taxEnabled: true,
         taxRatePercentage: true,
+        pricesIncludeTax: true,
         taxSettings: true,
         createdAt: true,
         updatedAt: true,
@@ -103,6 +106,7 @@ export class SettingsService {
       blindShiftClose: tenant.blindShiftClose === true ? true : false,
       taxEnabled: tenant.taxEnabled === true ? true : false,
       taxRatePercentage: Number(tenant.taxRatePercentage ?? 11),
+      pricesIncludeTax: tenant.pricesIncludeTax === true ? true : false,
       taxSettings: tenant.taxSettings,
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,
@@ -136,6 +140,7 @@ export class SettingsService {
           blindShiftClose: payload.blindShiftClose !== undefined ? Boolean(payload.blindShiftClose) : undefined,
           taxEnabled: payload.taxEnabled !== undefined ? Boolean(payload.taxEnabled) : undefined,
           taxRatePercentage: payload.taxRatePercentage !== undefined ? Number(payload.taxRatePercentage) : undefined,
+          pricesIncludeTax: payload.pricesIncludeTax !== undefined ? Boolean(payload.pricesIncludeTax) : undefined,
           taxSettings: payload.taxSettings,
         },
       });

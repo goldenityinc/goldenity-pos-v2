@@ -44,6 +44,7 @@ final activeDiscountLabelProvider = Provider<String>((ref) {
 class CartNotifier extends Notifier<Map<String, CartItem>> {
   bool _taxEnabledCached = true;
   int _taxRateCached = 11;
+  bool _pricesIncludeTaxCached = false;
   bool _taxConfigLoaded = false;
   // Footer struk dari pengaturan toko (StoreSettingsProfile.receiptFooter) —
   // sebelumnya nilai ini bisa diisi user di halaman Settings tapi TIDAK
@@ -54,6 +55,7 @@ class CartNotifier extends Notifier<Map<String, CartItem>> {
 
   bool get taxEnabled => _taxEnabledCached;
   num get taxRatePercentage => _taxRateCached;
+  bool get pricesIncludeTax => _pricesIncludeTaxCached;
   bool get taxConfigReady => _taxConfigLoaded;
   String? get receiptFooter => _receiptFooterCached;
 
@@ -68,6 +70,7 @@ class CartNotifier extends Notifier<Map<String, CartItem>> {
       if (store != null) {
         _taxEnabledCached = store.taxEnabled;
         _taxRateCached = store.taxRatePercentage.toInt();
+        _pricesIncludeTaxCached = store.pricesIncludeTax;
         _receiptFooterCached = store.receiptFooter;
       }
       _taxConfigLoaded = true;
@@ -200,7 +203,15 @@ final cartTaxAmountProvider = Provider<num>((ref) {
   }
   final apply = notifier.taxEnabled;
   final rate = notifier.taxRatePercentage;
-  return apply ? (taxable * rate / 100).round() : 0;
+  if (!apply || rate <= 0) return 0;
+  // Story 3.2 — PPN dinamis:
+  //  - inclusive (harga sudah termasuk pajak): reverse-calculate pajak yang
+  //    TERKANDUNG di dalam harga → taxable * rate / (100 + rate).
+  //  - exclusive: pajak ditambah di atas → taxable * rate / 100.
+  if (notifier.pricesIncludeTax) {
+    return (taxable * rate / (100 + rate)).round();
+  }
+  return (taxable * rate / 100).round();
 });
 
 final cartServiceChargePercentageProvider = StateProvider<int?>((ref) => null);
@@ -217,6 +228,11 @@ final cartGrandTotalProvider = Provider<num>((ref) {
   final discount = ref.watch(cartDiscountAmountProvider);
   final tax = ref.watch(cartTaxAmountProvider);
   final sc = ref.watch(cartServiceChargeAmountProvider);
+  // Story 3.2 — mode inclusive: pajak SUDAH ada di dalam subtotal, JANGAN ditambah lagi.
+  final notifier = ref.watch(cartNotifierProvider.notifier);
+  if (notifier.pricesIncludeTax) {
+    return subtotal - discount + sc;
+  }
   return subtotal - discount + tax + sc;
 });
 

@@ -174,6 +174,11 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
             ? custom
             : 'Terima kasih atas kunjungan Anda!';
       }(),
+      // Story 3.2 — label pajak di struk ikut mode tenant (exclusive vs inclusive).
+      // Diambil dari cache CartNotifier (di-refresh bareng config pajak).
+      taxEnabled: ref.read(cartNotifierProvider.notifier).taxEnabled,
+      taxRatePercentage: ref.read(cartNotifierProvider.notifier).taxRatePercentage,
+      pricesIncludeTax: ref.read(cartNotifierProvider.notifier).pricesIncludeTax,
       paperWidthColumns: 48,
     );
   }

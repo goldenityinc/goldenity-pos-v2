@@ -31,6 +31,7 @@ model Tenant {
   blindShiftClose         Boolean      @default(false)
   taxEnabled              Boolean      @default(true)
   taxRatePercentage       Int          @default(11)
+  pricesIncludeTax        Boolean      @default(false)
   isActive                Boolean      @default(true)
   subscriptionStatus      String?
   allowedSolutions        String[]

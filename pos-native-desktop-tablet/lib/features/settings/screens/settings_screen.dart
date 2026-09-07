@@ -41,6 +41,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
   bool _blindShiftClose = false;
   bool _taxEnabled = true;
   num _taxRatePercentage = 11;
+  bool _pricesIncludeTax = false;
   final GlobalKey<FormState> _storeFormKey = GlobalKey<FormState>();
 
   List<BranchWithPrintersProfile> _branches = [];
@@ -54,6 +55,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
   final Map<PrinterSlotDto, TextEditingController> _printerAddressCtrls = {};
   final Map<PrinterSlotDto, TextEditingController> _printerPortCtrls = {};
   final Map<PrinterSlotDto, PrinterConnectionTypeDto> _printerConnTypes = {};
+  // FIX (temuan Andre): pilihan ukuran kertas 58mm/80mm belum ada sama sekali
+  // di UI Settings sebelumnya. Backend (Prisma `PrinterConfig`) BELUM punya
+  // kolom untuk ini — menambah kolom butuh migrasi DB yang tidak bisa
+  // dijalankan dari sesi Claude ini (tidak ada akses shell/DB ke komputer
+  // Andre). Sebagai solusi sementara yang AMAN (tidak menyentuh skema DB /
+  // backend sama sekali): disimpan LOKAL per (cabang, slot) via
+  // SharedPreferences, key harus SAMA PERSIS dengan yang dibaca balik di
+  // goldenity_payment_modal.dart saat generate struk.
+  final Map<PrinterSlotDto, int> _printerPaperWidths = {};
+
+  String _paperWidthPrefKey(String branchId, PrinterSlotDto slot) =>
+      'printer_paper_mm_${branchId}_${slot.name}';
 
   @override
   void initState() {
@@ -107,6 +120,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
           _blindShiftClose = store.blindShiftClose;
           _taxEnabled = store.taxEnabled;
           _taxRatePercentage = store.taxRatePercentage;
+          _pricesIncludeTax = store.pricesIncludeTax;
         });
       }
     } catch (e) {
@@ -139,6 +153,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
         'blindShiftClose': _blindShiftClose,
         'taxEnabled': _taxEnabled,
         'taxRatePercentage': _taxRatePercentage.toInt(),
+        'pricesIncludeTax': _pricesIncludeTax,
       };
       await settingsApi.updateStore(authToken: token, data: payload);
       final cartNotifier = ref.read(cartNotifierProvider.notifier);
@@ -378,6 +393,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       if (!_printerConnTypes.containsKey(slot)) {
         _printerConnTypes[slot] = PrinterConnectionTypeDto.none;
       }
+      if (!_printerPaperWidths.containsKey(slot)) {
+        _printerPaperWidths[slot] = 58;
+      }
     }
   }
 
@@ -390,11 +408,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       if (token == null) throw Exception('Sesi tidak ditemukan');
       final settingsApi = ref.read(settingsApiServiceProvider);
       final list = await settingsApi.listPrinters(authToken: token, branchId: branchId);
+      final prefs = ref.read(sharedPreferencesProvider);
       if (mounted) {
         for (final p in list) {
           _printerConnTypes[p.slot] = p.connectionType;
           _printerAddressCtrls[p.slot]?.text = p.address ?? '';
           _printerPortCtrls[p.slot]?.text = p.port != null ? '${p.port}' : '';
+        }
+        // Ukuran kertas: baca dari SharedPreferences lokal (bukan dari BE,
+        // lihat catatan di _printerPaperWidths) untuk SEMUA slot.
+        for (final slot in PrinterSlotDto.values) {
+          _printerPaperWidths[slot] =
+              prefs.getInt(_paperWidthPrefKey(branchId, slot)) ?? 58;
         }
       }
     } catch (e) {
@@ -432,6 +457,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
         address: address != null && address.isNotEmpty ? address : null,
         port: port,
       );
+      // Simpan ukuran kertas LOKAL (lihat catatan _printerPaperWidths — belum
+      // ada kolomnya di backend, jadi tidak ikut terkirim ke upsertPrinter).
+      await ref.read(sharedPreferencesProvider).setInt(
+            _paperWidthPrefKey(_selectedBranchId!, slot),
+            _printerPaperWidths[slot] ?? 58,
+          );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -839,6 +870,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(3)],
                   ),
                 ),
+                const SizedBox(height: GoldenitySpacing.md),
+                SwitchListTile.adaptive(
+                  title: Text(
+                    'Harga Sudah Termasuk PPN',
+                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    'ON: harga jual produk sudah termasuk pajak, PPN dihitung mundur '
+                    '(total ÷ (1 + rate) × rate) dan tidak ditambah lagi di atas total. '
+                    'OFF: PPN ditambahkan di atas subtotal.',
+                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                  ),
+                  value: _pricesIncludeTax,
+                  activeTrackColor: biz.base.withValues(alpha: 0.5),
+                  activeThumbColor: biz.base,
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (_taxEnabled && !_loading)
+                      ? (val) => setState(() => _pricesIncludeTax = val)
+                      : null,
+                ),
                 const SizedBox(height: GoldenitySpacing.xl),
                 SizedBox(
                   width: double.infinity,
@@ -1146,6 +1197,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                         biz: biz,
                         textTheme: textTheme,
                         onConnTypeChanged: (t) => setState(() => _printerConnTypes[slot] = t),
+                        paperWidthMm: _printerPaperWidths[slot] ?? 58,
+                        onPaperWidthChanged: (w) => setState(() => _printerPaperWidths[slot] = w),
                         onSave: _loading ? null : () => _upsertPrinter(slot),
                         scanning: _scanning[slot] ?? false,
                         scanMsg: _scanMsg[slot] ?? '',
@@ -1174,6 +1227,8 @@ class _PrinterSlotCard extends StatelessWidget {
   final GoldenityBizColors biz;
   final TextTheme textTheme;
   final ValueChanged<PrinterConnectionTypeDto> onConnTypeChanged;
+  final int paperWidthMm;
+  final ValueChanged<int> onPaperWidthChanged;
   final VoidCallback? onSave;
   final bool scanning;
   final String scanMsg;
@@ -1191,6 +1246,8 @@ class _PrinterSlotCard extends StatelessWidget {
     required this.biz,
     required this.textTheme,
     required this.onConnTypeChanged,
+    required this.paperWidthMm,
+    required this.onPaperWidthChanged,
     required this.onSave,
     required this.scanning,
     required this.scanMsg,
@@ -1255,6 +1312,34 @@ class _PrinterSlotCard extends StatelessWidget {
                 selected: selected,
                 selectedColor: biz.base,
                 onSelected: (_) => onConnTypeChanged(t),
+                labelStyle: textTheme.labelSmall?.copyWith(
+                  color: selected ? Colors.white : GoldenityColors.text2,
+                  fontWeight: FontWeight.w700,
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: GoldenitySpacing.md),
+          // FIX (temuan Andre): pilihan ukuran kertas 58mm / 80mm — sebelumnya
+          // sama sekali tidak ada di UI, struk selalu di-generate untuk 58mm.
+          Text(
+            'Ukuran Kertas',
+            style: textTheme.labelSmall?.copyWith(
+              color: GoldenityColors.text2,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: GoldenitySpacing.xs),
+          Wrap(
+            spacing: GoldenitySpacing.xs,
+            runSpacing: GoldenitySpacing.xs,
+            children: [58, 80].map((mm) {
+              final selected = paperWidthMm == mm;
+              return ChoiceChip(
+                label: Text('${mm}mm'),
+                selected: selected,
+                selectedColor: biz.base,
+                onSelected: (_) => onPaperWidthChanged(mm),
                 labelStyle: textTheme.labelSmall?.copyWith(
                   color: selected ? Colors.white : GoldenityColors.text2,
                   fontWeight: FontWeight.w700,

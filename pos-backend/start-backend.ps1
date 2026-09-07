@@ -1,7 +1,7 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-  Goldenity POS V2 — Backend Watchdog PowerShell (Auto-Restart Permanent)
+  Goldenity POS V2 - Backend Watchdog PowerShell (Auto-Restart Permanent)
 .DESCRIPTION
   Dipanggil oleh START_BACKEND.bat (double-click). Tidak perlu dijalankan manual.
   PATUH 100% KE POLICY PERMANEN (ditetapkan 2026-09-06):
@@ -12,7 +12,7 @@
   pos-backend\start-backend.ps1
 .NOTES
   Dibuat: 2026-09-07 (Andre / Klaude)
-  Belum di-test di PC Andre langsung dari sesi ini — tolong dicoba sekali dan
+  Belum di-test di PC Andre langsung dari sesi ini - tolong dicoba sekali dan
   dikabari hasilnya lewat chat.
 #>
 
@@ -21,7 +21,7 @@
 # ============================================================================
 $BACKEND_PORT = 3001
 $HEALTH_URL   = "http://localhost:${BACKEND_PORT}/health"
-$HEALTH_TIMEOUT_MS = 2500       # 2,5 detik — timeout cek /health
+$HEALTH_TIMEOUT_MS = 2500       # 2,5 detik - timeout cek /health
 $CRASH_RESTART_COOLDOWN_SEC = 3 # Tunggu 3 detik sebelum restart kalau crash
 $WORKDIR = Split-Path -Parent $MyInvocation.MyCommand.Path  # = pos-backend\
 
@@ -34,12 +34,12 @@ function Write-Header($msg)  { Write-Host ""; Write-Host "══ $msg ══" -F
 
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║  🚀 Goldenity POS V2  —  BACKEND WATCHDOG (Auto-Restart Permanent)      ║" -ForegroundColor Cyan
+Write-Host "║  🚀 Goldenity POS V2  -  BACKEND WATCHDOG (Auto-Restart Permanent)      ║" -ForegroundColor Cyan
 Write-Host "╠══════════════════════════════════════════════════════════════════════════╣" -ForegroundColor Cyan
 Write-Host "║  Working Dir : $WORKDIR"
 Write-Host "║  Port Check  : $BACKEND_PORT"
 Write-Host "║  Health URL  : $HEALTH_URL"
-Write-Host "║  Policy Kill : ❌ NO global node kill — ✅ ONLY PID spesifik port $BACKEND_PORT" -ForegroundColor Green
+Write-Host "║  Policy Kill : ❌ NO global node kill - ✅ ONLY PID spesifik port $BACKEND_PORT" -ForegroundColor Green
 Write-Host "╚══════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 
@@ -58,7 +58,7 @@ try {
 
 # ============================================================================
 # 2. FUNGSI UTAMA: Cek Port 3001 → Kalau salah proses → HANYA kill PID itu
-#    (100% PATUH POLICY — tidak pernah menyentuh process lain / node global)
+#    (100% PATUH POLICY - tidak pernah menyentuh process lain / node global)
 # ============================================================================
 function Resolve-Port3001DanBersihkanJikaSalah {
     param()
@@ -74,20 +74,20 @@ function Resolve-Port3001DanBersihkanJikaSalah {
     } catch {
         $err = $_.Exception.Message
         if ($err -match "No matching MSFT_NetTCPConnection objects found") {
-            Write-Info "Port $BACKEND_PORT KOSONG (belum ada process listen) — Lanjut start backend."
+            Write-Info "Port $BACKEND_PORT KOSONG (belum ada process listen) - Lanjut start backend."
             return $true
         }
         Write-Warn "Gagal baca Get-NetTCPConnection port $BACKEND_PORT`: $err"
-        Write-Warn "Lanjut dengan asumsi port bersih (tidak force kill apa-apa — safety policy)."
+        Write-Warn "Lanjut dengan asumsi port bersih (tidak force kill apa-apa - safety policy)."
         return $true
     }
 
     if ($pidsOnPort.Count -eq 0) {
-        Write-Info "Port $BACKEND_PORT KOSONG — tidak ada process listen. Lanjut start."
+        Write-Info "Port $BACKEND_PORT KOSONG - tidak ada process listen. Lanjut start."
         return $true
     }
 
-    # 2b. Ada PID yang listen — ambil nama process + cek /health
+    # 2b. Ada PID yang listen - ambil nama process + cek /health
     foreach ($pidToCheck in $pidsOnPort) {
         $procName = "?"
         try {
@@ -100,7 +100,7 @@ function Resolve-Port3001DanBersihkanJikaSalah {
         Write-Info "Port $BACKEND_PORT digunakan PID=$pidToCheck (process: $procName)."
         Write-Info "Mencoba verifikasi GET $HEALTH_URL (timeout ${HEALTH_TIMEOUT_MS}ms)..."
 
-        # 2c. Coba panggil /health — JIKA 200 OK = process ini BENAR POS V2 backend
+        # 2c. Coba panggil /health - JIKA 200 OK = process ini BENAR POS V2 backend
         $backendSudahBenarHidup = $false
         try {
             $resp = Invoke-RestMethod -Uri $HEALTH_URL `
@@ -120,14 +120,14 @@ function Resolve-Port3001DanBersihkanJikaSalah {
         } catch {
             $httpErr = $_.Exception.Message
             Write-Warn "PID $pidToCheck TIDAK menjawab /health dalam ${HEALTH_TIMEOUT_MS}ms (error: $httpErr)."
-            Write-Warn "⇒ PROSES INI SALAH / NYANGKUT — BUKAN POS Backend V2 yang benar."
+            Write-Warn "⇒ PROSES INI SALAH / NYANGKUT - BUKAN POS Backend V2 yang benar."
             $backendSudahBenarHidup = $false
         }
 
-        # 2d. JIKA SALAH = MATIKAN HANYA PID INI SAJA (POLICY — NEVER KILL GLOBAL)
+        # 2d. JIKA SALAH = MATIKAN HANYA PID INI SAJA (POLICY - NEVER KILL GLOBAL)
         if (-not $backendSudahBenarHidup) {
             Write-Warn "AKAN MENGHENTIKAN PID=$pidToCheck SAJA (proses $procName)."
-            Write-Warn "Policy diikuti 100% — TIDAK ADA kill global node.exe / process lain."
+            Write-Warn "Policy diikuti 100% - TIDAK ADA kill global node.exe / process lain."
             try {
                 Stop-Process -Id $pidToCheck -Force -ErrorAction Stop
                 Start-Sleep -Milliseconds 800
@@ -148,7 +148,7 @@ function Resolve-Port3001DanBersihkanJikaSalah {
             # Backend SUDAH BENAR hidup. Return FALSE supaya watchdog TIDAK start lagi (dup port).
             Write-Header "BACKEND SUDAH HIDUP DAN BENAR"
             Write-Info "Kamu TIDAK PERLU double-click START_BACKEND.bat DUA KALI."
-            Write-Info "Biarkan jendela ini terbuka — nanti kita pantau bersama process tsx watch yang sudah jalan."
+            Write-Info "Biarkan jendela ini terbuka - nanti kita pantau bersama process tsx watch yang sudah jalan."
             Write-Info "Flutter APP sekarang sudah bisa akses http://localhost:$BACKEND_PORT."
             return $false
         }
@@ -158,11 +158,11 @@ function Resolve-Port3001DanBersihkanJikaSalah {
 
 # ============================================================================
 # 3. FUNGSI UTAMA: Jalankan Backend (npm run dev), PANTAU SAMPAI EXIT
-#    (tsx watch src/index.ts — auto rebuild saat file berubah)
+#    (tsx watch src/index.ts - auto rebuild saat file berubah)
 # ============================================================================
 function Start-DanPantauBackend {
     param()
-    Write-Header "STEP 2: JALANKAN BACKEND (npm run dev — tsx watch mode)"
+    Write-Header "STEP 2: JALANKAN BACKEND (npm run dev - tsx watch mode)"
     Write-Info "Command  : npm.cmd run dev"
     Write-Info "Mode     : watch (auto-reload jika file .ts diubah)"
     Write-Info "Port     : $BACKEND_PORT"
@@ -186,13 +186,13 @@ function Start-DanPantauBackend {
 }
 
 # ============================================================================
-# 4. LOOP UTAMA WATCHDOG (FOREVER — sampai user tekan Ctrl+C / tutup jendela)
+# 4. LOOP UTAMA WATCHDOG (FOREVER - sampai user tekan Ctrl+C / tutup jendela)
 # ============================================================================
 $restartCounter = 0
 :WATCHDOG_LOOP while ($true) {
     Write-Host ""
     Write-Host "┌──────────────────────────────────────────────────────────────────────────┐" -ForegroundColor Magenta
-    Write-Host "│ 🔁 WATCHDOG CYCLE ke-$($restartCounter + 1)  —  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Magenta
+    Write-Host "│ 🔁 WATCHDOG CYCLE ke-$($restartCounter + 1)  -  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor Magenta
     Write-Host "└──────────────────────────────────────────────────────────────────────────┘" -ForegroundColor Magenta
 
     # 4a. Bersihkan port jika salah process nyangkut
@@ -205,7 +205,7 @@ $restartCounter = 0
         while ($true) { Start-Sleep -Seconds 5 }
     }
 
-    # 4b. Jalankan backend — BLOKIR SAMPAI BACKEND EXIT / CRASH / USER CTRL+C
+    # 4b. Jalankan backend - BLOKIR SAMPAI BACKEND EXIT / CRASH / USER CTRL+C
     $exitCode = Start-DanPantauBackend
     $restartCounter++
 
@@ -226,3 +226,4 @@ $restartCounter = 0
     Write-Host ("─" * 74)
     continue WATCHDOG_LOOP
 }
+

@@ -12,6 +12,7 @@ class StoreSettingsProfile {
   final bool blindShiftClose;
   final bool taxEnabled;
   final num taxRatePercentage;
+  final bool pricesIncludeTax;
   final dynamic taxSettings;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -30,6 +31,7 @@ class StoreSettingsProfile {
     this.blindShiftClose = false,
     this.taxEnabled = true,
     this.taxRatePercentage = 11,
+    this.pricesIncludeTax = false,
     this.taxSettings,
     required this.createdAt,
     required this.updatedAt,
@@ -53,6 +55,7 @@ class StoreSettingsProfile {
       blindShiftClose: (json['blindShiftClose'] as bool?) ?? false,
       taxEnabled: (json['taxEnabled'] as bool?) ?? true,
       taxRatePercentage: (json['taxRatePercentage'] as num?) ?? 11,
+      pricesIncludeTax: (json['pricesIncludeTax'] as bool?) ?? false,
       taxSettings: json['taxSettings'],
       createdAt: createdAtRaw != null
           ? DateTime.tryParse(createdAtRaw.toString()) ?? DateTime.now()
@@ -77,6 +80,7 @@ class StoreSettingsProfile {
         'blindShiftClose': blindShiftClose,
         'taxEnabled': taxEnabled,
         'taxRatePercentage': taxRatePercentage,
+        'pricesIncludeTax': pricesIncludeTax,
         if (taxSettings != null) 'taxSettings': taxSettings,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
