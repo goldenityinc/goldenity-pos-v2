@@ -330,8 +330,17 @@ class _HourlyChartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Tampilkan jam operasional 7–22 (16 bar) supaya terbaca.
-    const from = 7, to = 22;
+    // Rentang jam dinamis: default 7–22, tapi lebarkan bila ada transaksi
+    // di luar itu (mis. toko 24 jam / jam dev tak lazim).
+    var from = 7, to = 22;
+    if (hourly.length >= 24) {
+      for (int h = 0; h < 24; h++) {
+        if (hourly[h] > 0) {
+          if (h < from) from = h;
+          if (h > to) to = h;
+        }
+      }
+    }
     final slice = hourly.length >= 24
         ? [for (int h = from; h <= to; h++) hourly[h]]
         : List<num>.filled(to - from + 1, 0);

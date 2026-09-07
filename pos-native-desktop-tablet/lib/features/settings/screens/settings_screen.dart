@@ -1535,7 +1535,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   Icon(Icons.print_rounded, color: biz.base),
                   const SizedBox(width: GoldenitySpacing.sm),
                   Text(
-                    'Printer — Cabang ${_branchNameFor(_selectedBranchId ?? _loginBranchId)}',
+                    'Printer — ${_branchNameFor(_selectedBranchId ?? _loginBranchId)}',
                     style: textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
