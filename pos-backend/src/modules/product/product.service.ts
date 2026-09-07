@@ -34,6 +34,9 @@ const CreateProductSchema = z.object({
   imageUrl: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   variants: z.any().optional().nullable(),
+  // Story 2.2 — auto-create kategori dari NAMA string saat sync dari POS.
+  // Dipakai kalau categoryId tidak dikirim (produk offline yang cuma tahu nama kategori).
+  categoryNameFallback: z.string().trim().min(1).max(120).optional().nullable(),
   branchId: z
     .union([z.string(), z.null(), z.undefined()])
     .transform((v) => (typeof v === 'string' && v.trim().length === 0) ? null : v)
@@ -80,6 +83,7 @@ const UpdateProductSchema = z.object({
   imageUrl: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   variants: z.any().optional().nullable(),
+  categoryNameFallback: z.string().trim().min(1).max(120).optional().nullable(),
   branchId: z
     .union([z.string(), z.null(), z.undefined()])
     .transform((v) => (typeof v === 'string' && v.trim().length === 0) ? null : v)
@@ -409,8 +413,8 @@ export class ProductService {
 
       await prisma.$transaction(async (tx: any) => {
         const categoryFallbackName =
-          (input as any).categoryNameFallback && typeof (input as any).categoryNameFallback === 'string'
-            ? (input as any).categoryNameFallback
+          typeof input.categoryNameFallback === 'string' && input.categoryNameFallback.trim().length > 0
+            ? input.categoryNameFallback.trim()
             : null;
         const resolved = await ProductService.resolveCategoryIdForProduct(
           tx,
@@ -557,10 +561,10 @@ export class ProductService {
       let categoryUsedId: string | null = null;
 
       await prisma.$transaction(async (tx: any) => {
-        if (input.categoryId !== undefined) {
+        if (input.categoryId !== undefined || input.categoryNameFallback != null) {
           const fallbackName =
-            (raw as any)?.categoryNameFallback && typeof (raw as any).categoryNameFallback === 'string'
-              ? (raw as any).categoryNameFallback
+            typeof input.categoryNameFallback === 'string' && input.categoryNameFallback.trim().length > 0
+              ? input.categoryNameFallback.trim()
               : null;
           const resolved = await ProductService.resolveCategoryIdForProduct(
             tx,

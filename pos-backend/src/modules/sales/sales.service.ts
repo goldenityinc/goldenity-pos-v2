@@ -3,7 +3,7 @@ import { prisma } from '../../config/database';
 import { ok, fail, type ApiResponse } from '../../config/types';
 import type { JwtAuthPayload } from '../../config/types';
 import type { SalesRecord, SalesRecordItem } from '@prisma/client';
-import { resolveEffectiveBranchFilter } from '../../utils/rbac';
+import { resolveEffectiveBranchFilter, ROLES_FORCE_OWN_BRANCH } from '../../utils/rbac';
 
 const OrderTypeEnum = z.enum(['DINE_IN', 'TAKE_AWAY']);
 const PaymentMethodEnum = z.enum(['CASH', 'QRIS', 'CREDIT_CARD']);
@@ -285,7 +285,13 @@ export class SalesService {
       return fail('Payload: tenantId tidak ditemukan pada sesi user.');
     }
 
-    const effectiveBranchId: string | null = payload.branchId ?? user.branchId ?? null;
+    // Story 1.3 — branch isolation: role ber-scope-cabang (CASHIER/CRM_STAFF/WORKSHOP_ADMIN)
+    // TIDAK boleh menembak cabang lain lewat body payload. Paksa ke user.branchId sendiri,
+    // abaikan payload.branchId. Role lintas-cabang (admin/accountant/super) tetap boleh override.
+    const roleForcesOwnBranch = ROLES_FORCE_OWN_BRANCH.includes(user.role);
+    const effectiveBranchId: string | null = roleForcesOwnBranch
+      ? (user.branchId ?? null)
+      : (payload.branchId ?? user.branchId ?? null);
     if (!effectiveBranchId) {
       return fail(
         'Transaksi penjualan WAJIB terikat satu cabang (branchId non-nullable). Role ini tidak memiliki cabang default dan input.branchId tidak dikirim.'
@@ -417,6 +423,26 @@ export class SalesService {
 
         await tx.salesRecordItem.createMany({ data: itemsRows });
 
+        // Story 3.4 — langkah 4: decrement stok (bagian dari $transaction atomik).
+        // Hanya untuk item yang punya productId nyata DAN produk itu stock-tracked
+        // (stock != null). Item manual/custom (productId null) & produk non-stok
+        // (stock null, mis. jasa/F&B tanpa inventori) dilewati. Stok boleh minus
+        // (oversell) — konsisten dengan pola offline-first V1, jangan blokir sale.
+        const qtyByProduct = new Map<string, number>();
+        for (const it of itemsRows) {
+          if (it.productId) {
+            qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) ?? 0) + Number(it.qty));
+          }
+        }
+        for (const [productId, qty] of qtyByProduct) {
+          if (qty > 0) {
+            await tx.product.updateMany({
+              where: { id: productId, tenantId: effectiveTenantId, stock: { not: null } },
+              data: { stock: { decrement: qty } },
+            });
+          }
+        }
+
         const items = await tx.salesRecordItem.findMany({
           where: { salesRecordId: header.id },
         });
@@ -505,21 +531,42 @@ export class SalesService {
         return fail(`refundedAmount (${refundedN.toFixed(2)}) melebihi total transaksi (${totalN.toFixed(2)}) — pembatalan tidak bisa melebihi tagihan.`);
       }
 
-      const updated = await prisma.salesRecord.update({
-        where: { id: numericId },
-        data: {
-          status: 'VOIDED',
-          voidedAt: new Date(),
-          voidedBy: user.userId,
-          voidReason: payload.voidReason.trim(),
-          refundedAmount: refundedN,
-        },
-        include: {
-          tenant: { select: { name: true } },
-          branch: { select: { name: true } },
-          cashier: { select: { username: true } },
-          items: true,
-        },
+      const updated = await prisma.$transaction(async (tx) => {
+        const row = await tx.salesRecord.update({
+          where: { id: numericId },
+          data: {
+            status: 'VOIDED',
+            voidedAt: new Date(),
+            voidedBy: user.userId,
+            voidReason: payload.voidReason.trim(),
+            refundedAmount: refundedN,
+          },
+          include: {
+            tenant: { select: { name: true } },
+            branch: { select: { name: true } },
+            cashier: { select: { username: true } },
+            items: true,
+          },
+        });
+
+        // Story 3.4 (kebalikan): void mengembalikan stok yang tadi dikurangi saat sale.
+        // Mirror dari decrement di create() — hanya produk stock-tracked (stock != null).
+        const qtyByProduct = new Map<string, number>();
+        for (const it of existing.items ?? []) {
+          if (it.productId) {
+            qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) ?? 0) + Number(it.qty));
+          }
+        }
+        for (const [productId, qty] of qtyByProduct) {
+          if (qty > 0) {
+            await tx.product.updateMany({
+              where: { id: productId, tenantId: existing.tenantId, stock: { not: null } },
+              data: { stock: { increment: qty } },
+            });
+          }
+        }
+
+        return row;
       });
 
       return ok({ sale: mapSalesRecord(updated) });

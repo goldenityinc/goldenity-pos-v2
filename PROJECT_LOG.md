@@ -8,6 +8,48 @@
 
 ---
 
+## 🔬✅ [2026-09-07] Claude Code — AUDIT E2E FASE 1 (kode dibaca langsung) + FIX BATCH-1 non-schema (Story 3.4 stok, 1.3 branch clamp, 2.2 auto-create kategori, 3.1 dedup keranjang) + REVERT 3.1a sidebar
+
+**Konteks:** Andre minta (1) semua flow E2E di ERD/PRD dipastikan tuntas sebelum lanjut, (2) revamp back-office pakai layout V1/Kinasih, (3) sumber desain shell = `DESIGN_SYSTEM.md` (sidebar TETAP navy). Dikerjakan langsung oleh Claude Code (bukan task spec untuk Trae).
+
+### A. Revert 3.1a sidebar (commit `62abbe8`)
+- `goldenity_sidebar.dart` dikembalikan dari putih (commit `9e2ad06`) ke **navy `#0F172A`** sesuai keputusan Andre (sumber kebenaran = `DESIGN_SYSTEM.md`/Kinasih, bukan 23 screenshot `UI Design/`).
+- Entri log 3.1a Trae dibiarkan sebagai riwayat.
+
+### B. Audit E2E — dokumen baru: `pos-engineer-documentation/E2E_FASE1_GAP_AUDIT.md`
+13 Story dipetakan ke kode nyata. Ringkas:
+- ✅ PASS: 1.1, 1.2, 2.1, 2.3, 2.4, 4.1*, 4.2* (*perlu tes printer fisik).
+- ⚠️ GAP ditemukan: **1.3** (sales.create tidak clamp branchId kasir), **2.2** (auto-create kategori by-name mati — zod strip field), **3.1** (dedup keranjang cuma by id), **3.2** (PPN inclusive/reverse-calc tidak ada — butuh schema), **3.3** (CashTender/PaymentCard ada di shared/widgets tapi TIDAK dipakai checkout asli), **3.4** (stok TIDAK pernah dikurangi saat sale).
+- ⚠️ Lintas-story: G1 tidak ada offline sales queue, G2 dua jalur checkout paralel, G3 `offlineMode` salah definisi, G4 filter branch bisa sembunyikan produk tenant-wide.
+
+### C. FIX BATCH-1 (tanpa migrasi schema) — TSC 0 ✅ + `flutter analyze` 0 ✅
+
+| File | Story | Perubahan |
+|---|---|---|
+| `pos-backend/src/modules/sales/sales.service.ts` | 3.4 | Di dalam `$transaction` `create()`: setelah `createMany` item → agregasi qty per `productId` → `tx.product.updateMany({ where:{id,tenantId, stock:{not:null}}, data:{stock:{decrement:qty}} })`. Item manual (productId null) & produk non-stok (stock null) dilewati. Stok boleh minus (oversell), tidak blokir sale. |
+| `pos-backend/src/modules/sales/sales.service.ts` | 3.4 | `voidSale()` dibungkus `$transaction` → status VOIDED + **restock** (`increment`) mirror dari decrement. |
+| `pos-backend/src/modules/sales/sales.service.ts` | 1.3 | `create()`: role `ROLES_FORCE_OWN_BRANCH` (CASHIER/CRM_STAFF/WORKSHOP_ADMIN) → `effectiveBranchId` dipaksa `user.branchId`, `payload.branchId` diabaikan. |
+| `pos-backend/src/modules/product/product.service.ts` | 2.2 | `CreateProductSchema` + `UpdateProductSchema` tambah field `categoryNameFallback` (string, passthrough). `create()`/`update()` baca `input.categoryNameFallback` (bukan lagi `(input as any)` yang selalu undefined). Auto-create-by-name hidup lagi. |
+| `pos-native-desktop-tablet/lib/features/sales/providers/cart_provider.dart` | 3.1 | `addToCart`: match berurutan **id → barcode → name** (loop cari entry existing dengan barcode/nama sama sebelum bikin baris baru). |
+
+**Quality gate:** `pos-backend` → `npx tsc --noEmit` EXIT 0. `pos-native-desktop-tablet` → `flutter analyze --no-pub` → **No issues found! (4.7s)**.
+
+### D. Checklist Anti-Pattern
+1. Tidak ada file duplikat: ✅ (tidak buat file baru selain dokumen audit).
+2. Tidak ada komponen duplikat: ✅ N/A (belum sentuh 3.3 — dicatat sebagai gap).
+3. Tidak ada silent overwrite state: ✅ N/A (perubahan di service layer & pure function cart).
+4. Konsistensi nama field: ✅ `productName` snapshot tetap 1 field; `categoryNameFallback` field baru eksplisit.
+5. Tidak ada default hardcoded di setting: ✅ N/A.
+
+### E. Butuh keputusan Andre (gate schema — BELUM dikerjakan)
+- **3.2 PPN inclusive**: butuh kolom `Tenant.pricesIncludeTax Boolean` (migrasi additive) + reverse-calc BE & FE.
+- **G1 offline sales queue**: box Hive `pending_sales_queue` + flush idempotent by `referenceId`.
+- **3.3**: wire `GoldenityCashTenderModal`/`GoldenityPaymentCard` ke `goldenity_payment_modal.dart` (hapus implementasi inline) — perlu re-test quick-cash 4/4 Andre setelah refactor.
+
+**Status:** BATCH-1 siap diaudit. Lanjut: revamp back-office Kinasih (paralel) + gate schema di atas.
+
+---
+
 ## 🎨🟠 [2026-09-07] Trae — **3.2 UI_REVAMP POS / Cart Panel / Payment Modal Revamp** (3 sub-item sekaligus: 3.2a POS search+filter, 3.2b Cart header+empty, 3.2c Payment styling hijau success). Scope UI-only 100% TANPA ubah business logic. Lint 0 issues ✅ | Quick Cash Algorithm LOCKED intact 4/4 testcase Andre.
 
 **Tanggal eksekusi:** 2026-09-07. **Prioritas UI_REVAMP 3.2 (🟠 Orange — POS kasir impact tertinggi).**

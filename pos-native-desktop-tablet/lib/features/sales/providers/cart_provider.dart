@@ -45,10 +45,17 @@ class CartNotifier extends Notifier<Map<String, CartItem>> {
   bool _taxEnabledCached = true;
   int _taxRateCached = 11;
   bool _taxConfigLoaded = false;
+  // Footer struk dari pengaturan toko (StoreSettingsProfile.receiptFooter) —
+  // sebelumnya nilai ini bisa diisi user di halaman Settings tapi TIDAK
+  // PERNAH dipakai saat generate struk (payment modal selalu pakai teks
+  // default hardcoded). Di-cache sekali di sini bareng config pajak biar
+  // hemat 1 API call.
+  String? _receiptFooterCached;
 
   bool get taxEnabled => _taxEnabledCached;
   num get taxRatePercentage => _taxRateCached;
   bool get taxConfigReady => _taxConfigLoaded;
+  String? get receiptFooter => _receiptFooterCached;
 
   Future<void> ensureTaxConfigCached({bool force = false}) async {
     if (_taxConfigLoaded && !force) return;
@@ -61,6 +68,7 @@ class CartNotifier extends Notifier<Map<String, CartItem>> {
       if (store != null) {
         _taxEnabledCached = store.taxEnabled;
         _taxRateCached = store.taxRatePercentage.toInt();
+        _receiptFooterCached = store.receiptFooter;
       }
       _taxConfigLoaded = true;
     } catch (_) {
@@ -77,9 +85,33 @@ class CartNotifier extends Notifier<Map<String, CartItem>> {
 
   void addToCart(ProductProfile product, {int quantity = 1}) {
     final newState = Map<String, CartItem>.from(state);
+
+    // Story 3.1 — deduplikasi item keranjang: match BERURUTAN id → barcode → name.
+    // (id sama → pasti gabung; barcode sama walau id beda → gabung; nama sama
+    //  untuk item tanpa barcode / item manual → gabung by name.)
+    String? matchKey;
     if (newState.containsKey(product.id)) {
-      final existing = newState[product.id]!;
-      newState[product.id] = existing.copyWith(
+      matchKey = product.id;
+    } else {
+      final pBarcode = product.barcode?.trim() ?? '';
+      final pName = product.name.trim().toLowerCase();
+      for (final entry in newState.entries) {
+        final e = entry.value.product;
+        final eBarcode = e.barcode?.trim() ?? '';
+        if (pBarcode.isNotEmpty && eBarcode.isNotEmpty && eBarcode == pBarcode) {
+          matchKey = entry.key;
+          break;
+        }
+        if (pName.isNotEmpty && e.name.trim().toLowerCase() == pName) {
+          matchKey = entry.key;
+          break;
+        }
+      }
+    }
+
+    if (matchKey != null) {
+      final existing = newState[matchKey]!;
+      newState[matchKey] = existing.copyWith(
         quantity: existing.quantity + quantity,
       );
     } else {
