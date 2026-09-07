@@ -777,7 +777,7 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                 child: TextFormField(
                   controller: _priceCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Harga Dasar *',
+                    labelText: 'Harga Jual (sebelum pajak) *',
                     prefixText: 'Rp ',
                     hintText: '0',
                   ),
@@ -1257,6 +1257,19 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                         borderRadius: BorderRadius.circular(GoldenityRadius.md)),
                   ),
                   child: const Text('Batal'),
+                ),
+              ),
+              const SizedBox(width: GoldenitySpacing.md),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _loading ? null : () => _submit(true),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                  ),
+                  child: const Text('Simpan Draft',
+                      style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
               ),
               const SizedBox(width: GoldenitySpacing.md),
