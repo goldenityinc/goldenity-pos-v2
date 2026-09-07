@@ -8,6 +8,25 @@
 
 ---
 
+## 🔬✅ [2026-09-07] Claude Code — BATCH-3: G4 (produk tenant-wide) + revamp back-office lanjutan (Finance/Riwayat/Inventaris/Kategori/Settings) + FIX runtime dari `flutter run -d windows`
+
+Dijalankan langsung di Windows desktop, iterasi sampai console 0 exception.
+
+| Commit | Isi | Gate |
+|---|---|---|
+| `694915a` | **G4** — `product.service.buildScopeWhere`: kasir ter-scope cabang sekarang lihat produk `branchId=null` (tenant-wide, pola V1) + produk cabangnya (`AND[{OR branchId cabang/null}]`) → cegah "POS grid kosong". **Revamp**: Finance (`_FinanceStatCard`→`GoldenityMetricCard`, 2 section→`GoldenitySectionCard`, `GoldenityPageHeader`, bg `#F4F6F9`); Riwayat/Inventaris/Kategori (`GoldenityPageHeader` + bg); `GoldenitySectionCard` & Settings store-tab dibungkus `Material(transparency)`. | tsc 0, analyze 0, test 10/10 |
+| `eaf01d2` | **FIX runtime** — Dashboard metric `Row(CrossAxisAlignment.stretch)` di dalam `ListView` → `BoxConstraints forces an infinite height` + RenderBox not laid out + null-check. Bungkus `IntrinsicHeight`. (Finance kena pola sama, sudah pakai IntrinsicHeight dari awal di `694915a`.) | analyze 0 |
+| `405fd90` | **FIX runtime** — `_ProductGridCard` (kartu Inventaris, `Container` radius xl + elevation.card) berisi `SwitchListTile` → warning "ink splashes may be invisible". Bungkus `Material(transparency)`. + `dart format` 3 file + 2 kurung kurawal `if`. | analyze 0 |
+
+### Hasil `flutter run -d windows` FINAL
+`√ Built goldenity_pos_native.exe (7.8s)` → **console 0 exception / 0 overflow / 0 RenderFlex error**. App stabil (Responding=True, ~367 MB). Backend `:3001` OK.
+
+### Sisa
+- 4.1/4.2 printer — tes thermal fisik (Andre + hardware).
+- Revamp back-office: Settings & Riwayat/Inventaris/Kategori baru "page chrome" (header + bg); isi kartunya (tabel, section) belum full di-migrasi ke `GoldenitySectionCard` — bisa dilanjut per layar dengan verifikasi visual.
+
+---
+
 ## 🔬✅ [2026-09-07] Claude Code — BATCH-2: E2E gap sisa (3.2 PPN inclusive, G1 offline sales queue, G3, 3.3 quick-cash, G2) + mulai revamp back-office Kinasih (komponen shared + Dashboard)
 
 Lanjutan dari BATCH-1 di bawah. Keputusan Andre: kerjakan SEMUA (3.2 dengan migrasi, G1 sekarang, 3.3 wire + re-test 4/4, revamp paralel), eksekusi langsung Claude Code.
