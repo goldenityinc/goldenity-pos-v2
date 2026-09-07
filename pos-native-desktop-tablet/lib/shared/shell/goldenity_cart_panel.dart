@@ -76,11 +76,8 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
     // dibanding proporsi layar. Sekarang dihitung relatif terhadap lebar
     // layar (±26%), tetap dibatasi min/max supaya tidak terlalu sempit di
     // layar kecil maupun terlalu lebar di monitor besar.
-    final screenWidth = MediaQuery.of(context).size.width;
-    final panelWidth = (screenWidth * 0.26).clamp(
-      GoldenityCartPanel.kWidth,
-      420.0,
-    );
+    // Figma arch-sleek: panel keranjang lebar tetap 340px.
+    const panelWidth = GoldenityCartPanel.kWidth;
 
     return Container(
       width: panelWidth,
@@ -291,45 +288,29 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
   }
 
   Widget _buildHeader(TextTheme textTheme, int totalItems) {
+    // Figma arch-sleek: "Order #NNNN" (14/700) + "N item · Umum" (11.5/400 #94A3B8).
+    final shortNo = _currentOrderId.hashCode.abs() % 9000 + 1000;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        GoldenitySpacing.lg,
-        GoldenitySpacing.lg,
-        GoldenitySpacing.lg,
-        GoldenitySpacing.md,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.person_outline_rounded,
-            size: 18,
-            color: GoldenityColors.text2,
-          ),
-          const SizedBox(width: GoldenitySpacing.sm),
-          Expanded(
-            child: Text(
-              'Keranjang',
-              style: textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w800, fontSize: 15),
+          Text(
+            'Order #$shortNo',
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: GoldenityColors.text,
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: GoldenitySpacing.sm,
-              vertical: 4,
-            ),
-            decoration: BoxDecoration(
-              color: GoldenityColors.primaryLight,
-              borderRadius: BorderRadius.circular(GoldenityRadius.full),
-            ),
-            child: Text(
-              '$totalItems Item',
-              style: textTheme.labelSmall?.copyWith(
-                color: GoldenityColors.primary,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.02,
-              ),
+          const SizedBox(height: 3),
+          Text(
+            '$totalItems item · Umum',
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w400,
+              color: GoldenityColors.disabled,
             ),
           ),
         ],
@@ -367,7 +348,7 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
             ),
             const SizedBox(height: GoldenitySpacing.xs),
             Text(
-              'Pilih produk dari daftar produk untuk memulai transaksi.',
+              'Pilih produk dari katalog untuk menambahkan item.',
               textAlign: TextAlign.center,
               style: textTheme.bodySmall?.copyWith(
                 color: GoldenityColors.muted,
@@ -700,14 +681,72 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
             ],
           ),
           const SizedBox(height: GoldenitySpacing.md),
-          GoldenityPrimaryButton(
-            label: grandTotal > 0
-                ? 'Bayar ${_currencyFormatter.format(grandTotal)}'
-                : 'Keranjang Kosong',
-            icon: Icons.payment_rounded,
-            onPressed: grandTotal <= 0 ? null : widget.onCheckoutPressed,
+          Row(
+            children: [
+              Expanded(
+                flex: 36,
+                child: _SimpanBillButton(
+                  enabled: grandTotal > 0,
+                  onTap: grandTotal <= 0
+                      ? null
+                      : () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Simpan Bill akan tersedia pada pembaruan berikutnya.'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                ),
+              ),
+              const SizedBox(width: GoldenitySpacing.sm),
+              Expanded(
+                flex: 64,
+                child: GoldenityPrimaryButton(
+                  label: 'Bayar',
+                  icon: Icons.payment_rounded,
+                  onPressed: grandTotal <= 0 ? null : widget.onCheckoutPressed,
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Tombol sekunder "Simpan Bill" — Figma: outline #E2E8F0, radius 10,
+/// teks 13/700 (#CBD5E1 saat nonaktif, #64748B saat aktif).
+class _SimpanBillButton extends StatelessWidget {
+  const _SimpanBillButton({required this.enabled, required this.onTap});
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+        onTap: onTap,
+        child: Container(
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: GoldenityColors.surface,
+            borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+            border: Border.all(color: GoldenityColors.border),
+          ),
+          child: Text(
+            'Simpan Bill',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: enabled ? GoldenityColors.muted : GoldenityColors.textXMuted,
+            ),
+          ),
+        ),
       ),
     );
   }

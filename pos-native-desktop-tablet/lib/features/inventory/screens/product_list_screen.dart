@@ -8,7 +8,9 @@ import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
 import '../../../core/models/product_profile.dart';
+import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/sales/providers/cart_provider.dart';
+import '../../../features/sales/providers/sales_sync_notifier.dart';
 import '../../../shared/shell/goldenity_cart_panel.dart';
 import '../../../shared/shell/goldenity_payment_modal.dart';
 import '../../../shared/widgets/goldenity_counter_button.dart';
@@ -146,6 +148,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const _PosTopBar(),
                   const SizedBox(height: GoldenitySpacing.md),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
@@ -153,11 +156,22 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(child: _buildSearchBar(context, textTheme, searchQuery)),
-                        const SizedBox(width: GoldenitySpacing.md),
-                        _buildCategoryDropdown(context, textTheme, state),
+                        const SizedBox(width: GoldenitySpacing.sm),
+                        _KustomButton(
+                          onTap: () {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Item kustom akan tersedia pada pembaruan berikutnya.'),
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: GoldenitySpacing.sm),
+                  _CategoryChips(state: state),
                   ...banners,
                   const SizedBox(height: GoldenitySpacing.sm),
                   Expanded(
@@ -270,59 +284,202 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     );
   }
 
-  Widget _buildCategoryDropdown(BuildContext context, TextTheme textTheme, ProductListState state) {
-    final selectedCatId = ref.watch(productCategoryFilterProvider);
-    final categories = state.categories;
-    final items = <DropdownMenuItem<String?>>[
-      DropdownMenuItem<String?>(
-        value: null,
-        child: Text(
-          'Semua Kategori',
-          style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
-        ),
+}
+
+/// Top bar POS — Figma arch-sleek: h56, bg putih, borderBottom #E2E8F0,
+/// kiri judul layar, kanan status Online + Tersinkron + badge cabang + lonceng.
+class _PosTopBar extends ConsumerWidget {
+  const _PosTopBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(currentSessionProvider);
+    final branchName =
+        session?.selectedBranch?.name ?? session?.tenant.name ?? 'Cabang';
+    final bell = ref.watch(salesSyncNotifierProvider).pendingCount;
+
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
+      decoration: const BoxDecoration(
+        color: GoldenityColors.surface,
+        border: Border(bottom: BorderSide(color: GoldenityColors.border)),
       ),
-      ...categories.map((c) => DropdownMenuItem<String?>(
-            value: c.id,
-            child: Text(
-              c.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+      child: Row(
+        children: <Widget>[
+          const Icon(Icons.point_of_sale_rounded, size: 18, color: GoldenityColors.text2),
+          const SizedBox(width: GoldenitySpacing.sm),
+          const Text('Point of Sale',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: GoldenityColors.text)),
+          const Spacer(),
+          Container(
+            width: 7,
+            height: 7,
+            decoration: const BoxDecoration(color: GoldenityColors.success, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          const Text('Online',
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: GoldenityColors.success)),
+          const SizedBox(width: 14),
+          const Icon(Icons.cloud_done_rounded, size: 14, color: GoldenityColors.muted),
+          const SizedBox(width: 4),
+          const Text('Tersinkron',
+              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: GoldenityColors.muted)),
+          const SizedBox(width: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: GoldenityColors.primaryLight,
+              borderRadius: BorderRadius.circular(GoldenityRadius.full),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
             ),
-          )),
-    ];
-    return SizedBox(
-      width: 200,
-      child: DropdownButtonFormField<String?>(
-        initialValue: items.any((item) => item.value == selectedCatId) ? selectedCatId : null,
-        items: items,
-        onChanged: (v) => ref.read(productCategoryFilterProvider.notifier).state = v,
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: GoldenityColors.surface2,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(GoldenityRadius.md),
-            borderSide: const BorderSide(color: GoldenityColors.border),
+            child: Text(branchName.toUpperCase(),
+                style: const TextStyle(
+                    fontSize: 11.5, fontWeight: FontWeight.w700, color: GoldenityColors.primary, letterSpacing: 0.02)),
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(GoldenityRadius.md),
-            borderSide: const BorderSide(color: GoldenityColors.border),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(GoldenityRadius.md),
-            borderSide: const BorderSide(color: GoldenityColors.primary, width: 2),
-          ),
-        ),
-        isExpanded: true,
-        icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
-        iconEnabledColor: GoldenityColors.text2,
-        style: textTheme.bodyMedium?.copyWith(color: GoldenityColors.text, fontWeight: FontWeight.w600),
-        dropdownColor: GoldenityColors.surface,
-        borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+          const SizedBox(width: 8),
+          _BellButton(count: bell),
+        ],
       ),
     );
   }
+}
+
+class _BellButton extends StatelessWidget {
+  const _BellButton({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 34,
+      height: 34,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.notifications_none_rounded, size: 20, color: GoldenityColors.text2),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            tooltip: 'Notifikasi',
+          ),
+          if (count > 0)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 14),
+                decoration: BoxDecoration(
+                  color: GoldenityColors.error,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                ),
+                child: Text('$count',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w800)),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tombol "+ Kustom" di samping search — Figma: bg #F8FAFC, teks #64748B 13px,
+/// border #E2E8F0, radius 9, padding 9×14.
+class _KustomButton extends StatelessWidget {
+  const _KustomButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: Container(
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: GoldenityColors.surface2,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(color: GoldenityColors.border),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(Icons.add_rounded, size: 16, color: GoldenityColors.muted),
+              SizedBox(width: 4),
+              Text('Kustom',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: GoldenityColors.muted)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Baris chip kategori — Figma: pill radius-full, aktif bg #1D4ED8 putih,
+/// nonaktif bg putih teks #64748B border #E2E8F0. Scroll horizontal.
+class _CategoryChips extends ConsumerWidget {
+  const _CategoryChips({required this.state});
+  final ProductListState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(productCategoryFilterProvider);
+    final chips = <_Chip>[
+      const _Chip(id: null, label: 'Semua'),
+      ...state.categories.map((c) => _Chip(id: c.id, label: c.name)),
+    ];
+    return SizedBox(
+      height: 34,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (ctx, i) {
+          final chip = chips[i];
+          final active = chip.id == selected;
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(GoldenityRadius.full),
+              onTap: () => ref.read(productCategoryFilterProvider.notifier).state = chip.id,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: active ? GoldenityColors.primary : GoldenityColors.surface,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                  border: Border.all(color: active ? GoldenityColors.primary : GoldenityColors.border),
+                ),
+                child: Text(
+                  chip.label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: active ? Colors.white : GoldenityColors.muted,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _Chip {
+  const _Chip({required this.id, required this.label});
+  final String? id;
+  final String label;
 }
 
 class _LoadingView extends StatelessWidget {
@@ -500,12 +657,12 @@ class _ProductGridView extends ConsumerWidget {
           ),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              // Figma POS F&B: kartu ±166×161 (image band 66 + nama/harga +
-              // stepper), rasio ≈ 1.03 — kompak, TANPA ruang mati.
-              maxCrossAxisExtent: 190,
-              mainAxisSpacing: GoldenitySpacing.md,
-              crossAxisSpacing: GoldenitySpacing.md,
-              childAspectRatio: 1.03,
+              // Figma POS F&B (arch-sleek): grid 5 kolom, kartu 166×161,
+              // gap 10 — image band 66 + nama/harga + stepper. Rasio 1.03.
+              maxCrossAxisExtent: 176,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: 1.0,
             ),
             delegate: SliverChildBuilderDelegate(
               (ctx, i) => _ProductCard(
@@ -561,8 +718,9 @@ class _ProductCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            // ── Image band ──
-            Expanded(
+            // ── Image band (66px, #F8FAFC) ──
+            SizedBox(
+              height: 66,
               child: Stack(
                 children: <Widget>[
                   Positioned.fill(
@@ -572,7 +730,7 @@ class _ProductCard extends ConsumerWidget {
                         color: GoldenityColors.surface2,
                         alignment: Alignment.center,
                         child: const Icon(Icons.restaurant_menu_rounded,
-                            size: 26, color: GoldenityColors.disabled),
+                            size: 24, color: GoldenityColors.textXMuted),
                       ),
                     ),
                   ),
@@ -585,52 +743,47 @@ class _ProductCard extends ConsumerWidget {
                 ],
               ),
             ),
-            // ── Name + price ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 9, 10, 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  Text(
-                    product.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 12.5, fontWeight: FontWeight.w600, color: GoldenityColors.text, height: 1.2),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    currencyFormatter.format(product.price),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: GoldenityColors.primary,
-                      fontFamily: GoldenityTypography.fontFamilyMono,
-                      fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+            // ── Name + price + stepper ──
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(10, 9, 10, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 12.5, fontWeight: FontWeight.w600, color: GoldenityColors.text, height: 1.2),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            // ── Stepper ──
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: GoldenityCounterButton(
-                  value: qty,
-                  min: 0,
-                  max: 99,
-                  onChanged: !canAdd
-                      ? (_) {}
-                      : (v) {
-                          if (v > qty) {
-                            cartNotifier.addToCart(product);
-                          } else {
-                            cartNotifier.updateQuantity(product.id, v);
-                          }
-                        },
+                    const SizedBox(height: 2),
+                    Text(
+                      currencyFormatter.format(product.price),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: GoldenityColors.primary,
+                        fontFamily: GoldenityTypography.fontFamilyMono,
+                        fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    GoldenityCounterButton(
+                      value: qty,
+                      min: 0,
+                      max: 99,
+                      onChanged: !canAdd
+                          ? (_) {}
+                          : (v) {
+                              if (v > qty) {
+                                cartNotifier.addToCart(product);
+                              } else {
+                                cartNotifier.updateQuantity(product.id, v);
+                              }
+                            },
+                    ),
+                  ],
                 ),
               ),
             ),
