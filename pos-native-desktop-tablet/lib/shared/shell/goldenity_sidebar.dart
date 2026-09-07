@@ -47,9 +47,9 @@ class GoldenitySidebar extends ConsumerWidget {
     return Container(
       width: kWidth,
       decoration: const BoxDecoration(
-        color: GoldenityColors.surface,
+        color: GoldenityColors.sidebar,
         border: Border(
-          right: BorderSide(color: GoldenityColors.border, width: 1),
+          right: BorderSide(color: Color(0x331E293B), width: 1),
         ),
       ),
       child: Column(
@@ -194,7 +194,7 @@ class GoldenitySidebar extends ConsumerWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: textTheme.titleMedium?.copyWith(
-                    color: GoldenityColors.text,
+                    color: Colors.white,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.2,
                   ),
@@ -203,7 +203,7 @@ class GoldenitySidebar extends ConsumerWidget {
                 Text(
                   'POS V2',
                   style: textTheme.labelSmall?.copyWith(
-                    color: GoldenityColors.muted,
+                    color: GoldenityColors.primaryLight,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.05,
                   ),
@@ -225,7 +225,7 @@ class GoldenitySidebar extends ConsumerWidget {
           Text(
             'MODE BISNIS',
             style: textTheme.labelSmall?.copyWith(
-              color: GoldenityColors.muted,
+              color: GoldenityColors.sidebarText,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.08,
             ),
@@ -248,8 +248,8 @@ class GoldenitySidebar extends ConsumerWidget {
     required String label,
     required bool selected,
   }) {
-    final bg = selected ? GoldenityColors.primaryLight : Colors.transparent;
-    final fg = selected ? GoldenityColors.primary : GoldenityColors.muted;
+    final bg = selected ? GoldenityColors.warning : Colors.transparent;
+    final fg = selected ? Colors.white : GoldenityColors.sidebarText;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -304,10 +304,12 @@ class GoldenitySidebar extends ConsumerWidget {
             ),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-              color: isActive ? GoldenityColors.primaryLight : Colors.transparent,
+              color: isActive
+                  ? GoldenityColors.primary.withValues(alpha: 0.18)
+                  : Colors.transparent,
               border: Border.all(
                 color: isActive
-                    ? GoldenityColors.primary.withValues(alpha: 0.12)
+                    ? GoldenityColors.primary.withValues(alpha: 0.40)
                     : Colors.transparent,
               ),
             ),
@@ -316,7 +318,7 @@ class GoldenitySidebar extends ConsumerWidget {
                 Icon(
                   icon,
                   size: 18,
-                  color: isActive ? GoldenityColors.primary : GoldenityColors.muted,
+                  color: isActive ? Colors.white : GoldenityColors.sidebarText,
                 ),
                 const SizedBox(width: GoldenitySpacing.md),
                 Expanded(
@@ -325,7 +327,7 @@ class GoldenitySidebar extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: textTheme.bodySmall?.copyWith(
-                      color: isActive ? GoldenityColors.primary : GoldenityColors.muted,
+                      color: isActive ? Colors.white : GoldenityColors.sidebarText,
                       fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
                     ),
                   ),
@@ -357,19 +359,19 @@ class GoldenitySidebar extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(GoldenitySpacing.md),
             decoration: BoxDecoration(
-              color: GoldenityColors.surface2,
+              color: const Color(0x14FFFFFF),
               borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-              border: Border.all(color: GoldenityColors.border),
+              border: Border.all(color: const Color(0x1FFFFFFF)),
             ),
             child: Row(
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor: GoldenityColors.primaryLight,
+                  backgroundColor: GoldenityColors.primary,
                   child: Text(
                     (user?.username.substring(0, 1).toUpperCase() ?? 'U'),
                     style: textTheme.titleMedium?.copyWith(
-                      color: GoldenityColors.primary,
+                      color: Colors.white,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -384,7 +386,7 @@ class GoldenitySidebar extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: textTheme.bodySmall?.copyWith(
-                          color: GoldenityColors.text,
+                          color: Colors.white,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -424,7 +426,7 @@ class GoldenitySidebar extends ConsumerWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: textTheme.labelSmall?.copyWith(
-                              color: GoldenityColors.muted,
+                              color: GoldenityColors.sidebarText,
                               fontWeight: FontWeight.w600,
                             ),
                           );
