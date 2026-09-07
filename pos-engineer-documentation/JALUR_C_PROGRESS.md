@@ -13,16 +13,20 @@ Flutter SDK: `E:\Flutter\bin\flutter.bat`. Screenshot helper: `scratchpad/posctl
 
 - [x] 6 layar utama pass-1 (fondasi, POS, Dashboard, Riwayat, Keuangan, Kategori) — commits 66e8518..9be05f2
 - [x] Modal system + Riwayat drawer + Kategori/Logout dialog + payment de-stress — 9a3a7ad, d21825b, 855ad9f
-- [ ] **FIX: DateRangePicker crash** — "No MaterialLocalizations found" saat Pilih Tanggal (Riwayat/Keuangan). Tambah GlobalMaterialLocalizations delegates + supportedLocales id/en di MaterialApp.
-- [ ] **Manajemen Meja end-to-end**: model + API client (`/api/v1/tables`) + provider + UI grid (legend status, count chips, kartu meja tint per status, VIP, kartu terisi tampil order#/sejak/total, tombol tambah meja, detail sesi drawer)
-- [ ] **Web Orders kasir end-to-end**: model + API client (`/api/v1/web-orders`) + provider + UI (tab Baru/Semua, kartu order strip amber, item list, Terima/Tolak, catatan). Verifikasi: order via API customer (`/api/v1/order/...`) muncul di list & bisa di-Terima → SalesRecord.
-- [ ] **Printer per Cabang rework**: hapus dropdown "Pilih Cabang" — pakai cabang login. Toggle "Berlaku untuk: Semua device cabang ini / Hanya device ini". Kartu printer ala Figma (nama, IP/MAC, Peran Printer Kasir/Checker, Koneksi BT/Network/USB, Ukuran 58/80/A4/Dot Matrix, Test Print / Test Buka Laci / Hapus, status Terhubung/Tidak).
-- [ ] **Pengaturan tab "Perangkat"** (tab ke-4): UUID device, Nama Device, Peran, Status Pendaftaran (Terdaftar ✓ + terakhir aktif), tombol Daftarkan Perangkat. Multi-device: list device di cabang.
-- [ ] **Dashboard lengkapi**: badge "Shift Pagi • HH:MM–HH:MM", KPI delta ("↑ 12.4% vs kemarin") — butuh data banding backend (cek; kalau tak ada → dok). Bar chart "Penjualan per Jam" (butuh endpoint hourly; kalau tak ada → dok + pakai data yg ada).
-- [ ] **Kategori**: tab "Produk / Pengeluaran", search bar "Cari kategori...", judul "Kategori Produk" (bukan "Manajemen Kategori"). Icon tile berwarna per kategori (Figma pakai emoji + warna) — kalau model tak ada field icon/color → dok.
-- [ ] **Daftar Produk**: breadcrumb "Back Office / Inventaris / Daftar Produk", tab "Daftar Produk / Produk Baru", baris list ala Figma.
-- [ ] **Produk Baru (form)**: layout Figma (Informasi Dasar: Nama, SKU, Kategori, Harga Jual, Status Aktif/Draft, Deskripsi + sidebar Pratinjau Produk; Variant Group: nama grup, Pilih 1/Multi, baris pilihan Nama/Harga Tambahan/Stok Awal/Lacak Stok, + Tambah Pilihan, + Tambah Variant Group; tombol Simpan Draft / Publikasikan).
-- [ ] **FIGMA_GAP_AUDIT.md** — audit semua layar Flutter vs Figma, daftar beda + yang perlu ditambah di Figma.
+- [x] **FIX: DateRangePicker crash** — flutter_localizations + intl ^0.20.2 + delegates di MaterialApp. Commit 15213f1.
+- [x] **Manajemen Meja end-to-end** — model+API+provider+UI grid + drawer detail sesi. Commit de4d2f5. Verified di app.
+- [x] **Web Orders kasir end-to-end** — model+API+provider+UI + polling 15s. Commit de4d2f5. Smoke test PASS (customer submit -> kasir list -> accept -> SalesRecord). Verified di app: Terima memindahkan order dari Baru ke Semua (ACCEPTED).
+- [x] **Printer per Cabang rework** — hapus dropdown, pakai cabang login + header "Printer — Cabang <nama>". Commit 7b62ee7. (Kartu printer detail Figma — Peran/A4/DotMatrix/Test Buka Laci/scope device/status koneksi — MASIH TODO, tercatat di audit.)
+- [x] **Pengaturan tab "Perangkat"** — UUID persisten + Nama + Peran + status Terdaftar + Daftarkan + list perangkat lain. Commit 7b62ee7.
+- [x] **Dashboard** — badge shift aktif + chart "Penjualan per Jam" (client-side). KPI delta → dok (butuh backend). Commit e68cb2f.
+- [x] **Kategori** — judul "Kategori Produk" + tab Produk/Pengeluaran + search. Icon/warna per kategori → dok (model tak ada field). Commit e68cb2f.
+- [x] **Daftar Produk** — grid -> baris list ala Figma. Commit (product list). Breadcrumb + tab "Produk Baru" → TODO (audit).
+- [ ] **Produk Baru (form)** `product_builder_screen.dart` — restyle ke Figma. TODO (tercatat di audit §7).
+- [ ] **Shift Kasir** — restyle ke Figma (banner + 3 KPI + tabel pembayaran). TODO (audit §10).
+- [ ] **Modal Pembayaran** — rework single-column 480. TODO (audit §12).
+- [ ] **Pengaturan Info Toko** — selaraskan field Email/NPWP/Tipe Bisnis vs toggle. TODO (audit §11).
+- [ ] **Void dialog** — pindah ke showGoldenityDialog. TODO (audit §12).
+- [x] **FIGMA_GAP_AUDIT.md** — dibuat: `pos-designer-documentation/FIGMA_GAP_AUDIT.md`.
 
 ## Notes / discovered
 - Multi-device model (V1): Device{id=client UUID, role=CASHIER|CHECKER|BOTH}; PrinterConfig.deviceId untuk override per-device. Backend device routes: register/heartbeat/list/patch/delete.
