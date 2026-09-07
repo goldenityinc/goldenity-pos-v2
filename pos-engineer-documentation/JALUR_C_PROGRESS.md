@@ -21,7 +21,7 @@ Flutter SDK: `E:\Flutter\bin\flutter.bat`. Screenshot helper: `scratchpad/posctl
 - [x] **Dashboard** — badge shift aktif + chart "Penjualan per Jam" (client-side). KPI delta → dok (butuh backend). Commit e68cb2f.
 - [x] **Kategori** — judul "Kategori Produk" + tab Produk/Pengeluaran + search. Icon/warna per kategori → dok (model tak ada field). Commit e68cb2f.
 - [x] **Daftar Produk** — grid -> baris list ala Figma. Commit (product list). Breadcrumb + tab "Produk Baru" → TODO (audit).
-- [ ] **Produk Baru (form)** `product_builder_screen.dart` — restyle ke Figma. TODO (tercatat di audit §7).
+- [x] **Produk Baru (form)** — struktur sudah cocok Figma (Informasi Dasar + Variant Group + Pratinjau). Tambah tombol "Simpan Draft" + label "Harga Jual (sebelum pajak)". Sisa: tab/breadcrumb (butuh restrukturisasi jadi tab, bukan route) + status Aktif/Draft segmented — tercatat di audit §7.
 - [x] **Shift Kasir** — banner "Shift Aktif" + 3 KPI + Rincian Shift. Commit (shift kasir).
 - [x] **Modal Pembayaran** — single-column 480px (kolom kiri Offstage), verified di app. Commit d43f7b6.
 - [ ] **Pengaturan Info Toko** — selaraskan field Email/NPWP/Tipe Bisnis vs toggle. TODO (butuh backend key baru — audit §11).
@@ -35,10 +35,25 @@ Flutter SDK: `E:\Flutter\bin\flutter.bat`. Screenshot helper: `scratchpad/posctl
 - Dashboard: badge "Shift Aktif • buka HH:mm"; kartu "Penjualan per Jam".
 - Kategori: judul "Kategori Produk" + tab Produk/Pengeluaran + search.
 
-## Sisa (semua tercatat di FIGMA_GAP_AUDIT.md)
-- Produk Baru form restyle · Modal Pembayaran single-column · Info Toko field align ·
-  kartu printer detail Figma (Peran/A4/DotMatrix/Test Buka Laci/scope device/status) ·
-  KPI delta (butuh backend) · panel Notifikasi (belum ada layar) · dll.
+## Sisa — SEMUA butuh perubahan BACKEND dulu (tercatat detail di FIGMA_GAP_AUDIT.md)
+1. **Info Toko**: field Email / NPWP / Tipe Bisnis → butuh key baru di `StoreSetting`.
+2. **Kartu printer** (Peran KASIR/CHECKER, ukuran A4/DOT_MATRIX, Test Buka Laci,
+   scope "semua device / device ini", indikator Terhubung) → butuh `PrinterConfig.role`
+   + enum ukuran + endpoint test.
+3. **KPI delta "vs kemarin"** (Dashboard & Keuangan) → butuh field pembanding /
+   param `compare=prev` di `/dashboard/summary` + `/finance/report`.
+4. **Chart "Penjualan per Jam"** akurat → endpoint `GET /dashboard/hourly`.
+5. **Modul Pengeluaran** (Keuangan "Rincian Pengeluaran" + Kategori tab "Pengeluaran").
+6. **Kategori icon+color** → field di model Category.
+7. **Status Draft produk** → enum/field di `Product`.
+8. **Panel Notifikasi (lonceng)** → layar Flutter baru (backend `/notifications` sudah ada).
+9. **Meja**: status "Bersih-bersih", flow Reservasi, panel QR meja (cetak/rotate).
+10. **Produk form**: restrukturisasi jadi tab (bukan push route) + breadcrumb.
+11. **Riwayat Export** (CSV/PDF) — butuh endpoint + kolom item ringkas di list `/sales`.
+12. **Web Orders**: `customerPhone` di response list.
+
+Cron autonomous DIHENTIKAN — sisa pekerjaan butuh keputusan/BE, bukan lagi
+murni Flutter. Lanjutkan manual sesuai prioritas Andre.
 - [x] **FIGMA_GAP_AUDIT.md** — dibuat: `pos-designer-documentation/FIGMA_GAP_AUDIT.md`.
 
 ## Notes / discovered
