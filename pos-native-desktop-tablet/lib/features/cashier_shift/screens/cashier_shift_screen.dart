@@ -24,7 +24,8 @@ class _CashierShiftScreenState extends ConsumerState<CashierShiftScreen> {
   ShiftProfile? _current;
   bool _blindModeCashier = false;
 
-  final NumberFormat _currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
+  final NumberFormat _currencyFormatter =
+      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
   final DateFormat _dateTimeFormatter = DateFormat.yMd('id_ID').add_Hm();
   final TextEditingController _openingCashCtrl = TextEditingController(text: '0');
   final TextEditingController _actualCashCtrl = TextEditingController(text: '0');
