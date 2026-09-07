@@ -22,10 +22,23 @@ Flutter SDK: `E:\Flutter\bin\flutter.bat`. Screenshot helper: `scratchpad/posctl
 - [x] **Kategori** — judul "Kategori Produk" + tab Produk/Pengeluaran + search. Icon/warna per kategori → dok (model tak ada field). Commit e68cb2f.
 - [x] **Daftar Produk** — grid -> baris list ala Figma. Commit (product list). Breadcrumb + tab "Produk Baru" → TODO (audit).
 - [ ] **Produk Baru (form)** `product_builder_screen.dart` — restyle ke Figma. TODO (tercatat di audit §7).
-- [ ] **Shift Kasir** — restyle ke Figma (banner + 3 KPI + tabel pembayaran). TODO (audit §10).
+- [x] **Shift Kasir** — banner "Shift Aktif" + 3 KPI + Rincian Shift. Commit (shift kasir).
 - [ ] **Modal Pembayaran** — rework single-column 480. TODO (audit §12).
 - [ ] **Pengaturan Info Toko** — selaraskan field Email/NPWP/Tipe Bisnis vs toggle. TODO (audit §11).
-- [ ] **Void dialog** — pindah ke showGoldenityDialog. TODO (audit §12).
+- [x] **Void dialog** — pindah ke showGoldenityDialog + StatefulBuilder. Commit (void).
+
+## Verifikasi berjalan (screenshot app)
+- DateRangePicker: FIXED — buka normal, locale id (M S S R K J S, "September 2026", Simpan/Batal).
+- Manajemen Meja: grid + legend + count chips render; drawer detail sesi OK.
+- Web Orders: tab Baru/Semua, kartu strip amber, Terima memindah ke ACCEPTED + advance "Mulai Masak". Smoke API PASS.
+- Pengaturan: 4 tab; Printer tanpa picker cabang (header "Printer — <cabang>"); Perangkat: Daftarkan -> Terdaftar ✓ + list "Perangkat Lain (2)".
+- Dashboard: badge "Shift Aktif • buka HH:mm"; kartu "Penjualan per Jam".
+- Kategori: judul "Kategori Produk" + tab Produk/Pengeluaran + search.
+
+## Sisa (semua tercatat di FIGMA_GAP_AUDIT.md)
+- Produk Baru form restyle · Modal Pembayaran single-column · Info Toko field align ·
+  kartu printer detail Figma (Peran/A4/DotMatrix/Test Buka Laci/scope device/status) ·
+  KPI delta (butuh backend) · panel Notifikasi (belum ada layar) · dll.
 - [x] **FIGMA_GAP_AUDIT.md** — dibuat: `pos-designer-documentation/FIGMA_GAP_AUDIT.md`.
 
 ## Notes / discovered
