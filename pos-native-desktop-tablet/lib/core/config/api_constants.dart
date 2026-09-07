@@ -118,4 +118,58 @@ class ApiConstants {
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
+
+  // ===== FASE 2: Manajemen Meja =====
+  static Uri tablesEndpoint([Map<String, String>? queryParams]) {
+    const base = '$devBaseUrl$apiV1Prefix/tables';
+    if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
+    return Uri.parse(base).replace(queryParameters: queryParams);
+  }
+
+  static Uri tableByIdEndpoint(String tableId) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/tables/$tableId');
+
+  static Uri tableOrdersEndpoint(String tableId) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/tables/$tableId/orders');
+
+  static Uri tableQrEndpoint(String tableId) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/tables/$tableId/qr');
+
+  static Uri tableRotateTokenEndpoint(String tableId) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/tables/$tableId/rotate-token');
+
+  static Uri tableCloseSessionEndpoint(String tableId) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/tables/$tableId/close-session');
+
+  // ===== FASE 2: Web Orders (kasir) =====
+  static Uri webOrdersEndpoint([Map<String, String>? queryParams]) {
+    const base = '$devBaseUrl$apiV1Prefix/web-orders';
+    if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
+    return Uri.parse(base).replace(queryParameters: queryParams);
+  }
+
+  static Uri webOrderByIdEndpoint(String id) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/web-orders/$id');
+
+  static Uri webOrderAcceptEndpoint(String id) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/web-orders/$id/accept');
+
+  static Uri webOrderRejectEndpoint(String id) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/web-orders/$id/reject');
+
+  static Uri webOrderStatusEndpoint(String id) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/web-orders/$id/status');
+
+  static Uri webOrderVerifyPaymentEndpoint(String id) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/web-orders/$id/verify-payment');
+
+  // ===== FASE 2: Customer order (tanpa JWT) — dipakai untuk smoke/testing =====
+  static Uri orderSessionEndpoint() =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/order/session');
+
+  static Uri orderMenuEndpoint(String sessionToken) => Uri.parse(
+      '$devBaseUrl$apiV1Prefix/order/menu?sessionToken=$sessionToken');
+
+  static Uri orderSubmitEndpoint() =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/order/submit');
 }

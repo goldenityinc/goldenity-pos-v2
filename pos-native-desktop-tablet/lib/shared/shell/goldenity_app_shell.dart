@@ -10,10 +10,11 @@ import '../../../features/finance/screens/finance_screen.dart';
 import '../../../features/inventory/screens/category_management_screen.dart';
 import '../../../features/inventory/screens/product_list_screen.dart';
 import '../../../features/inventory/screens/product_management_list_screen.dart';
-import '../../../features/sales/providers/sales_sync_notifier.dart';
 import '../../../features/sales/screens/sales_history_screen.dart';
 import '../../../features/settings/screens/settings_screen.dart';
+import '../../../features/tables/providers/table_provider.dart';
 import '../../../features/tables/screens/table_management_screen.dart';
+import '../../../features/web_orders/providers/web_order_provider.dart';
 import '../../../features/web_orders/screens/web_orders_screen.dart';
 import 'goldenity_sidebar.dart';
 
@@ -49,7 +50,8 @@ class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final webBadge = ref.watch(salesSyncNotifierProvider).pendingCount;
+    final webBadge = ref.watch(webOrderListProvider).baruCount;
+    final tableBadge = ref.watch(tableListProvider).countByStatus('OCCUPIED');
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -57,6 +59,7 @@ class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
           GoldenitySidebar(
             currentTab: _tab,
             webOrderBadge: webBadge,
+            tableBadge: tableBadge,
             onTabChanged: (t) => setState(() => _tab = t),
           ),
           Expanded(
