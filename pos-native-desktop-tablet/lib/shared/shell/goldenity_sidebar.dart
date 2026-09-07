@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
+import '../widgets/goldenity_modal.dart';
 import '../../../core/models/auth_session.dart';
 import '../../../core/models/shift_profile.dart';
 import '../../../core/models/tenant_profile.dart';
@@ -328,23 +329,17 @@ class GoldenitySidebar extends ConsumerWidget {
   }
 
   void _confirmLogout(BuildContext context, WidgetRef ref) {
-    showDialog<void>(
+    showGoldenityDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: GoldenityRadius.modalRadius),
-        title: const Text('Konfirmasi Logout'),
-        content: const Text('Anda yakin ingin keluar dari sesi ini?'),
-        actions: <Widget>[
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Batal')),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              ref.read(authNotifierProvider.notifier).logout();
-            },
-            child: const Text('Ya, Logout'),
-          ),
-        ],
-      ),
+      title: 'Konfirmasi Logout',
+      primaryLabel: 'Ya, Logout',
+      primaryColor: GoldenityColors.error,
+      child: const Text('Anda yakin ingin keluar dari sesi ini?',
+          style: TextStyle(fontSize: 13.5, color: GoldenityColors.text2, height: 1.4)),
+      onPrimary: () async {
+        ref.read(authNotifierProvider.notifier).logout();
+        return true;
+      },
     );
   }
 }

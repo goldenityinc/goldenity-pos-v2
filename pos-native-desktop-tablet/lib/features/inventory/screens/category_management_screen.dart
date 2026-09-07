@@ -5,8 +5,8 @@ import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_elevation.dart';
+import '../../../shared/widgets/goldenity_modal.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
-import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../../../core/models/category_profile.dart';
 import '../providers/product_list_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -22,8 +22,6 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
   bool _loading = false;
   bool _includeInactive = false;
   String _errMsg = '';
-  String _createName = '';
-  final GlobalKey<FormState> _createKey = GlobalKey<FormState>();
   late TextEditingController _editNameCtrl;
 
   @override
@@ -74,25 +72,14 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
   }
 
   Future<void> _confirmDelete(CategoryProfile c) async {
-    final result = await showDialog<bool>(
+    final result = await showGoldenityDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Konfirmasi Hapus'),
-        content: Text('Yakin hapus kategori ${c.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Batal'),
-          ),
-          GoldenityPrimaryButton(
-            label: 'Ya, Hapus',
-            height: 40,
-            backgroundColor: GoldenityColors.error,
-            shadow: GoldenityElevation.btnSuccess,
-            onPressed: () => Navigator.pop(ctx, true),
-          ),
-        ],
-      ),
+      title: 'Hapus Kategori',
+      primaryLabel: 'Ya, Hapus',
+      primaryColor: GoldenityColors.error,
+      child: Text('Yakin hapus kategori "${c.name}"? Tindakan ini tidak dapat dibatalkan.',
+          style: const TextStyle(fontSize: 13.5, color: GoldenityColors.text2, height: 1.4)),
+      onPrimary: () async => true,
     );
     if (result != true) return;
 
@@ -141,154 +128,102 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
     }
   }
 
+  Future<void> _submitCategory({String? id, required String name}) async {
+    final auth = ref.read(authNotifierProvider.notifier);
+    final token = auth.session?.token;
+    if (token == null) throw Exception('Sesi tidak ditemukan');
+    final categoryApi = ref.read(categoryApiServiceProvider);
+    if (id == null) {
+      await categoryApi.createCategory(authToken: token, name: name);
+    } else {
+      await categoryApi.updateCategory(authToken: token, categoryId: id, name: name);
+    }
+    await ref
+        .read(productListNotifierProvider.notifier)
+        .loadCategoriesOnly(includeInactive: _includeInactive);
+  }
+
   Future<void> _showCreateDialog() async {
-    _createName = '';
-    await showDialog<void>(
+    _editNameCtrl.text = '';
+    await showGoldenityDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.xl)),
-        title: const Text('Tambah Kategori Baru'),
-        content: Form(
-          key: _createKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Nama Kategori',
-                  hintText: 'Contoh: Makanan Utama',
-                ),
-                validator: (v) => v!.trim().length < 3 ? 'Minimal 3 karakter' : null,
-                onSaved: (v) => _createName = v!.trim(),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          Consumer(
-            builder: (_, ref2, __) {
-              final theme = Theme.of(ctx);
-              final biz = theme.extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
-              return GoldenityPrimaryButton(
-                label: 'Simpan',
-                height: 40,
-                backgroundColor: biz.base,
-                shadow: GoldenityElevation.btnPrimary,
-                onPressed: () async {
-                  final form = _createKey.currentState;
-                  if (form == null || !form.validate()) return;
-                  form.save();
-                  try {
-                    final auth = ref.read(authNotifierProvider.notifier);
-                    final token = auth.session?.token;
-                    if (token == null) throw Exception('Sesi tidak ditemukan');
-                    final categoryApi = ref.read(categoryApiServiceProvider);
-                    await categoryApi.createCategory(authToken: token, name: _createName);
-                    if (ctx.mounted) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        const SnackBar(
-                          backgroundColor: GoldenityColors.success,
-                          content: Text('Kategori berhasil dibuat'),
-                        ),
-                      );
-                    }
-                    await ref.read(productListNotifierProvider.notifier).loadCategoriesOnly(includeInactive: _includeInactive);
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  } catch (e) {
-                    if (ctx.mounted) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        SnackBar(
-                          backgroundColor: GoldenityColors.error,
-                          content: Text(e.toString().replaceAll('Exception: ', '')),
-                        ),
-                      );
-                    }
-                  }
-                },
-              );
-            },
-          ),
-        ],
+      title: 'Tambah Kategori',
+      child: GoldenityModalField(
+        label: 'Nama Kategori',
+        controller: _editNameCtrl,
+        hint: 'Contoh: Makanan Utama',
+        autofocus: true,
       ),
+      onPrimary: () async {
+        final name = _editNameCtrl.text.trim();
+        if (name.length < 3) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  backgroundColor: GoldenityColors.error, content: Text('Nama minimal 3 karakter')),
+            );
+          }
+          return null;
+        }
+        try {
+          await _submitCategory(name: name);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  backgroundColor: GoldenityColors.success, content: Text('Kategori berhasil dibuat')),
+            );
+          }
+          return true;
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  backgroundColor: GoldenityColors.error,
+                  content: Text(e.toString().replaceAll('Exception: ', ''))),
+            );
+          }
+          return null;
+        }
+      },
     );
   }
 
   Future<void> _showEditDialog(CategoryProfile c) async {
     _editNameCtrl.text = c.name;
-    await showDialog<void>(
+    await showGoldenityDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.xl)),
-        title: Text('Edit Kategori ${c.name}'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _editNameCtrl,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Nama Kategori',
-                hintText: 'Contoh: Makanan Utama',
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal'),
-          ),
-          Consumer(
-            builder: (_, ref2, __) {
-              final theme = Theme.of(ctx);
-              final biz = theme.extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
-              return GoldenityPrimaryButton(
-                label: 'Simpan',
-                height: 40,
-                backgroundColor: biz.base,
-                shadow: GoldenityElevation.btnPrimary,
-                onPressed: () async {
-                  try {
-                    final auth = ref.read(authNotifierProvider.notifier);
-                    final token = auth.session?.token;
-                    if (token == null) throw Exception('Sesi tidak ditemukan');
-                    final categoryApi = ref.read(categoryApiServiceProvider);
-                    await categoryApi.updateCategory(
-                      authToken: token,
-                      categoryId: c.id,
-                      name: _editNameCtrl.text.trim(),
-                    );
-                    if (ctx.mounted) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        const SnackBar(
-                          backgroundColor: GoldenityColors.success,
-                          content: Text('Kategori berhasil diperbarui'),
-                        ),
-                      );
-                    }
-                    await ref.read(productListNotifierProvider.notifier).loadCategoriesOnly(includeInactive: _includeInactive);
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  } catch (e) {
-                    if (ctx.mounted) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        SnackBar(
-                          backgroundColor: GoldenityColors.error,
-                          content: Text(e.toString().replaceAll('Exception: ', '')),
-                        ),
-                      );
-                    }
-                  }
-                },
-              );
-            },
-          ),
-        ],
+      title: 'Edit Kategori',
+      subtitle: c.name,
+      child: GoldenityModalField(
+        label: 'Nama Kategori',
+        controller: _editNameCtrl,
+        hint: 'Contoh: Makanan Utama',
+        autofocus: true,
       ),
+      onPrimary: () async {
+        final name = _editNameCtrl.text.trim();
+        if (name.length < 3) return null;
+        try {
+          await _submitCategory(id: c.id, name: name);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  backgroundColor: GoldenityColors.success,
+                  content: Text('Kategori berhasil diperbarui')),
+            );
+          }
+          return true;
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  backgroundColor: GoldenityColors.error,
+                  content: Text(e.toString().replaceAll('Exception: ', ''))),
+            );
+          }
+          return null;
+        }
+      },
     );
   }
 

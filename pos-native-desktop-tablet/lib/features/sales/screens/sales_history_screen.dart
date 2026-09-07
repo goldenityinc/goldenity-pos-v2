@@ -12,6 +12,7 @@ import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../shared/widgets/goldenity_modal.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
 
@@ -31,7 +32,6 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
     symbol: 'Rp ',
     decimalDigits: 0,
   );
-  final DateFormat _dateFormatter = DateFormat('dd MMM yyyy HH:mm', 'id_ID');
 
   final TextEditingController _searchCtrl = TextEditingController();
   String _searchQuery = '';
@@ -230,11 +230,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
   bool _canBeVoided(String status) => status == 'COMPLETED' || status == 'PARTIALLY_REFUNDED';
 
   Future<void> _showSaleDetail(Map<String, dynamic> sale) async {
-    final textTheme = Theme.of(context).textTheme;
-    final biz = Theme.of(context).extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
-
     final id = sale['id']?.toString() ?? '-';
-    final refId = sale['referenceId']?.toString();
     final statusRaw = sale['status']?.toString() ?? 'COMPLETED';
     final (chipBg, chipFg) = _statusColor(statusRaw);
     final createdAtRaw = sale['createdAt']?.toString();
@@ -242,18 +238,11 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
         ? DateTime.tryParse(createdAtRaw)!
         : DateTime.now();
     final cashierName = sale['cashierName']?.toString() ?? 'Kasir';
-    final orderTypeLabel = sale['orderType']?.toString() == 'TAKE_AWAY'
-        ? 'Bawa Pulang'
-        : 'Makan di Tempat';
     final paymentMethod = sale['paymentMethod']?.toString() ?? 'CASH';
     final paymentLabel = _paymentMethodLabel(paymentMethod);
-    final paymentRef = sale['paymentReferenceNumber']?.toString();
-    final cashReceived = num.tryParse(sale['cashReceived']?.toString() ?? '0') ?? 0;
-    final cashChange = num.tryParse(sale['cashChange']?.toString() ?? '0') ?? 0;
 
     final subtotal = num.tryParse(sale['subtotal']?.toString() ?? '0') ?? 0;
     final discountAmount = num.tryParse(sale['discountAmount']?.toString() ?? '0') ?? 0;
-    final discountPercent = num.tryParse(sale['discountPercent']?.toString() ?? '0') ?? 0;
     final taxAmount = num.tryParse(sale['taxAmount']?.toString() ?? '0') ?? 0;
     final serviceChargeAmount = num.tryParse(sale['serviceChargeAmount']?.toString() ?? '0') ?? 0;
     final total = num.tryParse(sale['total']?.toString() ?? '0') ?? 0;
@@ -264,339 +253,319 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
         : const [];
 
     final canVoid = _canBeVoided(statusRaw);
+    final cashierNote = sale['cashierNote']?.toString() ?? '';
+    final proofUrl = sale['paymentProofUrl']?.toString();
+    final tableLabel = sale['tableName']?.toString() ??
+        sale['tableLabel']?.toString() ??
+        (sale['orderType']?.toString() == 'TAKE_AWAY' ? 'Bawa Pulang' : 'Umum');
 
-    await showDialog<void>(
+    await _showSaleDrawer(
+      sale: sale,
+      id: id,
+      createdAt: createdAt,
+      cashierName: cashierName,
+      tableLabel: tableLabel,
+      statusRaw: statusRaw,
+      chipBg: chipBg,
+      chipFg: chipFg,
+      paymentMethod: paymentMethod,
+      paymentLabel: paymentLabel,
+      items: items,
+      subtotal: subtotal,
+      taxAmount: taxAmount,
+      discountAmount: discountAmount,
+      serviceChargeAmount: serviceChargeAmount,
+      total: total,
+      cashierNote: cashierNote,
+      proofUrl: proofUrl,
+      canVoid: canVoid,
+    );
+  }
+
+  Future<void> _showSaleDrawer({
+    required Map<String, dynamic> sale,
+    required String id,
+    required DateTime createdAt,
+    required String cashierName,
+    required String tableLabel,
+    required String statusRaw,
+    required Color chipBg,
+    required Color chipFg,
+    required String paymentMethod,
+    required String paymentLabel,
+    required List<Map<String, dynamic>> items,
+    required num subtotal,
+    required num taxAmount,
+    required num discountAmount,
+    required num serviceChargeAmount,
+    required num total,
+    required String cashierNote,
+    required String? proofUrl,
+    required bool canVoid,
+  }) async {
+    final (mBg, mFg) = _paymentChipColor(paymentMethod);
+    await showGoldenityDetailDrawer<void>(
       context: context,
-      barrierDismissible: true,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.xxxl)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: GoldenitySpacing.xl),
-        child: SizedBox(
-          width: 640,
-          child: Padding(
-            padding: const EdgeInsets.all(GoldenitySpacing.xl),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
+      id: '#$id',
+      subtitle: DateFormat('d MMM yyyy • HH:mm', 'id_ID').format(createdAt),
+      actions: [
+        GoldenityDrawerAction(
+          label: 'Cetak Ulang',
+          icon: Icons.print_rounded,
+          onTap: () {
+            Navigator.of(context).maybePop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Cetak ulang struk dikirim ke printer.')),
+            );
+          },
+        ),
+        if (canVoid)
+          GoldenityDrawerAction(
+            label: 'Void Transaksi',
+            icon: Icons.block_rounded,
+            color: GoldenityColors.error,
+            borderColor: const Color(0xFFFECACA),
+            onTap: () async {
+              Navigator.of(context).maybePop();
+              await _openVoidDialog(sale);
+            },
+          ),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Kasir: $cashierName  ·  $tableLabel',
+              style: const TextStyle(fontSize: 12, color: GoldenityColors.text2)),
+          const SizedBox(height: 14),
+          // item table
+          const Row(
+            children: [
+              Expanded(child: _ColLabel('Item')),
+              SizedBox(width: 34, child: _ColLabel('Qty', center: true)),
+              SizedBox(width: 84, child: _ColLabel('Subtotal', end: true)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (items.isEmpty)
+            const Text('(tidak ada detail item)',
+                style: TextStyle(fontSize: 12, color: GoldenityColors.muted))
+          else
+            for (final it in items)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('Detail Transaksi',
-                                  style: textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.w800)),
-                              const SizedBox(width: GoldenitySpacing.sm),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: GoldenitySpacing.sm, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: chipBg,
-                                  borderRadius: BorderRadius.circular(GoldenityRadius.full),
-                                ),
-                                child: Text(
-                                  _statusLabel(statusRaw),
-                                  style: TextStyle(
-                                    fontFamily: GoldenityTypography.fontFamilySans,
-                                    color: chipFg,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.3,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '#$id · ${_dateFormatter.format(createdAt)}',
-                            style: textTheme.bodySmall?.copyWith(
-                                color: GoldenityColors.text2, fontWeight: FontWeight.w600),
-                          ),
-                          Text(
-                            '$cashierName · $orderTypeLabel${refId != null && refId.trim().isNotEmpty ? ' · Ref: $refId' : ''}',
-                            style: textTheme.bodySmall?.copyWith(
-                                color: GoldenityColors.text2, fontWeight: FontWeight.w500),
-                          ),
-                        ],
-                      ),
+                      child: Text(it['productName']?.toString() ?? 'Produk',
+                          style: const TextStyle(fontSize: 12.5, color: GoldenityColors.text)),
                     ),
-                    IconButton(
-                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                      padding: EdgeInsets.zero,
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      icon: const Icon(Icons.close_rounded, size: 20),
-                      tooltip: 'Tutup',
+                    SizedBox(
+                      width: 34,
+                      child: Text('×${num.tryParse(it['qty']?.toString() ?? '0') ?? 0}',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: GoldenityColors.text2,
+                              fontFamily: GoldenityTypography.fontFamilyMono)),
+                    ),
+                    SizedBox(
+                      width: 84,
+                      child: Text(
+                          _currencyFormatter
+                              .format(num.tryParse(it['lineTotal']?.toString() ?? '0') ?? 0),
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: GoldenityColors.text,
+                              fontFamily: GoldenityTypography.fontFamilyMono)),
                     ),
                   ],
                 ),
-                const SizedBox(height: GoldenitySpacing.lg),
-                Flexible(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: GoldenityColors.surface,
-                      borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-                      border: Border.all(color: GoldenityColors.border),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                              GoldenitySpacing.md, GoldenitySpacing.sm, GoldenitySpacing.md, 0),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: Text('Item',
-                                    style: textTheme.labelSmall?.copyWith(
-                                        fontWeight: FontWeight.w800, color: GoldenityColors.text2)),
-                              ),
-                              SizedBox(
-                                width: 56,
-                                child: Text('Qty',
-                                    textAlign: TextAlign.center,
-                                    style: textTheme.labelSmall?.copyWith(
-                                        fontWeight: FontWeight.w800, color: GoldenityColors.text2)),
-                              ),
-                              SizedBox(
-                                width: 110,
-                                child: Text('Subtotal',
-                                    textAlign: TextAlign.right,
-                                    style: textTheme.labelSmall?.copyWith(
-                                        fontWeight: FontWeight.w800, color: GoldenityColors.text2)),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Divider(height: 1, color: GoldenityColors.border, thickness: 0.8),
-                        Flexible(
-                          fit: FlexFit.loose,
-                          child: items.isEmpty
-                              ? const Padding(
-                                  padding: EdgeInsets.all(GoldenitySpacing.md),
-                                  child: Text('(tidak ada detail item)',
-                                      style: TextStyle(color: GoldenityColors.muted)),
-                                )
-                              : ListView.separated(
-                                  shrinkWrap: true,
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: GoldenitySpacing.md, vertical: 2),
-                                  itemCount: items.length,
-                                  separatorBuilder: (_, __) => const Divider(
-                                      height: 1, color: GoldenityColors.border, thickness: 0.4),
-                                  itemBuilder: (_, idx) {
-                                    final it = items[idx];
-                                    final name = it['productName']?.toString() ?? 'Produk';
-                                    final variantName = it['variantName']?.toString();
-                                    final note = it['note']?.toString();
-                                    final qty = num.tryParse(it['qty']?.toString() ?? '0') ?? 0;
-                                    final unitPrice = num.tryParse(it['unitPrice']?.toString() ?? '0') ?? 0;
-                                    final lineTotal = num.tryParse(it['lineTotal']?.toString() ?? '0') ?? 0;
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: GoldenitySpacing.sm),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            flex: 2,
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(name,
-                                                    maxLines: 2,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: textTheme.bodySmall?.copyWith(
-                                                        fontWeight: FontWeight.w700,
-                                                        color: GoldenityColors.text)),
-                                                if (variantName != null &&
-                                                    variantName.trim().isNotEmpty)
-                                                  Text('  Var: $variantName',
-                                                      style: textTheme.labelSmall?.copyWith(
-                                                          color: GoldenityColors.text2)),
-                                                if (note != null && note.trim().isNotEmpty)
-                                                  Text('  Note: $note',
-                                                      style: textTheme.labelSmall?.copyWith(
-                                                          color: GoldenityColors.muted)),
-                                                Text(
-                                                    '  @ ${_currencyFormatter.format(unitPrice)}',
-                                                    style: textTheme.labelSmall?.copyWith(
-                                                        color: GoldenityColors.text2,
-                                                        fontFamily: GoldenityTypography
-                                                            .fontFamilyMono)),
-                                              ],
-                                            ),
-                                          ),
-                                          SizedBox(
-                                            width: 56,
-                                            child: Text('$qty',
-                                                textAlign: TextAlign.center,
-                                                style: textTheme.bodySmall?.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                    fontFamily: GoldenityTypography
-                                                        .fontFamilyMono)),
-                                          ),
-                                          SizedBox(
-                                            width: 110,
-                                            child: Text(_currencyFormatter.format(lineTotal),
-                                                textAlign: TextAlign.right,
-                                                style: textTheme.bodySmall?.copyWith(
-                                                    fontWeight: FontWeight.w800,
-                                                    fontFamily: GoldenityTypography
-                                                        .fontFamilyMono,
-                                                    color: biz.dark)),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
+              ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: GoldenityColors.border),
+          const SizedBox(height: 10),
+          _drawerAmountRow('Subtotal', _currencyFormatter.format(subtotal)),
+          if (discountAmount > 0)
+            _drawerAmountRow('Diskon', '- ${_currencyFormatter.format(discountAmount)}'),
+          if (serviceChargeAmount > 0)
+            _drawerAmountRow('Service Charge', _currencyFormatter.format(serviceChargeAmount)),
+          if (taxAmount > 0)
+            _drawerAmountRow('PPN', _currencyFormatter.format(taxAmount)),
+          const SizedBox(height: 6),
+          _drawerAmountRow('Total', _currencyFormatter.format(total), bold: true),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _pill(paymentLabel, mBg, mFg),
+              const SizedBox(width: 6),
+              _pill(_statusLabel(statusRaw), chipBg, chipFg),
+            ],
+          ),
+          const SizedBox(height: 18),
+          const Text('CATATAN KASIR',
+              style: TextStyle(
+                  fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.06, color: GoldenityColors.muted)),
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () => _editCashierNote(sale, cashierNote),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: GoldenityColors.surface2,
+                borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                border: Border.all(
+                    color: GoldenityColors.border, style: BorderStyle.solid),
+              ),
+              child: Text(
+                cashierNote.trim().isEmpty
+                    ? 'Belum ada catatan — klik untuk menambah'
+                    : cashierNote,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: cashierNote.trim().isEmpty ? FontStyle.italic : FontStyle.normal,
+                  color: cashierNote.trim().isEmpty
+                      ? GoldenityColors.disabled
+                      : GoldenityColors.text,
                 ),
-                const SizedBox(height: GoldenitySpacing.md),
-                Container(
-                  padding: const EdgeInsets.all(GoldenitySpacing.md),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-                    border: Border.all(color: GoldenityColors.border),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildSummaryRow(
-                          context, 'Subtotal', _currencyFormatter.format(subtotal)),
-                      if (discountAmount > 0)
-                        _buildSummaryRow(
-                          context,
-                          discountPercent > 0
-                              ? 'Diskon (${discountPercent.toStringAsFixed(0)}%)'
-                              : 'Diskon',
-                          '- ${_currencyFormatter.format(discountAmount)}',
-                          fgColor: GoldenityColors.error,
-                        ),
-                      if (serviceChargeAmount > 0)
-                        _buildSummaryRow(context, 'Service Charge',
-                            '+ ${_currencyFormatter.format(serviceChargeAmount)}'),
-                      if (taxAmount > 0)
-                        _buildSummaryRow(
-                            context, 'Pajak', '+ ${_currencyFormatter.format(taxAmount)}'),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: GoldenitySpacing.xs),
-                        child: Divider(height: 1, color: GoldenityColors.border2, thickness: 1),
-                      ),
-                      _buildSummaryRow(context, 'TOTAL', _currencyFormatter.format(total),
-                          isBold: true, fgColor: biz.dark, totalMode: true),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                Container(
-                  padding: const EdgeInsets.all(GoldenitySpacing.md),
-                  decoration: BoxDecoration(
-                    color: GoldenityColors.surface2,
-                    borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _buildSummaryRow(context, 'Metode Bayar', paymentLabel),
-                      if (paymentRef != null && paymentRef.trim().isNotEmpty)
-                        _buildSummaryRow(context, 'Ref. Pembayaran', paymentRef),
-                      if (paymentMethod == 'CASH' && cashReceived > 0) ...[
-                        _buildSummaryRow(context, 'Uang Diterima',
-                            _currencyFormatter.format(cashReceived)),
-                        _buildSummaryRow(
-                          context,
-                          'Kembalian',
-                          cashChange > 0 ? _currencyFormatter.format(cashChange) : '-',
-                          fgColor: GoldenityColors.success,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: GoldenitySpacing.lg),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                        label: Text('Tutup',
-                            style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700)),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(44),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(GoldenityRadius.xl)),
-                        ),
-                      ),
-                    ),
-                    if (canVoid) ...[
-                      const SizedBox(width: GoldenitySpacing.sm),
-                      Expanded(
-                        child: GoldenityPrimaryButton(
-                          label: 'Batalkan (Void)',
-                          icon: Icons.block_rounded,
-                          backgroundColor: GoldenityColors.error,
-                          shadow: const [
-                            BoxShadow(color: Color(0x4DDC2626), blurRadius: 12, offset: Offset(0, 4))
-                          ],
-                          height: 44,
-                          onPressed: () async {
-                            Navigator.of(ctx).pop();
-                            await _openVoidDialog(sale);
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
+              ),
             ),
+          ),
+          if (proofUrl != null && proofUrl.trim().isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text('BUKTI TRANSFER (QRIS)',
+                style: TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.06, color: GoldenityColors.muted)),
+            const SizedBox(height: 6),
+            GestureDetector(
+              onTap: () => _viewProof(proofUrl),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                child: Image.network(
+                  proofUrl,
+                  height: 140,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    height: 60,
+                    alignment: Alignment.center,
+                    color: GoldenityColors.surface2,
+                    child: const Text('Gagal memuat bukti',
+                        style: TextStyle(fontSize: 12, color: GoldenityColors.muted)),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _drawerAmountRow(String label, String value, {bool bold = false}) {
+    final w = bold ? FontWeight.w800 : FontWeight.w500;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: bold ? 14 : 12.5,
+                  fontWeight: w,
+                  color: bold ? GoldenityColors.text : GoldenityColors.text2)),
+          Text(value,
+              style: TextStyle(
+                fontSize: bold ? 14 : 12.5,
+                fontWeight: w,
+                color: GoldenityColors.text,
+                fontFamily: GoldenityTypography.fontFamilyMono,
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(String text, Color bg, Color fg) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(GoldenityRadius.sm)),
+        child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg)),
+      );
+
+  (Color, Color) _paymentChipColor(String m) {
+    switch (m.toUpperCase()) {
+      case 'QRIS':
+        return (const Color(0xFFF5F3FF), const Color(0xFF7C3AED));
+      case 'CREDIT_CARD':
+      case 'CARD':
+        return (GoldenityColors.primaryLight, GoldenityColors.primary);
+      default:
+        return (GoldenityColors.successLight, GoldenityColors.success);
+    }
+  }
+
+  Future<void> _viewProof(String url) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(24),
+        child: InteractiveViewer(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+            child: Image.network(url, fit: BoxFit.contain),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildSummaryRow(BuildContext context, String label, String value,
-      {Color? fgColor, bool isBold = false, bool totalMode = false}) {
-    final textTheme = Theme.of(context).textTheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        children: [
-          Expanded(
-              child: Text(label,
-                  style: textTheme.labelSmall?.copyWith(
-                      fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
-                      color: GoldenityColors.text2,
-                      fontSize: totalMode ? 14 : 12))),
-          Text(value,
-              style: textTheme.labelSmall?.copyWith(
-                  fontWeight: isBold ? FontWeight.w900 : FontWeight.w700,
-                  color: fgColor ?? GoldenityColors.text,
-                  fontSize: totalMode ? 16 : 13,
-                  fontFamily: GoldenityTypography.fontFamilyMono)),
-        ],
+  Future<void> _editCashierNote(Map<String, dynamic> sale, String current) async {
+    final ctrl = TextEditingController(text: current);
+    final saved = await showGoldenityDialog<bool>(
+      context: context,
+      title: 'Catatan Kasir',
+      subtitle: '#${sale['id']}',
+      child: GoldenityModalField(
+        label: 'Catatan',
+        controller: ctrl,
+        hint: 'mis. Pelanggan minta struk ulang, koreksi item…',
+        autofocus: true,
+        maxLines: 3,
       ),
+      onPrimary: () async {
+        final token = ref.read(authNotifierProvider.notifier).session?.token;
+        if (token == null) return null;
+        try {
+          final resp = await http.patch(
+            Uri.parse('${ApiConstants.saleByIdEndpoint(sale['id'].toString())}/note'),
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'note': ctrl.text.trim()}),
+          );
+          if (resp.statusCode >= 200 && resp.statusCode < 300) {
+            sale['cashierNote'] = ctrl.text.trim();
+            await _loadSales();
+            return true;
+          }
+        } catch (_) {}
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                backgroundColor: GoldenityColors.error, content: Text('Gagal menyimpan catatan')),
+          );
+        }
+        return null;
+      },
     );
+    if (saved == true && mounted) {
+      Navigator.of(context).maybePop(); // tutup drawer supaya buka ulang dgn data baru
+    }
   }
 
   String _paymentMethodLabel(String method) {
