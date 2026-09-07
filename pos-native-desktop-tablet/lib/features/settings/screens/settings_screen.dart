@@ -6,6 +6,8 @@ import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/services/hardware_connection_service.dart';
+import '../../../shared/widgets/goldenity_image_upload_field.dart';
+import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../../../core/models/branch_profile_extended.dart';
 import '../../../core/models/printer_config_profile.dart';
@@ -137,16 +139,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       final settingsApi = ref.read(settingsApiServiceProvider);
       final payload = <String, dynamic>{
         'name': _storeNameCtrl.text.trim(),
-        if (_storeLogoCtrl.text.trim().isNotEmpty)
-          'logoUrl': _storeLogoCtrl.text.trim(),
+        // logo & QRIS: selalu dikirim (null saat dikosongkan) supaya user bisa
+        // menghapus gambar, bukan cuma menambah.
+        'logoUrl': _storeLogoCtrl.text.trim().isEmpty
+            ? null
+            : _storeLogoCtrl.text.trim(),
+        'qrisImageUrl': _storeQrisUrlCtrl.text.trim().isEmpty
+            ? null
+            : _storeQrisUrlCtrl.text.trim(),
         if (_storeAddressCtrl.text.trim().isNotEmpty)
           'address': _storeAddressCtrl.text.trim(),
         if (_storePhoneCtrl.text.trim().isNotEmpty)
           'phone': _storePhoneCtrl.text.trim(),
         if (_storeReceiptFooterCtrl.text.trim().isNotEmpty)
           'receiptFooter': _storeReceiptFooterCtrl.text.trim(),
-        if (_storeQrisUrlCtrl.text.trim().isNotEmpty)
-          'qrisImageUrl': _storeQrisUrlCtrl.text.trim(),
         'allowPayAtCashier': _storeAllowPayAtCashier,
         'isPaymentProofMandatory': _storeIsPaymentProofMandatory,
         'blindShiftClose': _blindShiftClose,
@@ -585,25 +591,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     return DefaultTabController(
       length: 3,
       child: Scaffold(
-        backgroundColor: GoldenityColors.surface,
+        backgroundColor: GoldenityColors.bg,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: GoldenityColors.surface,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
-          title: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Pengaturan',
-                  style: textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 2),
-              Text(
-                'Kelola cabang, printer & informasi toko',
-                style: textTheme.bodySmall?.copyWith(
-                    color: GoldenityColors.text2, fontWeight: FontWeight.w600),
-              ),
-            ],
+          title: const GoldenityPageHeader(
+            title: 'Pengaturan',
+            subtitle: 'Kelola cabang, printer & informasi toko',
+            dense: true,
           ),
           actions: [
             IconButton(
@@ -711,6 +707,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
   Widget _buildStoreInfoTab(
       BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
+    final token = ref.read(authNotifierProvider.notifier).session?.token ?? '';
     return Form(
       key: _storeFormKey,
       child: ListView(
@@ -758,12 +755,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         v!.trim().isEmpty ? 'Nama toko wajib diisi' : null,
                   ),
                   const SizedBox(height: GoldenitySpacing.md),
-                  TextFormField(
-                    controller: _storeLogoCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'URL Logo Toko',
-                      hintText: 'https://.../logo.png',
-                    ),
+                  GoldenityImageUploadField(
+                    label: 'Logo Toko',
+                    kind: 'logo',
+                    authToken: token,
+                    value: _storeLogoCtrl.text.trim().isEmpty
+                        ? null
+                        : _storeLogoCtrl.text.trim(),
+                    enabled: !_loading,
+                    helperText: 'PNG / JPG, maks 6MB. Tampil di header struk.',
+                    onChanged: (url) =>
+                        setState(() => _storeLogoCtrl.text = url ?? ''),
                   ),
                   const SizedBox(height: GoldenitySpacing.md),
                   TextFormField(
@@ -792,12 +794,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     ),
                   ),
                   const SizedBox(height: GoldenitySpacing.md),
-                  TextFormField(
-                    controller: _storeQrisUrlCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'URL Gambar QRIS',
-                      hintText: 'https://.../qris.jpg',
-                    ),
+                  GoldenityImageUploadField(
+                    label: 'Gambar QRIS Statis',
+                    kind: 'qris',
+                    authToken: token,
+                    value: _storeQrisUrlCtrl.text.trim().isEmpty
+                        ? null
+                        : _storeQrisUrlCtrl.text.trim(),
+                    enabled: !_loading,
+                    helperText:
+                        'QRIS statis toko — ditampilkan saat pelanggan bayar QRIS.',
+                    onChanged: (url) =>
+                        setState(() => _storeQrisUrlCtrl.text = url ?? ''),
                   ),
                   const SizedBox(height: GoldenitySpacing.lg),
                   const Divider(),

@@ -7,6 +7,8 @@ class ApiConstants {
 
   static Uri loginEndpoint() => Uri.parse('$devBaseUrl$apiV1Prefix/auth/login');
 
+  static Uri uploadsEndpoint() => Uri.parse('$devBaseUrl$apiV1Prefix/uploads');
+
   static Uri testRbacScopeEndpoint([Map<String, String>? queryParams]) {
     const base = '$devBaseUrl$apiV1Prefix/test/rbac-scope';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);

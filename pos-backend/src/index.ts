@@ -11,6 +11,7 @@ import { salesRoutes } from './modules/sales/sales.routes';
 import { settingsRoutes } from './modules/settings/settings.routes';
 import { cashierShiftRoutes } from './modules/cashier-shift/cashier-shift.routes';
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes';
+import { uploadRoutes, UPLOADS_DIR } from './modules/upload/upload.routes';
 
 (BigInt.prototype as any).toJSON = function (this: bigint): string {
   return this.toString();
@@ -46,6 +47,17 @@ app.use(
 app.use(express.json({ limit: '10mb' }));
 app.use(morgan('combined'));
 
+// File gambar hasil upload (logo toko, QRIS statis, foto produk) — dilayani statis.
+// `crossOriginResourcePolicy: false` supaya <img> dari POS Flutter (origin lain)
+// tidak diblok helmet.
+app.use(
+  '/uploads',
+  express.static(UPLOADS_DIR, {
+    maxAge: '7d',
+    setHeaders: (res) => res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin'),
+  }),
+);
+
 app.get('/api/v1/health', (_req: Request, res: Response) => {
   res.status(200).json({
     success: true,
@@ -66,6 +78,7 @@ app.use('/api/v1/sales', salesRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/shifts', cashierShiftRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/uploads', uploadRoutes);
 
 app.listen(PORT, () => {
   console.log(`[goldenity-pos-backend] listening on :${PORT}`);

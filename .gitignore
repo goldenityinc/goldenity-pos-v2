@@ -42,3 +42,6 @@ Thumbs.db
 # --- Scratch/local test output (jangan ikut ke-push) ---
 backend_s24_err.txt
 backend_s24_log.txt
+
+# Uploaded images (logo, QRIS, product photos) — runtime, not in VCS
+pos-backend/uploads/
