@@ -639,7 +639,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
         color: GoldenityColors.surface,
         clipBehavior: Clip.antiAlias,
         child: Container(
-          width: 880,
+          width: 860,
           constraints: BoxConstraints(maxHeight: maxModalHeight),
           decoration: BoxDecoration(
             color: GoldenityColors.surface,
@@ -656,19 +656,31 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Text(
-                      'Konfirmasi Pembayaran',
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 18,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Pembayaran',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: GoldenityColors.text,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${cartList.length} item · PPN sudah termasuk',
+                          style: textTheme.bodySmall?.copyWith(color: GoldenityColors.muted),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     padding: EdgeInsets.zero,
                     onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, size: 20),
+                    icon: const Icon(Icons.close_rounded, size: 18, color: GoldenityColors.muted),
                     tooltip: 'Batal',
                   ),
                 ],
@@ -678,11 +690,9 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(GoldenitySpacing.lg),
                 decoration: BoxDecoration(
-                  color: GoldenityColors.successLight,
+                  color: GoldenityColors.surface2,
                   borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-                  border: Border.all(
-                    color: GoldenityColors.success.withValues(alpha: 0.25),
-                  ),
+                  border: Border.all(color: GoldenityColors.border),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -691,7 +701,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                       'Total Tagihan',
                       textAlign: TextAlign.center,
                       style: textTheme.bodyMedium?.copyWith(
-                        color: GoldenityColors.text2,
+                        color: GoldenityColors.muted,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -701,9 +711,9 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                       textAlign: TextAlign.center,
                       style: textTheme.displaySmall?.copyWith(
                         fontWeight: FontWeight.w800,
-                        fontSize: 36,
+                        fontSize: 34,
                         letterSpacing: -1,
-                        color: GoldenityColors.success,
+                        color: GoldenityColors.text,
                         fontFamily: GoldenityTypography.fontFamilyMono,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
