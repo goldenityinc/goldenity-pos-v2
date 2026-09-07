@@ -507,7 +507,11 @@ class _ProductGridView extends ConsumerWidget {
               maxCrossAxisExtent: 220,
               mainAxisSpacing: GoldenitySpacing.md,
               crossAxisSpacing: GoldenitySpacing.md,
-              childAspectRatio: 0.82,
+              // Diturunkan dari 0.82 → 0.70 (kartu jadi lebih tinggi) untuk
+              // memberi ruang vertikal ekstra ke area gambar placeholder yang
+              // sekarang jauh lebih besar (lihat _ProductCard) — mencegah
+              // konten (nama/harga/stepper qty) overflow di bawahnya.
+              childAspectRatio: 0.70,
             ),
             delegate: SliverChildBuilderDelegate(
               (ctx, i) => _ProductCard(
@@ -579,23 +583,28 @@ class _ProductCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
+                    // FIX (temuan Andre): placeholder gambar sebelumnya cuma kotak
+                    // kecil 48x48 dengan sisa area kosong besar di sekitarnya —
+                    // terasa "bolong". Sekarang placeholder full-bleed di bagian
+                    // atas kartu (nempel ke sudut rounded kartu berkat
+                    // `clipBehavior: Clip.antiAlias` di Container induk), pakai
+                    // AspectRatio biar proporsinya konsisten di semua ukuran kartu
+                    // grid — begitu foto produk asli ditambahkan nanti, tinggal
+                    // ganti Icon ini dengan Image, areanya sudah pas & terasa penuh.
+                    AspectRatio(
+                      aspectRatio: 1.5,
                       child: Container(
-                        width: 48,
-                        height: 48,
+                        width: double.infinity,
                         alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: GoldenityColors.surface2,
-                          borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                        ),
+                        color: GoldenityColors.surface2,
                         child: const Icon(
                           Icons.restaurant_menu_rounded,
-                          size: 24,
+                          size: 36,
                           color: GoldenityColors.muted,
                         ),
                       ),
                     ),
+                    const SizedBox(height: GoldenitySpacing.sm),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
                       child: Text(
