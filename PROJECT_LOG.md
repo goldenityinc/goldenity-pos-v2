@@ -8,6 +8,28 @@
 
 ---
 
+## 🔬✅ [2026-09-07] Claude Code — BATCH-2: E2E gap sisa (3.2 PPN inclusive, G1 offline sales queue, G3, 3.3 quick-cash, G2) + mulai revamp back-office Kinasih (komponen shared + Dashboard)
+
+Lanjutan dari BATCH-1 di bawah. Keputusan Andre: kerjakan SEMUA (3.2 dengan migrasi, G1 sekarang, 3.3 wire + re-test 4/4, revamp paralel), eksekusi langsung Claude Code.
+
+### Commit
+| Commit | Isi | Gate |
+|---|---|---|
+| `6bf19c9` | **3.2 PPN inclusive** — schema `Tenant.pricesIncludeTax` (migrasi additive `20260907120000`, di-apply via `prisma db execute` + `prisma generate`) + BE `settings.service`/`sales.service` (reverse-calc `taxable*rate/(100+rate)`, mode inclusive total tidak tambah pajak) + FE `store_settings_profile`/`cart_provider`/`settings_screen` toggle + label struk "PPN x% (termasuk)" | tsc 0, analyze 0 |
+| `86e33a7` | **G1 offline sales queue** — `SalesOfflineQueue` (Box untyped, no codegen) + `SalesSyncNotifier` (timer 30s, idempotent by referenceId, 4xx→failed, 5xx/network→retry) + wire di `goldenity_payment_modal` catch/5xx → `_queueOfflineAndSucceed`. **G3 fix**: `offlineMode = branchId==null` (silent-success TANPA persist) DIHAPUS → `effectiveBranchId = user.branchId ?? selectedBranchId`, null → error. | analyze 0 |
+| `fa98793` | **3.3 quick-cash** — 2 algoritma berbeda digabung ke `lib/shared/sales/quick_cash_denominations.dart` (port 1:1 V1) + `test/quick_cash_denominations_test.dart` **10/10 PASS termasuk 4 testcase Andre** (15k/20k/16.5k/28k FLAGSHIP). Payment modal + cash tender modal pakai fungsi shared. Reuse instance modal (test 3.3.2) N/A — fitur "tandai sudah bayar" belum ada. | analyze 0, test 10/10 |
+| `ff9feb6` | **G2** — hapus `checkout_screen.dart` (dead code, grep hanya self-ref). Jalur checkout live = `goldenity_payment_modal`. | analyze 0 |
+| `b07c8a5` | **Revamp back-office** — 3 widget shared `lib/shared/widgets/` (`GoldenityMetricCard` 28/800 mono, `GoldenitySectionCard`, `GoldenityPageHeader`/`GoldenityBodyHeader`) per `DESIGN_SYSTEM.md §4` (sidebar TETAP navy). **Dashboard** direfaktor pakai ketiganya + bg `GoldenityColors.bg` + hapus `_StatCard` privat + FilterChip→ChoiceChip loop. | analyze 0 |
+
+### Status audit E2E (dokumen `pos-engineer-documentation/E2E_FASE1_GAP_AUDIT.md` — tabel status di bawah "STATUS PERBAIKAN")
+✅ FIXED: 1.3, 2.2, 3.1, 3.2, 3.3, 3.4, G1, G2, G3.
+⏳ Terbuka: 4.1/4.2 (tes printer fisik — butuh Andre + hardware), G4 (verifikasi data seed produk `branchId=null`), test 3.3.2 (butuh fitur "order belum lunas").
+
+### Revamp back-office — sisa (belum dikerjakan, per-layar per-commit)
+Finance, Riwayat Penjualan, Inventaris, Kategori, Settings — adopsi `GoldenityMetricCard`/`GoldenitySectionCard`/`GoldenityPageHeader`, bg `GoldenityColors.bg`. Idealnya diverifikasi visual (`flutter run -d windows`) per layar.
+
+---
+
 ## 🔬✅ [2026-09-07] Claude Code — AUDIT E2E FASE 1 (kode dibaca langsung) + FIX BATCH-1 non-schema (Story 3.4 stok, 1.3 branch clamp, 2.2 auto-create kategori, 3.1 dedup keranjang) + REVERT 3.1a sidebar
 
 **Konteks:** Andre minta (1) semua flow E2E di ERD/PRD dipastikan tuntas sebelum lanjut, (2) revamp back-office pakai layout V1/Kinasih, (3) sumber desain shell = `DESIGN_SYSTEM.md` (sidebar TETAP navy). Dikerjakan langsung oleh Claude Code (bukan task spec untuk Trae).
