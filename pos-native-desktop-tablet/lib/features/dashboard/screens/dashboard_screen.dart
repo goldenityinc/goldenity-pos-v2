@@ -192,17 +192,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           Padding(
             padding: EdgeInsets.only(
                 bottom: i + 2 < cards.length ? GoldenitySpacing.md : 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _metricFor(cards[i])),
-                const SizedBox(width: GoldenitySpacing.md),
-                Expanded(
-                  child: i + 1 < cards.length
-                      ? _metricFor(cards[i + 1])
-                      : const SizedBox.shrink(),
-                ),
-              ],
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: _metricFor(cards[i])),
+                  const SizedBox(width: GoldenitySpacing.md),
+                  Expanded(
+                    child: i + 1 < cards.length
+                        ? _metricFor(cards[i + 1])
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
             ),
           ),
       ],
