@@ -15,6 +15,8 @@ import 'features/auth/screens/login_screen.dart';
 import 'features/inventory/providers/product_list_provider.dart';
 import 'features/inventory/repositories/inventory_hive_repository.dart';
 import 'features/sales/providers/cart_provider.dart';
+import 'features/sales/providers/sales_sync_notifier.dart';
+import 'features/sales/repositories/sales_offline_queue.dart';
 import 'shared/shell/goldenity_app_shell.dart';
 
 Future<void> main() async {
@@ -24,6 +26,7 @@ Future<void> main() async {
   InventoryHiveRepository.registerAdapters();
   final SharedPreferences sp = await SharedPreferences.getInstance();
   final hiveRepo = await InventoryHiveRepository.open();
+  final salesOfflineQueue = await SalesOfflineQueue.open();
   const bool kDebugForceClearSessionBeforeAppStart = false;
   // ignore: dead_code
   if (kDebugForceClearSessionBeforeAppStart) {
@@ -45,6 +48,7 @@ Future<void> main() async {
       overrides: [
         sharedPreferencesProvider.overrideWithValue(sp),
         inventoryHiveRepositoryProvider.overrideWithValue(hiveRepo),
+        salesOfflineQueueProvider.overrideWithValue(salesOfflineQueue),
       ],
       child: const GoldenityPOSApp(),
     ),
@@ -78,6 +82,10 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
   Future<void> _ensureBootstrap(WidgetRef ref) async {
     try {
       await ref.read(cartNotifierProvider.notifier).ensureTaxConfigCached();
+    } catch (_) {}
+    // Hidupkan sinkronisasi penjualan offline (G1) — timer 30 dtk + flush awal.
+    try {
+      ref.read(salesSyncNotifierProvider.notifier);
     } catch (_) {}
   }
 

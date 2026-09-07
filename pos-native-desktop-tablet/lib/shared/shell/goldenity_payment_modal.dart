@@ -23,6 +23,7 @@ import '../../../features/cashier_shift/screens/cashier_shift_screen.dart';
 import '../../../features/inventory/providers/product_list_provider.dart';
 import '../../../features/sales/models/cart_item.dart';
 import '../../../features/sales/providers/cart_provider.dart';
+import '../../../features/sales/providers/sales_sync_notifier.dart';
 import '../../../features/sales/screens/payment_success_screen.dart';
 import '../../../features/sales/utils/receipt_generator.dart';
 import '../widgets/goldenity_primary_button.dart';
@@ -327,6 +328,10 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
 
   Future<void> _submitSale() async {
     final session = ref.read(currentSessionProvider);
+    if (session == null) {
+      _showSnackBar('Sesi login tidak ditemukan. Silakan login kembali.', isError: true);
+      return;
+    }
     final cart = ref.read(cartNotifierProvider);
     if (cart.isEmpty) {
       _showSnackBar('Keranjang masih kosong, silakan tambahkan produk dulu.', isError: true);
@@ -372,7 +377,18 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
       }
     }
     // ===== END GATE
-    final offlineMode = session?.user.branchId == null;
+    // G3 fix: cabang efektif = branchId JWT, atau cabang yang dipilih user saat
+    // login (untuk admin tanpa cabang default). Kalau dua-duanya null, transaksi
+    // TIDAK BISA dibuat (backend wajib branchId) — jangan silent-success.
+    final effectiveBranchId =
+        session.user.branchId ?? session.selectedBranchId;
+    if (effectiveBranchId == null || effectiveBranchId.isEmpty) {
+      _showSnackBar(
+        'Belum ada cabang aktif. Pilih cabang operasional dulu sebelum transaksi.',
+        isError: true,
+      );
+      return;
+    }
     setState(() => _isSubmitting = true);
     final txnTime = DateTime.now();
     final methodLabel = paymentMethod == kPaymentMethodQris
@@ -382,17 +398,6 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
             : PaymentSuccessScreen.kPaymentMethodCashLabel;
     final orderId = ref.read(currentPendingOrderIdProvider) ??
         'POS-${DateFormat('ddMMyy-HHmmss', 'id_ID').format(txnTime)}';
-    if (offlineMode) {
-      await Future<void>.delayed(const Duration(milliseconds: 450));
-      if (!mounted) return;
-      _goSuccessAndClear(
-        orderId: orderId,
-        grandTotal: grandTotal,
-        methodLabel: methodLabel,
-        txnTime: txnTime,
-      );
-      return;
-    }
     final referenceId = _uuid.v4();
     final subtotal = ref.read(cartSubtotalProvider);
     final discount = ref.read(cartDiscountAmountProvider);
@@ -402,7 +407,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     final change = ref.read(changeAmountProvider);
     final payload = <String, dynamic>{
       'referenceId': referenceId,
-      'branchId': session!.user.branchId!,
+      'branchId': effectiveBranchId,
       'orderType': 'DINE_IN',
       'paymentMethod': paymentMethod,
       'paymentReferenceNumber':
@@ -569,6 +574,18 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
           methodLabel: methodLabel,
           txnTime: txnTime,
         );
+      } else if (res.statusCode >= 500) {
+        // G1: server 5xx = kemungkinan transient → jangan buang transaksi.
+        // Simpan ke antrean offline, retry idempotent by referenceId.
+        await _queueOfflineAndSucceed(
+          referenceId: referenceId,
+          payload: payload,
+          orderId: orderId,
+          grandTotal: grandTotal,
+          methodLabel: methodLabel,
+          txnTime: txnTime,
+          reason: 'server ${res.statusCode}',
+        );
       } else {
         final err = body is Map && body['error'] is String
             ? body['error'] as String
@@ -578,9 +595,45 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
       }
     } catch (e) {
       if (!mounted) return;
-      _showSnackBar('Gagal terhubung ke server: $e', isError: true);
-      setState(() => _isSubmitting = false);
+      // G1: gagal terhubung (jaringan putus / timeout) → simpan ke antrean
+      // offline, JANGAN hilangkan transaksi. referenceId sudah dibuat sebelum
+      // POST, jadi retry aman idempotent.
+      await _queueOfflineAndSucceed(
+        referenceId: referenceId,
+        payload: payload,
+        orderId: orderId,
+        grandTotal: grandTotal,
+        methodLabel: methodLabel,
+        txnTime: txnTime,
+        reason: 'offline: $e',
+      );
     }
+  }
+
+  Future<void> _queueOfflineAndSucceed({
+    required String referenceId,
+    required Map<String, dynamic> payload,
+    required String orderId,
+    required num grandTotal,
+    required String methodLabel,
+    required DateTime txnTime,
+    required String reason,
+  }) async {
+    try {
+      await ref
+          .read(salesSyncNotifierProvider.notifier)
+          .enqueue(referenceId, payload, lastError: reason);
+    } catch (_) {}
+    if (!mounted) return;
+    _showSnackBar(
+      'Transaksi disimpan offline ($reason). Akan otomatis disinkronkan ke server.',
+    );
+    _goSuccessAndClear(
+      orderId: orderId,
+      grandTotal: grandTotal,
+      methodLabel: methodLabel,
+      txnTime: txnTime,
+    );
   }
 
   void _goSuccessAndClear({
