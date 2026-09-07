@@ -222,3 +222,67 @@ Split kiri "SEDANG DISIAPKAN" (list nomor antrian, teks besar) / kanan "SIAP DIA
 **Batch 3 — POS support:** *(paste 2.1–2.3, 2.9, 2.12–2.16)*
 **Batch 4 — Back Office:** *(paste Bagian 3)*
 **Batch 5 — Fase 2 (meja + web order + queue):** *(paste Bagian 4)*
+
+---
+
+## 7. REVISI dari feedback Andre (2026-09-08) — WAJIB dimasukkan ke Figma Make
+
+> Backend untuk semua poin ini **sudah dibuat & teruji** (lihat `PROJECT_LOG.md` entri 2026-09-08). Ini penyesuaian **desain**-nya.
+
+### 7.1 Multi-Device per cabang (port konsep V1)
+- Satu cabang bisa punya **beberapa device Kasir** + **device Dapur** (untuk cetak checker). Tiap device punya **UUID persisten** + **Role**: `Kasir` / `Dapur (Checker)` / `Keduanya`.
+- **Di Pengaturan → "Perangkat Ini"** (SectionCard baru, paling atas tab Perangkat): tampilkan UUID device (readonly, tombol salin), field **Nama Device** (mis. "Kasir Depan", "Dapur"), dropdown **Peran** (Kasir/Dapur/Keduanya), badge "Terdaftar ✓ / Belum" + tombol **"Daftarkan Perangkat"**, "Terakhir aktif: …".
+- **Di Back Office → Staf → tab "Perangkat"** (BARU): DataTable semua device per cabang (Nama, UUID pendek, Peran, Status aktif, Terakhir aktif), aksi edit peran / nonaktifkan.
+- Notifikasi web order & auto-print checker **hanya menuju device di cabang login** dengan peran Dapur/Keduanya. Struk pelanggan → device peran Kasir/Keduanya.
+
+### 7.2 Pengaturan Printer — DIKUNCI ke cabang login + per-device
+- **HAPUS dropdown "Pilih Cabang"** di tab Printer. Printer selalu untuk **cabang tempat user login** (beda cabang beda printer fisik — konfigurasi lintas-cabang tidak valid).
+- Header tab: "Printer — Cabang {NamaCabang}" (readonly, dari sesi).
+- **Toggle "Berlaku untuk: Semua device cabang ini / Hanya device ini"** — default cabang, tapi tiap device bisa override (mis. device Dapur pakai printer 80mm network, device Kasir pakai 58mm USB).
+- **Multi-Printer Routing** (pola V1): list kartu route, tiap kartu — **Nama Device Printer**, **MAC / Alamat / IP** (+ tombol "Cari Perangkat" auto-scan → hasil clickable), **Peran** (`Kasir` / `Checker`), **Koneksi** (Bluetooth/Network/USB), **Ukuran Kertas** (58/80mm), tombol Test Print / Test Buka Laci / Hapus. Tombol "＋ Tambah Printer". Satu device boleh punya banyak printer dengan peran berbeda.
+- 3 slot lama (Default/Dapur/Kasir) tetap sebagai fallback sederhana untuk yang cuma punya 1 printer.
+
+### 7.3 Manajemen Meja — "Lihat Pesanan" / Detail Meja (BARU, poin hilang)
+Klik kartu meja → **panel/modal Detail Meja**:
+- Header: kode meja + status + (jika ada sesi) nama pelanggan + "Dibuka {jam}" + hitung mundur `expiresAt`.
+- **Ringkasan**: `N pesanan aktif` · `M belum dibayar` · **Total belum dibayar Rp …** (mono, menonjol).
+- **List SEMUA pesanan dalam sesi** (bukan hanya 1): tiap baris — `#Antrian` + status pill + metode bayar + badge payment (LUNAS / MENUNGGU VERIFIKASI / BELUM BAYAR) + total + waktu. Tap → detail item pesanan itu.
+- Aksi per pesanan: **Terima & Cetak** (jika SUBMITTED), **Verifikasi Bukti Transfer** (buka gambar bukti QRIS → tombol "Tandai Lunas"), **Cetak Ulang**, **Batalkan**.
+- Aksi meja: **"Tutup Sesi Meja"** — jika masih ada pesanan belum lunas → dialog konfirmasi "Masih ada M pesanan belum dibayar. Tetap tutup?" (bukan blokir).
+
+### 7.4 Beberapa order aktif dalam 1 meja — sinkron ke Web Order
+- **Sisi customer (web order)** — layar "Pesanan Saya": bukan cuma 1 pesanan berjalan. Tampilkan **2 grup**: "Sedang Diproses" (SUBMITTED→SERVED) dan "Selesai / Dibatalkan". Tiap kartu: `#Antrian` besar (mono), status stepper mini, item ringkas, total, badge payment. Tap → detail pesanan (item lengkap, stepper status besar, bukti/pembayaran).
+- Tombol **"Pesan Lagi"** (menambah pesanan baru ke sesi meja yang sama, tidak buka sesi baru).
+- Header menu: badge "N pesanan aktif" biar customer sadar bisa punya banyak order.
+
+### 7.5 Footer (belum ada di desain)
+- **Footer POS Native** (bar tipis paling bawah shell, `surface-2`, border-top, teks 11px muted): kiri — "Goldenity POS V2 · v{versi}"; tengah — nama + peran device ("Kasir Depan · Kasir"); kanan — status koneksi ("Online" hijau / "Offline" merah) + "Sinkron {jam}".
+- **Footer Back Office**: "© {tahun} Goldenity · v{versi}" + link "Bantuan" + "Status Sistem".
+- **Footer Struk** (di Pengaturan → Info Toko, sudah ada field `receiptFooter`): preview live bagaimana tampil di struk 58/80mm.
+
+### 7.6 Detail Riwayat Penjualan — tambahan
+- **Catatan Kasir**: blok "Catatan Kasir" — textarea inline editable + tombol "Simpan Catatan" (patch `cashierNote`). Tampil walau kosong ("Belum ada catatan — tap untuk menambah").
+- **Bukti Transfer QRIS**: jika transaksi asalnya web order QRIS & customer upload bukti → thumbnail gambar + tap = viewer fullscreen zoom. Kalau `paymentStatus = MENUNGGU VERIFIKASI` → tombol hijau **"Verifikasi Pembayaran"**.
+- Bedakan sumber: badge "WEB ORDER · Meja A1 · Antrian Q-12" di header detail kalau berasal dari QR.
+
+### 7.7 Halaman Detail Notifikasi (dari lonceng) — BARU
+- Klik ikon lonceng → **panel Notifikasi** (drawer kanan / halaman): list event, unread tebal + dot biru, grup "Hari ini / Kemarin / Lebih lama". Tiap item: ikon tipe + judul ("Pesanan Baru — Meja A1 #Q12") + waktu relatif + status (sudah dicetak ✓).
+- Tap item → **Detail Notifikasi**: ringkasan web order (antrian, meja, daftar item, total, metode + status bayar + bukti), tombol aksi kontekstual: **Terima & Cetak** / **Tolak** / **Lihat di Manajemen Meja** / **Tandai Dibaca**.
+- State: kosong ("Belum ada notifikasi"), badge angka di ikon lonceng = jumlah unread.
+
+### 7.8 Prototype Figma Make: login → PIN offline → pilih cabang GAGAL
+- Di prototype, alur **Login → Setup/Input PIN Offline → Pilih Cabang** harus **bisa jalan tanpa backend** (mock):
+  - Login: username/password apa pun → lanjut (jangan validasi nyata). Tampilkan 1 skenario error terpisah sebagai state, bukan default.
+  - PIN: 4 digit apa pun → lanjut.
+  - Pilih Cabang: pakai data cabang dummy (mis. "Pusat — Jumapolo", "Cabang 2 — Karanganyar"), pilih → masuk ke shell POS.
+- Beri catatan di file: "Prototype = alur & visual saja, auth di-stub."
+
+### 7.9 Checklist tambahan
+- [ ] Tidak ada dropdown pilih-cabang di Pengaturan Printer.
+- [ ] "Perangkat Ini" (UUID + Nama + Peran) ada di Pengaturan.
+- [ ] Detail Meja menampilkan LIST semua order + total belum dibayar.
+- [ ] Web order customer: list order (bukan 1) + "Pesan Lagi".
+- [ ] Footer POS + Back Office + preview footer struk.
+- [ ] Riwayat detail: Catatan Kasir editable + viewer bukti QRIS + tombol Verifikasi.
+- [ ] Halaman/panel Detail Notifikasi lengkap dengan aksi.
+- [ ] Prototype login→PIN→cabang bisa diklik sampai shell (mock).
