@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -64,6 +65,16 @@ class GoldenityPOSApp extends StatelessWidget {
       title: 'Goldenity POS V2',
       debugShowCheckedModeBanner: false,
       theme: buildGoldenityTheme(),
+      locale: const Locale('id', 'ID'),
+      localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const <Locale>[
+        Locale('id', 'ID'),
+        Locale('en', 'US'),
+      ],
       home: const _AuthGate(),
     );
   }
