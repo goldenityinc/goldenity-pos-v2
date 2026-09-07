@@ -98,6 +98,17 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
     try {
       ref.read(salesSyncNotifierProvider.notifier);
     } catch (_) {}
+    // Multi-device: daftarkan perangkat ini ke cabang login (idempotent upsert).
+    try {
+      final session = ref.read(currentSessionProvider);
+      final token = session?.token;
+      if (token != null) {
+        await ref.read(deviceApiServiceProvider).register(
+              token: token,
+              branchId: session?.selectedBranchId ?? session?.user.branchId,
+            );
+      }
+    } catch (_) {}
   }
 
   @override

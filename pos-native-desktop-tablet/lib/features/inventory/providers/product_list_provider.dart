@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/category_profile.dart';
 import '../../../core/models/product_profile.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../settings/services/device_api_service.dart';
 import '../repositories/inventory_hive_repository.dart';
 import '../services/category_api_service.dart';
 import '../services/dashboard_api_service.dart';
@@ -220,6 +221,10 @@ final shiftApiServiceProvider = Provider<ShiftApiService>((ref) {
 
 final settingsApiServiceProvider = Provider<SettingsApiService>((ref) {
   return SettingsApiService();
+});
+
+final deviceApiServiceProvider = Provider<DeviceApiService>((ref) {
+  return DeviceApiService(ref.watch(sharedPreferencesProvider));
 });
 
 final dashboardApiServiceProvider = Provider<DashboardApiService>((ref) {

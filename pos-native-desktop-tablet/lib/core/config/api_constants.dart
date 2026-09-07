@@ -172,4 +172,20 @@ class ApiConstants {
 
   static Uri orderSubmitEndpoint() =>
       Uri.parse('$devBaseUrl$apiV1Prefix/order/submit');
+
+  // ===== Multi-device =====
+  static Uri devicesEndpoint([Map<String, String>? queryParams]) {
+    const base = '$devBaseUrl$apiV1Prefix/devices';
+    if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
+    return Uri.parse(base).replace(queryParameters: queryParams);
+  }
+
+  static Uri deviceRegisterEndpoint() =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/devices/register');
+
+  static Uri deviceHeartbeatEndpoint(String id) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/devices/$id/heartbeat');
+
+  static Uri deviceByIdEndpoint(String id) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/devices/$id');
 }

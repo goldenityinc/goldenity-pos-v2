@@ -9,4 +9,9 @@ class StorageKeys {
   static const String authSelectedBranchId = 'auth_selected_branch_id';
   static const String productsCache = 'products_cache';
   static const String productsCacheTimestamp = 'products_cache_timestamp';
+
+  // Multi-device — UUID klien persisten (dipakai X-Device-ID + /devices/register).
+  static const String deviceUuid = 'device_uuid';
+  static const String deviceName = 'device_name';
+  static const String deviceRole = 'device_role'; // CASHIER | CHECKER | BOTH
 }

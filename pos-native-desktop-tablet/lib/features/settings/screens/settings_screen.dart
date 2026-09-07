@@ -14,6 +14,7 @@ import '../../../core/models/printer_config_profile.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../inventory/providers/product_list_provider.dart';
 import '../../sales/providers/cart_provider.dart';
+import '../services/device_api_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -64,13 +65,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   // profil printer langsung.
   final Map<PrinterSlotDto, int> _printerPaperWidths = {};
 
+  // Perangkat (multi-device)
+  List<DeviceInfo> _devices = [];
+  bool _devicesLoading = false;
+  DeviceInfo? _thisDevice;
+  final TextEditingController _deviceNameCtrl = TextEditingController();
+  String _deviceRole = 'BOTH';
+
+  /// Cabang yang aktif = cabang login (tanpa picker; beda cabang beda printer).
+  String? get _loginBranchId {
+    final s = ref.read(currentSessionProvider);
+    return s?.selectedBranchId ?? s?.user.branchId;
+  }
+
+  String _branchNameFor(String? id) {
+    if (id == null) return 'Cabang';
+    for (final b in _branches) {
+      if (b.id == id) return b.name;
+    }
+    final s = ref.read(currentSessionProvider);
+    return s?.selectedBranch?.name ?? s?.tenant.name ?? 'Cabang';
+  }
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
+    _deviceNameCtrl.text = ref.read(deviceApiServiceProvider).localDeviceName();
+    _deviceRole = ref.read(deviceApiServiceProvider).localDeviceRole();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _loadStore();
       await _loadBranches();
+      // Printer terikat cabang login — muat otomatis, tanpa picker.
+      final b = _loginBranchId;
+      if (b != null && b.isNotEmpty) {
+        _selectedBranchId = b;
+        await _loadPrintersForBranch(b);
+      }
     });
   }
 
@@ -86,6 +117,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     _branchNameCtrl.dispose();
     _branchQrisCtrl.dispose();
     _branchSearchCtrl.dispose();
+    _deviceNameCtrl.dispose();
     for (final ctrl in _printerAddressCtrls.values) {
       ctrl.dispose();
     }
@@ -589,7 +621,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final biz = theme.extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
 
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Scaffold(
         backgroundColor: GoldenityColors.bg,
         appBar: AppBar(
@@ -614,6 +646,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         await _loadBranches();
                       } else if (idx == 2 && _selectedBranchId != null) {
                         await _loadPrintersForBranch(_selectedBranchId!);
+                      } else if (idx == 3) {
+                        await _loadDevices();
                       }
                     },
               icon: _loading
@@ -661,10 +695,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             indicatorColor: biz.base,
             labelStyle:
                 textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             tabs: const [
               Tab(text: 'Info Toko'),
               Tab(text: 'Daftar Cabang'),
               Tab(text: 'Printer per Cabang'),
+              Tab(text: 'Perangkat'),
             ],
           ),
         ),
@@ -699,6 +736,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       _buildStoreInfoTab(context, textTheme, biz),
                       _buildBranchesTab(context, textTheme, biz),
                       _buildPrintersTab(context, textTheme, biz),
+                      _buildDevicesTab(context, textTheme, biz),
                     ],
                   ),
       ),
@@ -1229,6 +1267,245 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
   }
 
+  // ═══════════ Perangkat (multi-device) ═══════════
+  Future<void> _loadDevices() async {
+    setState(() => _devicesLoading = true);
+    try {
+      final token = ref.read(currentSessionProvider)?.token;
+      if (token == null) throw Exception('Sesi tidak ditemukan');
+      final svc = ref.read(deviceApiServiceProvider);
+      final list = await svc.list(token: token, branchId: _loginBranchId);
+      final myId = svc.localDeviceId();
+      if (mounted) {
+        setState(() {
+          _devices = list;
+          _thisDevice = list.where((d) => d.id == myId).firstOrNull;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _errMsg = e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _devicesLoading = false);
+    }
+  }
+
+  Future<void> _registerThisDevice() async {
+    setState(() => _devicesLoading = true);
+    try {
+      final token = ref.read(currentSessionProvider)?.token;
+      if (token == null) throw Exception('Sesi tidak ditemukan');
+      final svc = ref.read(deviceApiServiceProvider);
+      await svc.saveLocal(name: _deviceNameCtrl.text.trim(), role: _deviceRole);
+      await svc.register(token: token, branchId: _loginBranchId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            backgroundColor: GoldenityColors.success, content: Text('Perangkat terdaftar.')));
+      }
+      await _loadDevices();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            backgroundColor: GoldenityColors.error,
+            content: Text(e.toString().replaceAll('Exception: ', ''))));
+      }
+    } finally {
+      if (mounted) setState(() => _devicesLoading = false);
+    }
+  }
+
+  Future<void> _patchDevice(DeviceInfo d, {String? role, bool? isActive}) async {
+    try {
+      final token = ref.read(currentSessionProvider)?.token;
+      if (token == null) throw Exception('Sesi tidak ditemukan');
+      await ref
+          .read(deviceApiServiceProvider)
+          .patch(token: token, id: d.id, role: role, isActive: isActive);
+      await _loadDevices();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            backgroundColor: GoldenityColors.error,
+            content: Text(e.toString().replaceAll('Exception: ', ''))));
+      }
+    }
+  }
+
+  Widget _buildDevicesTab(
+      BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
+    final svc = ref.read(deviceApiServiceProvider);
+    final myId = svc.localDeviceId();
+    final registered = _thisDevice != null;
+    final others = _devices.where((d) => d.id != myId).toList();
+
+    return RefreshIndicator(
+      onRefresh: _loadDevices,
+      color: biz.base,
+      child: ListView(
+        padding: const EdgeInsets.all(GoldenitySpacing.lg),
+        children: [
+          _card(
+            title: 'Perangkat Ini',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _fieldLabel('UUID'),
+                SelectableText(myId,
+                    style: const TextStyle(
+                        fontSize: 12, color: GoldenityColors.text2, fontFamily: 'monospace')),
+                const SizedBox(height: GoldenitySpacing.md),
+                _fieldLabel('Nama Perangkat'),
+                TextField(
+                  controller: _deviceNameCtrl,
+                  decoration: const InputDecoration(hintText: 'mis. Kasir Depan / Tablet Dapur'),
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                _fieldLabel('Peran'),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final r in const ['CASHIER', 'CHECKER', 'BOTH'])
+                      ChoiceChip(
+                        label: Text(_roleLabel(r)),
+                        selected: _deviceRole == r,
+                        onSelected: (_) => setState(() => _deviceRole = r),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: registered
+                            ? GoldenityColors.successLight
+                            : GoldenityColors.warningLight,
+                        borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                      ),
+                      child: Text(
+                        registered ? 'Terdaftar ✓' : 'Belum Terdaftar',
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: registered ? GoldenityColors.success : GoldenityColors.warning),
+                      ),
+                    ),
+                    if (registered && _thisDevice!.lastSeenAt != null) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        'Terakhir aktif ${_relTime(_thisDevice!.lastSeenAt!)}',
+                        style: const TextStyle(fontSize: 11, color: GoldenityColors.muted),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                GoldenityPrimaryButton(
+                  label: registered ? 'Perbarui Pendaftaran' : 'Daftarkan Perangkat',
+                  icon: Icons.devices_rounded,
+                  isLoading: _devicesLoading,
+                  onPressed: _devicesLoading ? null : _registerThisDevice,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: GoldenitySpacing.lg),
+          _card(
+            title: 'Perangkat Lain di ${_branchNameFor(_loginBranchId)} (${others.length})',
+            child: others.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Belum ada perangkat lain terdaftar di cabang ini.',
+                        style: TextStyle(fontSize: 13, color: GoldenityColors.muted)),
+                  )
+                : Column(
+                    children: [
+                      for (final d in others) _deviceRow(d),
+                    ],
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _deviceRow(DeviceInfo d) => Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: GoldenityColors.surface2,
+          borderRadius: BorderRadius.circular(GoldenityRadius.md),
+          border: Border.all(color: GoldenityColors.border),
+        ),
+        child: Row(
+          children: [
+            Icon(d.role == 'CHECKER' ? Icons.soup_kitchen_rounded : Icons.point_of_sale_rounded,
+                size: 18, color: GoldenityColors.text2),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(d.name,
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  Text(
+                    '${_roleLabel(d.role)}'
+                    '${d.lastSeenAt != null ? ' · aktif ${_relTime(d.lastSeenAt!)}' : ''}',
+                    style: const TextStyle(fontSize: 11, color: GoldenityColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: d.isActive,
+              onChanged: (v) => _patchDevice(d, isActive: v),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      );
+
+  Widget _card({required String title, required Widget child}) => Container(
+        decoration: BoxDecoration(
+          color: GoldenityColors.surface,
+          borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+          border: Border.all(color: GoldenityColors.border),
+          boxShadow: GoldenityElevation.card,
+        ),
+        padding: const EdgeInsets.all(GoldenitySpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w800, color: GoldenityColors.text)),
+            const SizedBox(height: GoldenitySpacing.md),
+            child,
+          ],
+        ),
+      );
+
+  Widget _fieldLabel(String s) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(s,
+            style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF374151))),
+      );
+
+  static String _roleLabel(String r) => switch (r) {
+        'CASHIER' => 'Kasir',
+        'CHECKER' => 'Dapur (Checker)',
+        _ => 'Kasir + Dapur',
+      };
+
+  static String _relTime(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return 'baru saja';
+    if (d.inMinutes < 60) return '${d.inMinutes} mnt lalu';
+    if (d.inHours < 24) return '${d.inHours} jam lalu';
+    return '${d.inDays} hari lalu';
+  }
+
   Widget _buildPrintersTab(
       BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
     _ensurePrinterControllers();
@@ -1258,33 +1535,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   Icon(Icons.print_rounded, color: biz.base),
                   const SizedBox(width: GoldenitySpacing.sm),
                   Text(
-                    'Konfigurasi Printer per Cabang',
+                    'Printer — Cabang ${_branchNameFor(_selectedBranchId ?? _loginBranchId)}',
                     style: textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                 ],
               ),
-              const SizedBox(height: GoldenitySpacing.md),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedBranchId,
-                decoration: const InputDecoration(
-                  labelText: 'Pilih Cabang',
-                  hintText: 'Pilih cabang untuk kelola printer',
-                ),
-                items: _branches
-                    .map((b) => DropdownMenuItem<String>(
-                          value: b.id,
-                          child: Text(b.name),
-                        ))
-                    .toList(),
-                onChanged: _loading
-                    ? null
-                    : (v) {
-                        setState(() => _selectedBranchId = v);
-                        if (v != null && v.isNotEmpty) {
-                          _loadPrintersForBranch(v);
-                        }
-                      },
+              const SizedBox(height: 4),
+              Text(
+                'Setiap cabang punya printer sendiri — konfigurasi ini otomatis '
+                'mengikuti cabang tempat Anda login.',
+                style: textTheme.bodySmall?.copyWith(color: GoldenityColors.muted),
               ),
               const SizedBox(height: GoldenitySpacing.lg),
               if (_selectedBranchId == null)
@@ -1292,7 +1553,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   child: Padding(
                     padding: const EdgeInsets.all(GoldenitySpacing.xl),
                     child: Text(
-                      'Silakan pilih cabang terlebih dahulu',
+                      'Memuat printer cabang…',
                       style: textTheme.bodySmall
                           ?.copyWith(color: GoldenityColors.text2),
                     ),
