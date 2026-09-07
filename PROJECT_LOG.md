@@ -33,10 +33,23 @@ Keputusan Andre: jalankan 2 jalur paralel — Jalur A (Andre + Figma Make lengka
 
 **Gate:** `tsc --noEmit` EXIT 0. Backend running `:3001` dengan semua route Fase 1 + Fase 2.
 
-### Belum (Jalur B lanjutan, kalau perlu)
-- Sisa Fase 1 backend polish (tidak ada gap besar tersisa selain 4.1/4.2 printer hardware).
-- Socket.IO Bridge / FCM untuk notifikasi real-time saat app minimize (ERD §4.4) — iterasi awal cukup polling.
-- Modul Staf (Data Karyawan / Role) — belum ada endpoint.
+### `a562fc0` — Modul Staf (Data Karyawan + Manajemen Role)
+Gap: tidak ada endpoint kelola user/role sama sekali (user cuma via seed).
+`/api/v1/staff` (JWT, TENANT_ADMIN/SUPER_ADMIN, tenant-scoped): `GET /` list (tanpa passwordHash), `POST /` buat (bcrypt, role assignable — bukan SUPER_ADMIN, CASHIER/CRM_STAFF wajib branchId), `PATCH /:id` (role/branch/customRole/isActive/newPassword + guard: tak bisa nonaktif/turunkan diri sendiri, jaga min. 1 TENANT_ADMIN aktif), `DELETE /:id` (soft isActive=false), `GET/POST/PATCH/DELETE /roles` custom role + `permissionCatalog`.
+**Smoke PASS:** buat cashier + login, dup username ditolak, cashier tanpa branch ditolak, reset password + assign custom role, self-guard, last-admin guard, delete role in-use ditolak → unassign → delete OK.
+
+### `212b759` — Socket.IO Bridge (real-time push Web Order)
+`socket.io@4` + `src/realtime/socket.ts`: JWT auth di handshake, auto-join room `tenant:<id>` + `branch:<branchId>`. `web-order.service` emit `web_order:submitted` (setelah submit) + `web_order:status` (accept/reject/advance). `NotificationEvent` (DB) tetap log durable + catch-up polling.
+**Smoke PASS:** client authed connect → room join; token sampah → `AUTH_TOKEN_INVALID`; customer submit → POS terima `web_order:submitted` instan; kasir accept → `web_order:status` (ACCEPTED + salesRecordId).
+
+### Status Jalur B — inti SELESAI
+Backend Fase 2 fungsional end-to-end: meja/QR, web order (customer + kasir), queue atomik, notifikasi (polling + socket real-time), staf/role. `tsc` 0. Backend `:3001` + Socket.IO `/socket.io` live.
+
+### Belum (butuh Flutter bisa di-build / iterasi lanjut)
+- Sisi Flutter Fase 2: layar Manajemen Meja, layar Daftar Web Order kasir, listener Socket.IO + Windows Toast + auto-print Checker/Struk saat order masuk (ERD §4.4). Semua BLOCKED oleh Developer Mode OFF.
+- Aplikasi web customer (`pos-web-order`) — belum ada, nunggu desain Jalur A.
+- FCM (Android push) — nunggu Firebase project + Flutter.
+- 4.1/4.2 printer hardware test.
 
 ---
 
