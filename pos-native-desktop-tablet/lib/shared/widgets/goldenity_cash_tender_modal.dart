@@ -6,6 +6,7 @@ import '../../core/design/goldenity_elevation.dart';
 import '../../core/design/goldenity_radius.dart';
 import '../../core/design/goldenity_spacing.dart';
 import '../../core/design/goldenity_typography.dart';
+import '../sales/quick_cash_denominations.dart';
 import 'goldenity_primary_button.dart';
 
 class GoldenityCashTenderModal extends StatefulWidget {
@@ -61,21 +62,17 @@ class _GoldenityCashTenderModalState extends State<GoldenityCashTenderModal> {
 
   bool get _canConfirm => _received >= widget.totalAmount;
 
+  /// Story 3.3 — pakai algoritma quick-cash bersama (LOCKED 4/4 Andre,
+  /// `lib/shared/sales/quick_cash_denominations.dart`). Chip PAS (exact total)
+  /// tampil pertama, lalu saran pecahan yang lebih besar.
   List<double> get _smartChips {
     final double total = widget.totalAmount;
-    const int step = 5000;
-    final double mod = total % step;
-    final double base = mod == 0 ? total : total + (step - mod);
-
-    final List<double> chips = <double>[total];
-    for (int i = 0; i < 4; i++) {
-      chips.add(base + step * i);
-    }
-    final Set<double> seen = <double>{};
-    return chips
-        .where((double x) => seen.add(x))
-        .take(4)
-        .toList(growable: false);
+    final chips = <double>[
+      total,
+      ...suggestedCashAmounts(total).map((n) => n.toDouble()),
+    ];
+    final seen = <double>{};
+    return chips.where(seen.add).take(4).toList(growable: false);
   }
 
   @override

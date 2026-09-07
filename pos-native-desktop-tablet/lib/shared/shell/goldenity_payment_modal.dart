@@ -25,6 +25,7 @@ import '../../../features/sales/models/cart_item.dart';
 import '../../../features/sales/providers/cart_provider.dart';
 import '../../../features/sales/providers/sales_sync_notifier.dart';
 import '../../../features/sales/screens/payment_success_screen.dart';
+import '../sales/quick_cash_denominations.dart';
 import '../../../features/sales/utils/receipt_generator.dart';
 import '../widgets/goldenity_primary_button.dart';
 
@@ -229,68 +230,11 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     return num.tryParse(cleaned) ?? 0;
   }
 
-  /// FIX (temuan Andre): logic lama membulatkan ke kelipatan 50.000 lalu
-  /// mengalikan 1x/1.5x/2x/3x/5x — hasilnya nominal aneh yang gak masuk akal
-  /// (mis. tagihan Rp 28.000 → muncul 50rb/75rb/100rb/150rb, padahal 75rb dan
-  /// 150rb bukan pecahan uang kertas yang beneran ada).
-  ///
-  /// Diganti dengan pola persis V1: nominal PAS (exact total, ditangani
-  /// terpisah oleh [_buildExactChip]) + pecahan uang kertas Rupiah asli
-  /// (10rb/20rb/50rb/100rb/...) yang LEBIH BESAR dari total, dibatasi sampai
-  /// "tier langit-langit" berikutnya (100rb kalau tagihan < 100rb, 1jt kalau
-  /// < 1jt, dst) — supaya tidak muncul nominal ekstrem yang gak relevan untuk
-  /// tagihan kecil.
-  ///
-  /// Diporting 1:1 dari `buildQuickCashSuggestions()` di V1
-  /// (goldenity-pointofsales-app/lib/core/sales/smart_cash_checkout.dart).
-  /// Algoritma V1 BUKAN daftar pecahan uang asli (bukan uang combining),
-  /// melainkan pembulatan ke atas (ceil) ke kelipatan 10rb, 50rb, dan 100rb —
-  /// itu sebabnya nominal seperti 30.000 (bukan pecahan uang fisik) tetap
-  /// muncul, karena dia adalah hasil pembulatan 28.000 ke kelipatan 10rb
-  /// terdekat, BUKAN sebuah pecahan uang tunggal.
-  ///
-  /// Nilai grandTotal itu sendiri TIDAK dimasukkan ke hasil ini karena sudah
-  /// ditampilkan terpisah sebagai chip "PAS" (lihat _buildExactChip).
-  ///
-  /// Contoh (persis sesuai spek Andre & tervalidasi terhadap V1):
-  ///  - total 15.000 → [20.000, 50.000, 100.000] (+ PAS 15.000 terpisah)
-  ///  - total 20.000 → [50.000, 100.000] (+ PAS 20.000)
-  ///  - total 16.500 → [20.000, 50.000, 100.000] (+ PAS 16.500)
-  ///  - total 28.000 → [30.000, 50.000, 100.000] (+ PAS 28.000)
-  List<num> _suggestedCashAmounts(num grandTotal) {
-    if (grandTotal <= 0) return const <num>[];
-    final normalizedTotal = grandTotal.ceil();
-    final suggestions = <num>{};
-
-    // Nominal kecil perlu opsi cepat yang tetap praktis untuk kasir
-    // (persis logic V1 — hanya berlaku untuk tagihan sangat kecil).
-    if (normalizedTotal <= 1000) {
-      suggestions.add(1000);
-      suggestions.add(2000);
-    } else if (normalizedTotal <= 5000) {
-      suggestions.add(5000);
-    }
-
-    // Pembulatan ke atas ke kelipatan 10rb / 50rb / 100rb terdekat.
-    final roundTo10K = _ceilToNextPecahan(normalizedTotal, 10000);
-    if (roundTo10K != normalizedTotal) suggestions.add(roundTo10K);
-
-    final roundTo50K = _ceilToNextPecahan(normalizedTotal, 50000);
-    if (roundTo50K != normalizedTotal) suggestions.add(roundTo50K);
-
-    final roundTo100K = _ceilToNextPecahan(normalizedTotal, 100000);
-    if (roundTo100K != normalizedTotal) suggestions.add(roundTo100K);
-
-    final sorted = suggestions.toList()..sort();
-    return sorted;
-  }
-
-  /// Helper pembulatan ke atas ke kelipatan `pecahan` terdekat.
-  /// Diporting 1:1 dari `_ceilToNextPecahan()` di V1.
-  num _ceilToNextPecahan(num amount, num pecahan) {
-    if (pecahan <= 0) return amount;
-    return (amount / pecahan).ceil() * pecahan;
-  }
+  // Story 3.3 — algoritma quick-cash "LOCKED 4/4 Andre" DIPINDAH ke satu sumber
+  // kebenaran bersama: `lib/shared/sales/quick_cash_denominations.dart`
+  // (`suggestedCashAmounts` + `ceilToNextPecahan`), dikunci
+  // `test/quick_cash_denominations_test.dart`. Dipakai juga oleh
+  // `GoldenityCashTenderModal` supaya tidak ada 2 algoritma berbeda.
 
   HardwareConnectionConfig _convertPrinterProfileToHwConfig(PrinterConfigProfile p) {
     final ConnectionType hwType = switch (p.connectionType) {
@@ -1169,7 +1113,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                                     // Urutan ala V1: PAS (exact total) tampil PERTAMA,
                                     // baru diikuti pecahan uang kertas yang lebih besar.
                                     _buildExactChip(context, grandTotal),
-                                    ..._suggestedCashAmounts(grandTotal).map((n) => _buildQuickAmountChip(
+                                    ...suggestedCashAmounts(grandTotal).map((n) => _buildQuickAmountChip(
                                       context,
                                       n.toInt(),
                                       'Rp ${_currencyFormatter.format(n)}',
