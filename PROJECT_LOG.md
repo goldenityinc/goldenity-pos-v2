@@ -8,6 +8,71 @@
 
 ---
 
+## ⚠️🔴 [2026-09-07] Trae — **3.1a UI_REVAMP SIDEBAR NAVY ➜ PUTIH (LIGHT THEME)** — PERUBAHAN BESAR VISUAL, MOHON ANDRE REVIEW SEBELUM DIANGGAP FINAL (revert gampang jika tidak cocok). Scope UI-only 100% tanpa ubah business logic. Lint 0 issues ✅
+
+**Tanggal eksekusi:** 2026-09-07. **Prioritas UI_REVAMP 3.1a (tertentu Andre).**
+**File target:** [goldenity_sidebar.dart (L47-L472 full widget tree)](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_sidebar.dart)
+**Quality Gate:** `flutter analyze --no-pub` → **No issues found! (ran in 1.1s) EXIT_CODE=0** ✅.
+
+### ⚠️ Peringatan Penting (sesuai UI_REVAMP_TASKLIST_TRAE.md Bagian 3.1):
+> Perubahan ini merubah FONDASI VISUAL SELURUH APLIKASI (sidebar kiri 200px di SEMUA layar). Jika Andre setelah lihat hasilnya merasa sidebar gelap navy lebih cocok, cukup revert 7 perubahan warna dibawah ini (file 1:1 revertable). Jangan anggap permanen sebelum visual ACC Andre.
+
+---
+
+### Tabel 7 Mapping Warna Before (Navy Gelap) → After (Putih Light Theme) — Sumber Token dari Figma 23 Screenshot:
+
+| No | Bagian Widget | Before (Lama Navy) | After (Baru Putih Light) | Line |
+|---|---|---|---|---|
+| 1 | **Sidebar Background + Border Kanan** (Container L49-L54) | `bg=GoldenityColors.sidebar (#0F172A NAVY)`. `BorderSide right=Color(0x331E293B) (navy transparan)` | `bg=GoldenityColors.surface (#FFFFFFFF PUTIH)`. `BorderSide right=GoldenityColors.border (#E2E8F0 abu border)` | L49-L54 |
+| 2 | **Brand Header Title "Goldenity"** (L196-197) | `color=Colors.white` (teks putih di navy) | `color=GoldenityColors.text (#0F172A gelap)` (teks gelap di putih) | L197 |
+| 3 | **Brand Subtitle "POS V2"** (L206) | `color=GoldenityColors.primaryLight (#EFF6FF biru muda)` | `color=GoldenityColors.muted (#64748B abu standard muted label)` | L206 |
+| 4 | **Section Label "MODE BISNIS"** (L228) | `color=GoldenityColors.sidebarText (#94A3B8 abu sidebar gelap)` | `color=GoldenityColors.muted (#64748B abu muted light theme)` | L228 |
+| 5 | **Item Bisnis F&B (selected state)** (L251-L252 _buildBizModeItem) | `bg=GoldenityColors.warning (#D97706 ORANYE)`. `fg=Colors.white` | `bg=GoldenityColors.primaryLight (#EFF6FF biru muda)`. `fg=GoldenityColors.primary (#1D4ED8 biru tua)` | L251-L252 |
+| 6 | **_buildNavItem Semua Tab (POS/Dashboard/Riwayat/dll)** (L305-L331 active vs inactive) | **Inactive:** `icon+text=sidebarText #94A3B8`. **Active:** `bg=primary.withValues(alpha:0.18) (navy transparan)`. `fg+icon=Colors.white`. `border alpha=0.40` | **Inactive:** `icon+text=GoldenityColors.muted #64748B`. **Active:** `bg=GoldenityColors.primaryLight (EFF6FF SOLID bukan transparan)`. `fg+icon=GoldenityColors.primary (#1D4ED8 biru tua)`. `border alpha=0.12` (tipis saja, tidak mencolok) | L305-L331 |
+| 7 | **_buildUserFooter Card User + Shift + Avatar** (L358-L429) | `Container card bg=0x14FFFFFF (putih transparan di navy)`. `border=0x1FFFFFFF`. `Avatar bg=primary (biru solid)`. `Avatar letter=white`. `Username=white`. `Shift subtitle=sidebarText` | `Container card bg=GoldenityColors.surface2 (#F8FAFC abu sangat muda light theme)`. `border=GoldenityColors.border (E2E8F0)`. `Avatar bg=primaryLight (biru muda)`. `Avatar letter=primary (biru tua)`. `Username=text (gelap)`. `Shift subtitle=muted (abu)` | L358-L429 |
+
+### Jaminan 100% Business Logic Intact (TIDAK DIUBAH SATU PUN):
+✅ `enum GoldenitySidebarTab` (pos/dashboard/salesHistory/finance/inventory/categories/settings/shift) — TETAP.
+✅ `currentTab` parameter + `onTabChanged` callback mechanism — TETAP.
+✅ `_buildNavItem` `onTap: () => onTabChanged?.call(tab)` — TETAP.
+✅ `_buildBizModeItem` onTap null untuk selected — TETAP.
+✅ `_buildUserFooter` FutureBuilder shift API + Logout showDialog + authNotifierProvider.logout() — TETAP SEMUA.
+✅ Semua `padding` (`GoldenitySpacing.xs/sm/md/lg/xl`), `radius` (`lg/xl/md`), icon size 18, font weight 600/700/800 — TETAP PERSIS (TIDAK diutak-atik spacing/radius).
+
+### Acceptance Criteria 3.1a (Lolos sebelum pindah ke 3.1b Top Bar):
+✅ Background sidebar sekarang PUTIH (#FFFFFF) BUKAN navy.
+✅ Nav item POS/Dashboard/dll SAAT TIDAK AKTIF: abu muted (#64748B) — BUKAN putih.
+✅ Nav item SAAT AKTIF: background biru muda PRIMARYLIGHT + teks/biru tua PRIMARY — BUKAN navy transparan + putih.
+✅ User footer card: abu sangat muda (surface2) dengan avatar biru muda + teks biru tua — BUKAN putih transparan.
+✅ Lint gate 0 error: ✅ PASS.
+✅ 1 entri PROJECT_LOG PALING ATAS dengan peringatan "Perubahan besar visual review Andre": ✅ DIBUAT.
+
+**Action item selanjutnya untuk Andre:** 🟡 Silakan hot restart Flutter app (Ctrl+Shift+F5) → lihat sidebar kiri → konfirmasi ACC atau REVERT (jika prefer navy gelap). Setelah ACC → Trae lanjut **3.1b TOP BAR LENGKAP** di goldenity_app_shell.dart.
+
+---
+
+## 🎨📋 [2026-09-07] Klaude — TASK PANJANG KE-2 untuk Trae: UI Revamp Menyeluruh mengikuti Desain Figma (Andre akan pergi lama, minta task besar berbasis semua screenshot Figma yang sudah diberikan)
+
+### Konteks
+Andre konfirmasi akan pergi/offline dalam waktu lama, dan minta dibuatkan task panjang KEDUA (terpisah dari task audit bug layout sebelumnya) khusus untuk **UI Revamp** — merevisi tampilan V2 supaya sesuai desain Figma yang sudah dia berikan sebelumnya, plus referensi folder V1. Saya sudah meninjau LANGSUNG (bukan cuma nama file) **semua 23 screenshot** di `E:\Goldenity\goldenity-pointofsales-app\UI Design\` satu per satu (Login, Setup PIN, Pilih Cabang, Dashboard, Penjualan/POS + Cart, Modal Pembayaran (Cash/QRIS/Transfer/Kas Bon) + Modal Diskon + QRIS fullscreen, Riwayat, Manajemen Inventaris, Manajemen Kategori + modal tambah, Data Pelanggan, Data Supplier, Laporan Akuntansi (Laba/Rugi + Neraca), dan Pengaturan lengkap 3 bagian).
+
+### 📄 File task lengkap
+**[`pos-native-desktop-tablet/UI_REVAMP_TASKLIST_TRAE.md`](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/UI_REVAMP_TASKLIST_TRAE.md)** — isi:
+1. **Audit token desain** — saya baca langsung `goldenity_colors.dart`/`goldenity_spacing.dart`/`goldenity_radius.dart`: warna primary biru (`#1D4ED8`), spacing scale, dan radius scale V2 **SUDAH SANGAT DEKAT** dengan Figma, tidak perlu diganti. TAPI ada 1 temuan besar: **sidebar V2 pakai warna gelap/navy (`GoldenityColors.sidebar = #0F172A`)**, sedangkan **SEMUA 23 screenshot Figma menampilkan sidebar TERANG/PUTIH**. Ini kemungkinan perbedaan desain paling mencolok di seluruh app.
+2. **Tabel pemetaan lengkap** — setiap 1 dari 23 screenshot Figma dipetakan eksplisit ke file V2 yang sesuai (path lengkap), supaya Trae tidak perlu menebak file mana yang harus direvamp untuk desain mana.
+3. **Urutan prioritas kerja** — sidebar & top bar dulu (fondasi visual semua layar) → POS/Cart/Payment Modal (paling sering dipakai & paling banyak dikeluhkan Andre selama ini) → Dashboard/Riwayat/Inventaris/Kategori → Settings/Finance.
+4. **Daftar gap fitur (Bagian 4)** — beberapa layar di Figma (Setup PIN Offline, Data Pelanggan, Data Supplier, metode pembayaran QRIS/Transfer/Kas Bon, modal Diskon, dll) **TIDAK DITEMUKAN sama sekali di codebase V2 saat ini** (bukan cuma soal styling — filenya tidak ada). Saya eksplisit tandai ini SEBAGAI TEMUAN, BUKAN scope task revamp ini (revamp = mempercantik yang SUDAH ADA, bukan membangun fitur baru) — Trae diminta TIDAK membangun ini sepihak, cukup dicatat sebagai gap untuk dikonfirmasi Andre nanti.
+
+### ⚠️ Peringatan khusus di dalam task
+- Sidebar gelap→terang ditandai sebagai "perubahan besar" yang perlu direview visual Andre begitu online kembali (bukan otomatis dianggap final/selesai).
+- `goldenity_payment_modal.dart` baru saja saya edit sesi ini (quick-cash fix) — task ini eksplisit mengingatkan Trae untuk baca ulang isi TERBARU file itu dulu sebelum mengedit, supaya tidak menimpa fix yang sudah diverifikasi Trae (lihat entri Trae tepat di bawah ini — sudah dikonfirmasi 4/4 testcase match).
+- Task ini murni visual — dilarang ubah business logic, sama seperti task audit sebelumnya.
+
+### File yang dibuat
+- `pos-native-desktop-tablet/UI_REVAMP_TASKLIST_TRAE.md` (baru, sudah di-commit ke device).
+
+---
+
 ## ✅🟢 [2026-09-07] Trae — VERIFIKASI 2 Output Andre Sesi Ini: (1) Algoritma Quick Cash Port V1 4/4 TESTCASE MATCH 100%. (2) UI_AUDIT_TASKLIST_TRAE.md dibuat & cocok 4 bagian struktur. Fix 1 info lint const Icon L600. Lint 0 issues.
 
 Tanggal verifikasi: 2026-09-07 (sesudah Andre commit 2 output porting algoritma quick cash V1 + file tasklist audit UI mandiri). Verifikasi dibaca LANGSUNG dari file device terbaru (bukan asumsi narasi).
