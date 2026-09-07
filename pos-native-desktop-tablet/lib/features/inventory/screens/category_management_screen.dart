@@ -359,7 +359,7 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
           maxCrossAxisExtent: 172,
           mainAxisSpacing: GoldenitySpacing.md,
           crossAxisSpacing: GoldenitySpacing.md,
-          childAspectRatio: 1.08,
+          childAspectRatio: 0.98,
         ),
         itemCount: categories.length,
         itemBuilder: (context, i) {
@@ -438,12 +438,16 @@ class _CategoryGridCard extends StatelessWidget {
             const Spacer(),
             Row(
               children: [
-                Transform.scale(
-                  scale: 0.78,
-                  alignment: Alignment.centerLeft,
-                  child: Switch.adaptive(
-                    value: c.isActive,
-                    onChanged: loading ? null : onToggle,
+                SizedBox(
+                  height: 26,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Switch(
+                      value: c.isActive,
+                      onChanged: loading ? null : onToggle,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      activeThumbColor: GoldenityColors.primary,
+                    ),
                   ),
                 ),
                 const Spacer(),
