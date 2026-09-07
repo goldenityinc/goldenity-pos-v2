@@ -961,7 +961,8 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                   const SizedBox(width: GoldenitySpacing.lg),
                   Expanded(
                     flex: 4,
-                    child: Column(
+                    child: SingleChildScrollView(
+                      child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -1237,6 +1238,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                           ),
                         ],
                       ],
+                    ),
                     ),
                   ),
                 ],
