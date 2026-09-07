@@ -639,7 +639,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
         color: GoldenityColors.surface,
         clipBehavior: Clip.antiAlias,
         child: Container(
-          width: 860,
+          width: 480,
           constraints: BoxConstraints(maxHeight: maxModalHeight),
           decoration: BoxDecoration(
             color: GoldenityColors.surface,
@@ -726,12 +726,13 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
               // tinggi pasti (lihat maxModalHeight), jadi Row ini boleh flex mengisi
               // sisa ruang — inilah yang membuat Expanded(ListView) item keranjang di
               // bawah akhirnya punya tinggi terbatas yang benar, bukan infinity.
-              Expanded(
-                child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Flexible(
+                child: SingleChildScrollView(
+                child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(
-                    flex: 5,
+                  Offstage(
+                    offstage: true,
                     child: Container(
                       decoration: BoxDecoration(
                         color: GoldenityColors.surface2,
@@ -958,14 +959,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: GoldenitySpacing.lg),
-                  Expanded(
-                    flex: 4,
-                    child: SingleChildScrollView(
-                      child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
+                  ...<Widget>[
                         // Pola daftar vertikal ala V1 (bukan 3 kartu sejajar horizontal):
                         // tiap metode = 1 baris penuh, icon kiri + label + tanda selected
                         // kanan — lebih mudah dibaca & lebih hemat ruang vertikal.
@@ -1238,11 +1232,9 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                           ),
                         ],
                       ],
-                    ),
-                    ),
+                    ],
                   ),
-                ],
-                ),
+                  ),
               ),
               const SizedBox(height: GoldenitySpacing.xl),
               GoldenityPrimaryButton(
