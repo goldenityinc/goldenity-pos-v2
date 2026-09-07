@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../core/design/goldenity_colors.dart';
-import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
 import '../../../core/models/dashboard_profile.dart';
+import '../../../shared/widgets/goldenity_metric_card.dart';
+import '../../../shared/widgets/goldenity_page_header.dart';
+import '../../../shared/widgets/goldenity_section_card.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../inventory/providers/product_list_provider.dart';
 
@@ -23,7 +25,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   String _range = 'today';
   DashboardSummaryProfile? _summary;
 
-  final NumberFormat _currencyFormatter = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
+  final NumberFormat _currencyFormatter =
+      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
 
   @override
   void initState() {
@@ -41,7 +44,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       final token = auth.session?.token;
       if (token == null) throw Exception('Sesi tidak ditemukan');
       final dashboardApi = ref.read(dashboardApiServiceProvider);
-      final summary = await dashboardApi.getSummary(authToken: token, range: _range);
+      final summary =
+          await dashboardApi.getSummary(authToken: token, range: _range);
       if (mounted) {
         setState(() {
           _summary = summary;
@@ -60,9 +64,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  String _formatCurrency(num value) {
-    return _currencyFormatter.format(value);
-  }
+  String _formatCurrency(num value) => _currencyFormatter.format(value);
 
   @override
   Widget build(BuildContext context) {
@@ -71,63 +73,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final biz = theme.extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
 
     return Scaffold(
-      backgroundColor: GoldenityColors.surface,
+      backgroundColor: GoldenityColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: GoldenityColors.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Dashboard', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 2),
-            Text(
-              'Ringkasan penjualan periode ini',
-              style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
-            ),
-          ],
+        title: const GoldenityPageHeader(
+          title: 'Dashboard',
+          subtitle: 'Ringkasan penjualan periode ini',
+          dense: true,
         ),
         actions: [
-          FilterChip(
-            label: const Text('Hari Ini'),
-            selected: _range == 'today',
-            onSelected: _loading
-                ? null
-                : (v) {
-                    if (v) {
-                      setState(() => _range = 'today');
-                      _loadData();
-                    }
-                  },
-          ),
+          for (final entry in const [
+            ('today', 'Hari Ini'),
+            ('week', 'Minggu Ini'),
+            ('month', 'Bulan Ini'),
+          ]) ...[
+            ChoiceChip(
+              label: Text(entry.$2),
+              selected: _range == entry.$1,
+              onSelected: _loading
+                  ? null
+                  : (v) {
+                      if (v) {
+                        setState(() => _range = entry.$1);
+                        _loadData();
+                      }
+                    },
+            ),
+            const SizedBox(width: GoldenitySpacing.xs),
+          ],
           const SizedBox(width: GoldenitySpacing.xs),
-          FilterChip(
-            label: const Text('Minggu Ini'),
-            selected: _range == 'week',
-            onSelected: _loading
-                ? null
-                : (v) {
-                    if (v) {
-                      setState(() => _range = 'week');
-                      _loadData();
-                    }
-                  },
-          ),
-          const SizedBox(width: GoldenitySpacing.xs),
-          FilterChip(
-            label: const Text('Bulan Ini'),
-            selected: _range == 'month',
-            onSelected: _loading
-                ? null
-                : (v) {
-                    if (v) {
-                      setState(() => _range = 'month');
-                      _loadData();
-                    }
-                  },
-          ),
-          const SizedBox(width: GoldenitySpacing.sm),
           IconButton(
             onPressed: _loading ? null : _loadData,
             icon: _loading
@@ -135,9 +111,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: biz.base,
-                    ),
+                        strokeWidth: 2, color: biz.base),
                   )
                 : const Icon(Icons.refresh_rounded),
             tooltip: 'Refresh',
@@ -154,7 +128,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.error_outline_rounded, size: 48, color: GoldenityColors.error),
+                        const Icon(Icons.error_outline_rounded,
+                            size: 48, color: GoldenityColors.error),
                         const SizedBox(height: GoldenitySpacing.md),
                         Text(_errMsg, style: textTheme.bodyMedium),
                         const SizedBox(height: GoldenitySpacing.md),
@@ -176,14 +151,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildBody(BuildContext context, TextTheme textTheme, GoldenityBizColors biz, DashboardSummaryProfile summary) {
+  Widget _buildBody(BuildContext context, TextTheme textTheme,
+      GoldenityBizColors biz, DashboardSummaryProfile summary) {
     return RefreshIndicator(
       onRefresh: _loadData,
       color: biz.base,
       child: ListView(
         padding: const EdgeInsets.all(GoldenitySpacing.lg),
         children: [
-          _buildStatCards(textTheme, biz, summary),
+          _buildStatCards(biz, summary),
           const SizedBox(height: GoldenitySpacing.md),
           _buildTopProducts(context, textTheme, biz, summary),
           const SizedBox(height: GoldenitySpacing.md),
@@ -195,44 +171,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildStatCards(TextTheme textTheme, GoldenityBizColors biz, DashboardSummaryProfile summary) {
-    final List<(String, num, IconData, Color, Color)> cards = [
-      ('Total Pendapatan', summary.totalRevenue, Icons.payments_rounded, GoldenityColors.successLight, GoldenityColors.success),
-      ('Total Transaksi', summary.totalTransactions, Icons.receipt_long_rounded, GoldenityColors.primary.withValues(alpha: 0.08), GoldenityColors.primary),
-      ('Rata-rata Transaksi', summary.avgTransaction, Icons.trending_up_rounded, GoldenityColors.warningLight, GoldenityColors.warning),
-      ('Pendapatan Bersih', summary.netRevenue, Icons.account_balance_wallet_rounded, biz.light, biz.base),
+  Widget _buildStatCards(
+      GoldenityBizColors biz, DashboardSummaryProfile summary) {
+    final cards = <(String, num, IconData, Color, Color, bool)>[
+      ('Total Pendapatan', summary.totalRevenue, Icons.payments_rounded,
+          GoldenityColors.successLight, GoldenityColors.success, false),
+      ('Total Transaksi', summary.totalTransactions,
+          Icons.receipt_long_rounded, GoldenityColors.primaryLight,
+          GoldenityColors.primary, true),
+      ('Rata-rata Transaksi', summary.avgTransaction,
+          Icons.trending_up_rounded, GoldenityColors.warningLight,
+          GoldenityColors.warning, false),
+      ('Pendapatan Bersih', summary.netRevenue,
+          Icons.account_balance_wallet_rounded, biz.light, biz.base, false),
     ];
 
     return Column(
       children: [
         for (int i = 0; i < cards.length; i += 2)
           Padding(
-            padding: EdgeInsets.only(bottom: i + 2 < cards.length ? GoldenitySpacing.md : 0),
+            padding: EdgeInsets.only(
+                bottom: i + 2 < cards.length ? GoldenitySpacing.md : 0),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: _StatCard(
-                    label: cards[i].$1,
-                    value: cards[i].$2 is int ? '${cards[i].$2}' : _formatCurrency(cards[i].$2),
-                    icon: cards[i].$3,
-                    iconBg: cards[i].$4,
-                    iconFg: cards[i].$5,
-                    biz: biz,
-                    textTheme: textTheme,
-                  ),
-                ),
+                Expanded(child: _metricFor(cards[i])),
                 const SizedBox(width: GoldenitySpacing.md),
                 Expanded(
                   child: i + 1 < cards.length
-                      ? _StatCard(
-                          label: cards[i + 1].$1,
-                          value: cards[i + 1].$2 is int ? '${cards[i + 1].$2}' : _formatCurrency(cards[i + 1].$2),
-                          icon: cards[i + 1].$3,
-                          iconBg: cards[i + 1].$4,
-                          iconFg: cards[i + 1].$5,
-                          biz: biz,
-                          textTheme: textTheme,
-                        )
+                      ? _metricFor(cards[i + 1])
                       : const SizedBox.shrink(),
                 ),
               ],
@@ -242,364 +209,228 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  Widget _buildTopProducts(BuildContext context, TextTheme textTheme, GoldenityBizColors biz, DashboardSummaryProfile summary) {
+  Widget _metricFor((String, num, IconData, Color, Color, bool) c) {
+    return GoldenityMetricCard(
+      label: c.$1,
+      value: c.$6 ? '${c.$2}' : _formatCurrency(c.$2),
+      icon: c.$3,
+      iconBackground: c.$4,
+      iconColor: c.$5,
+    );
+  }
+
+  Widget _buildTopProducts(BuildContext context, TextTheme textTheme,
+      GoldenityBizColors biz, DashboardSummaryProfile summary) {
     final topProducts = summary.topProducts.take(5).toList();
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-        border: Border.all(color: GoldenityColors.border),
-        boxShadow: GoldenityElevation.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
-            child: Row(
-              children: [
-                  Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: GoldenityColors.warningLight,
-                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.star_rounded, color: GoldenityColors.warning, size: 20),
-                ),
-                const SizedBox(width: GoldenitySpacing.sm),
-                Expanded(
-                  child: Text(
-                    'Produk Terlaris',
-                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: GoldenityColors.border),
-          if (topProducts.isEmpty)
-            Padding(
+    return GoldenitySectionCard(
+      title: 'Produk Terlaris',
+      icon: Icons.star_rounded,
+      iconColor: GoldenityColors.warning,
+      iconBackground: GoldenityColors.warningLight,
+      padding: EdgeInsets.zero,
+      child: topProducts.isEmpty
+          ? Padding(
               padding: const EdgeInsets.all(GoldenitySpacing.xl),
               child: Center(
-                child: Text('Belum ada data produk terlaris', style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2)),
+                child: Text('Belum ada data produk terlaris',
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: GoldenityColors.muted)),
               ),
             )
-          else
-            ListView.separated(
+          : ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.xs),
+              padding:
+                  const EdgeInsets.symmetric(vertical: GoldenitySpacing.xs),
               itemCount: topProducts.length,
-              separatorBuilder: (_, __) => const Divider(height: 1, color: GoldenityColors.border),
+              separatorBuilder: (_, __) =>
+                  const Divider(height: 1, color: GoldenityColors.border),
               itemBuilder: (context, i) {
                 final p = topProducts[i];
                 return ListTile(
                   leading: Container(
                     width: 36,
                     height: 36,
-                    decoration: BoxDecoration(
-                      color: i < 3 ? GoldenityColors.warningLight : biz.light,
-                      borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                    ),
                     alignment: Alignment.center,
-                    child: Text(
-                      '${i + 1}',
-                      style: textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: i < 3 ? GoldenityColors.warning : biz.dark,
-                      ),
+                    decoration: BoxDecoration(
+                      color: i < 3
+                          ? GoldenityColors.warningLight
+                          : biz.light,
+                      borderRadius:
+                          BorderRadius.circular(GoldenityRadius.sm),
                     ),
+                    child: Text('${i + 1}',
+                        style: textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: i < 3
+                              ? GoldenityColors.warning
+                              : biz.dark,
+                        )),
                   ),
-                  title: Text(
-                    p.productName,
-                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    '${p.qty} unit terjual',
-                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
-                  ),
+                  title: Text(p.productName,
+                      style: textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                  subtitle: Text('${p.qty} unit terjual',
+                      style: textTheme.bodySmall?.copyWith(
+                          color: GoldenityColors.muted,
+                          fontWeight: FontWeight.w600)),
                   trailing: Text(
                     _formatCurrency(p.total),
-                    style: textTheme.titleSmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w800, fontFamily: GoldenityTypography.fontFamilyMono),
+                    style: textTheme.titleSmall?.copyWith(
+                        color: biz.dark,
+                        fontWeight: FontWeight.w800,
+                        fontFamily: GoldenityTypography.fontFamilyMono),
                   ),
                 );
               },
             ),
-        ],
-      ),
     );
   }
 
-  Widget _buildPaymentBreakdown(BuildContext context, TextTheme textTheme, GoldenityBizColors biz, DashboardSummaryProfile summary) {
-    final allMethods = ['CASH', 'QRIS', 'CREDIT_CARD'];
+  Widget _buildPaymentBreakdown(BuildContext context, TextTheme textTheme,
+      GoldenityBizColors biz, DashboardSummaryProfile summary) {
+    const allMethods = ['CASH', 'QRIS', 'CREDIT_CARD'];
     final byMethod = <String, PaymentBreakdownItem>{};
     for (final item in summary.paymentBreakdown) {
       byMethod[item.paymentMethod] = item;
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-        border: Border.all(color: GoldenityColors.border),
-        boxShadow: GoldenityElevation.card,
-      ),
+    return GoldenitySectionCard(
+      title: 'Breakdown Pembayaran',
+      icon: Icons.payment_rounded,
+      iconColor: GoldenityColors.primary,
+      iconBackground: GoldenityColors.primaryLight,
+      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.xs),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
-            child: Row(
+        children: allMethods.map((method) {
+          final item = byMethod[method];
+          final total = item?.total ?? 0;
+          final percent = item?.percent ?? 0;
+          final count = item?.count ?? 0;
+          return ListTile(
+            leading: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: biz.light,
+                borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+              ),
+              child: Icon(
+                method == 'CASH'
+                    ? Icons.payments_rounded
+                    : method == 'QRIS'
+                        ? Icons.qr_code_2_rounded
+                        : Icons.credit_card_rounded,
+                color: biz.dark,
+                size: 20,
+              ),
+            ),
+            title: Row(
               children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: GoldenityColors.primary.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.payment_rounded, color: GoldenityColors.primary, size: 20),
-                ),
-                const SizedBox(width: GoldenitySpacing.sm),
                 Expanded(
                   child: Text(
-                    'Breakdown Pembayaran',
-                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                    method == 'CASH'
+                        ? 'Tunai (CASH)'
+                        : method == 'QRIS'
+                            ? 'QRIS'
+                            : 'Kartu Kredit',
+                    style: textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                const SizedBox(width: GoldenitySpacing.sm),
+                SizedBox(
+                  width: 120,
+                  child: ClipRRect(
+                    borderRadius:
+                        BorderRadius.circular(GoldenityRadius.full),
+                    child: LinearProgressIndicator(
+                      value: percent / 100,
+                      minHeight: 8,
+                      backgroundColor: GoldenityColors.surface2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(biz.base),
+                    ),
                   ),
                 ),
               ],
             ),
-          ),
-          const Divider(height: 1, color: GoldenityColors.border),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.xs),
-            child: Column(
-              children: allMethods.map((method) {
-                final item = byMethod[method];
-                final total = item?.total ?? 0;
-                final percent = item?.percent ?? 0;
-                final count = item?.count ?? 0;
-                return ListTile(
-                  leading: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: biz.light,
-                      borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(
-                      method == 'CASH'
-                          ? Icons.payments_rounded
-                          : method == 'QRIS'
-                              ? Icons.qr_code_2_rounded
-                              : Icons.credit_card_rounded,
-                      color: biz.dark,
-                      size: 20,
-                    ),
-                  ),
-                  title: Row(
+            subtitle: Text(
+              '$count transaksi · ${percent.toStringAsFixed(1)}%',
+              style: textTheme.bodySmall?.copyWith(
+                  color: GoldenityColors.muted,
+                  fontWeight: FontWeight.w600),
+            ),
+            trailing: Text(
+              _formatCurrency(total),
+              style: textTheme.titleSmall?.copyWith(
+                  color: biz.dark,
+                  fontWeight: FontWeight.w800,
+                  fontFamily: GoldenityTypography.fontFamilyMono),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildCategoryBreakdown(BuildContext context, TextTheme textTheme,
+      GoldenityBizColors biz, DashboardSummaryProfile summary) {
+    final categories = summary.categoryBreakdown;
+    return GoldenitySectionCard(
+      title: 'Breakdown Kategori',
+      icon: Icons.category_rounded,
+      iconColor: biz.dark,
+      iconBackground: biz.light,
+      child: categories.isEmpty
+          ? Center(
+              child: Text('Belum ada data kategori',
+                  style: textTheme.bodySmall
+                      ?.copyWith(color: GoldenityColors.muted)),
+            )
+          : Wrap(
+              spacing: GoldenitySpacing.sm,
+              runSpacing: GoldenitySpacing.sm,
+              children: categories.map((cat) {
+                return Chip(
+                  backgroundColor: biz.light,
+                  side: BorderSide.none,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: GoldenitySpacing.sm),
+                  label: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
-                        child: Text(
-                          method == 'CASH'
-                              ? 'Tunai (CASH)'
-                              : method == 'QRIS'
-                                  ? 'QRIS'
-                                  : 'Kartu Kredit',
-                          style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                      Text(cat.categoryName,
+                          style: textTheme.labelSmall?.copyWith(
+                              color: biz.dark,
+                              fontWeight: FontWeight.w800)),
+                      const SizedBox(width: GoldenitySpacing.xs),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: GoldenitySpacing.sm, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: GoldenityColors.surface,
+                          borderRadius:
+                              BorderRadius.circular(GoldenityRadius.full),
                         ),
-                      ),
-                      const SizedBox(width: GoldenitySpacing.sm),
-                      SizedBox(
-                        width: 120,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(GoldenityRadius.full),
-                          child: LinearProgressIndicator(
-                            value: percent / 100,
-                            minHeight: 8,
-                            backgroundColor: GoldenityColors.surface2,
-                            valueColor: AlwaysStoppedAnimation<Color>(biz.base),
-                          ),
+                        child: Text(
+                          _formatCurrency(cat.total),
+                          style: textTheme.labelSmall?.copyWith(
+                              color: biz.base,
+                              fontWeight: FontWeight.w900,
+                              fontFamily:
+                                  GoldenityTypography.fontFamilyMono),
                         ),
                       ),
                     ],
                   ),
-                  subtitle: Text(
-                    '$count transaksi · ${percent.toStringAsFixed(1)}%',
-                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
-                  ),
-                  trailing: Text(
-                    _formatCurrency(total),
-                    style: textTheme.titleSmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w800, fontFamily: GoldenityTypography.fontFamilyMono),
-                  ),
                 );
               }).toList(),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryBreakdown(BuildContext context, TextTheme textTheme, GoldenityBizColors biz, DashboardSummaryProfile summary) {
-    final categories = summary.categoryBreakdown;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-        border: Border.all(color: GoldenityColors.border),
-        boxShadow: GoldenityElevation.card,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.md, GoldenitySpacing.sm),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: biz.light,
-                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(Icons.category_rounded, color: biz.dark, size: 20),
-                ),
-                const SizedBox(width: GoldenitySpacing.sm),
-                Expanded(
-                  child: Text(
-                    'Breakdown Kategori',
-                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1, color: GoldenityColors.border),
-          Padding(
-            padding: const EdgeInsets.all(GoldenitySpacing.md),
-            child: categories.isEmpty
-                ? Center(
-                    child: Text(
-                      'Belum ada data kategori',
-                      style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
-                    ),
-                  )
-                : Wrap(
-                    spacing: GoldenitySpacing.sm,
-                    runSpacing: GoldenitySpacing.sm,
-                    children: categories.map((cat) {
-                      return Chip(
-                        backgroundColor: biz.light,
-                        side: BorderSide.none,
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm),
-                        label: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              cat.categoryName,
-                              style: textTheme.labelSmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w800),
-                            ),
-                            const SizedBox(width: GoldenitySpacing.xs),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(GoldenityRadius.full),
-                              ),
-                              child: Text(
-                                _formatCurrency(cat.total),
-                                style: textTheme.labelSmall?.copyWith(color: biz.base, fontWeight: FontWeight.w900, fontFamily: GoldenityTypography.fontFamilyMono),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color iconBg;
-  final Color iconFg;
-  final GoldenityBizColors biz;
-  final TextTheme textTheme;
-
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.iconBg,
-    required this.iconFg,
-    required this.biz,
-    required this.textTheme,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-        border: Border.all(color: GoldenityColors.border),
-        boxShadow: GoldenityElevation.card,
-      ),
-      padding: const EdgeInsets.all(GoldenitySpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, color: iconFg, size: 24),
-              ),
-              const SizedBox(width: GoldenitySpacing.sm),
-              Expanded(
-                child: Text(
-                  label,
-                  style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w700, height: 1.2),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: GoldenitySpacing.md),
-          Text(
-            value,
-            style: textTheme.headlineSmall?.copyWith(
-              color: GoldenityColors.text,
-              fontWeight: FontWeight.w900,
-              fontFamily: GoldenityTypography.fontFamilyMono,
-              height: 1.1,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

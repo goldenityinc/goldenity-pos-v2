@@ -70,3 +70,24 @@
 - 2.1, 2.3, 2.4 sesuai AC.
 - Atomicity + idempotency `sales.create` (kecuali stok).
 - Struktur printer resolver (pending tes hardware).
+
+---
+
+## ✅ STATUS PERBAIKAN (update 2026-09-07, oleh Claude Code)
+
+| Item | Commit | Status |
+|---|---|---|
+| 3.4 decrement stok + void restock | `6e1aad8` | ✅ FIXED (updateMany guard stock:{not:null}) |
+| 1.3 clamp branchId kasir di sales.create | `6e1aad8` | ✅ FIXED (ROLES_FORCE_OWN_BRANCH → user.branchId) |
+| 2.2 auto-create kategori by-name | `6e1aad8` | ✅ FIXED (field `categoryNameFallback` di zod schema) |
+| 3.1 dedup keranjang id→barcode→name | `6e1aad8` | ✅ FIXED (loop match barcode/nama sebelum baris baru) |
+| 3.2 PPN inclusive / reverse-calc | `6bf19c9` | ✅ FIXED (schema `Tenant.pricesIncludeTax` + BE + FE + toggle Settings + label struk) |
+| G1 offline sales queue | `86e33a7` | ✅ FIXED (`pending_sales_queue` Hive + `SalesSyncNotifier` 30s + wire di payment modal catch/5xx) |
+| G3 `offlineMode` salah definisi | `86e33a7` | ✅ FIXED (effectiveBranchId = user.branchId ?? selectedBranchId; null → error eksplisit) |
+| 3.3 quick-cash 2 algoritma | `fa98793` | ✅ FIXED (1 sumber `quick_cash_denominations.dart` + unit test 4/4 Andre LOCKED; dipakai payment modal + cash tender modal) |
+| G2 dua jalur checkout | `ff9feb6` | ✅ FIXED (hapus `checkout_screen.dart` dead code) |
+
+### Masih terbuka
+- **4.1 / 4.2 printer** — perlu tes di printer thermal fisik (Andre + hardware).
+- **G4** — filter `product.list` `where.branchId` bisa sembunyikan produk `branchId=null`; perlu verifikasi data seed (bukan bug kode pasti).
+- **3.3 test 3.3.2** — reuse instance modal di call-site kedua ("tandai sudah bayar") — N/A sampai fitur "order belum lunas / tandai sudah bayar" dibuat di V2.
