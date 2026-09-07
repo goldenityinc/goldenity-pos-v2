@@ -212,15 +212,13 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
 
   List<num> _suggestedCashAmounts(num grandTotal) {
     if (grandTotal <= 0) return <num>[];
-    const denominations = <int>[50000, 100000, 200000, 500000, 1000000, 2000000, 5000000];
+    const int step = 50000;
+    final int ceilToStep = ((grandTotal / step).ceil() * step);
+    const increments = <double>[1.0, 1.5, 2.0, 3.0, 5.0];
     final candidates = <num>{};
-    for (final d in denominations) {
-      if (d >= grandTotal) {
-        candidates.add(d);
-      } else {
-        final multiple = (grandTotal / d).ceil() * d;
-        if (multiple >= grandTotal) candidates.add(multiple);
-      }
+    for (final mult in increments) {
+      final int v = (ceilToStep * mult).toInt();
+      if (v >= grandTotal) candidates.add(v);
     }
     final sorted = candidates.toList()..sort();
     return sorted.take(4).toList(growable: false);
@@ -541,6 +539,23 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     final serviceCharge = ref.watch(cartServiceChargeAmountProvider);
     final paid = ref.watch(paidAmountProvider);
     final change = ref.watch(changeAmountProvider);
+
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (isCash) {
+        final numPas = (paid == 0 && grandTotal > 0) ? grandTotal : paid;
+        if (paid != numPas && grandTotal > 0) {
+          ref.read(paidAmountProvider.notifier).state = numPas;
+        }
+        if (numPas > 0) {
+          final expected = _currencyFormatter.format(numPas);
+          if (_tunaiNominalCtrl.value.text != expected) {
+            _syncTunaiCtrlFromPaid(numPas);
+          }
+        }
+        }
+      });
+    }
 
     // Tinggi modal DIBATASI EKSPLISIT (bukan shrink-to-content) — ini fix untuk bug
     // "RenderFlex ... unbounded height" yang sebelumnya bikin crash/blank screen saat
