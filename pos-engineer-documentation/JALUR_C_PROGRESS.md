@@ -23,8 +23,8 @@ Flutter SDK: `E:\Flutter\bin\flutter.bat`. Screenshot helper: `scratchpad/posctl
 - [x] **Daftar Produk** — grid -> baris list ala Figma. Commit (product list). Breadcrumb + tab "Produk Baru" → TODO (audit).
 - [ ] **Produk Baru (form)** `product_builder_screen.dart` — restyle ke Figma. TODO (tercatat di audit §7).
 - [x] **Shift Kasir** — banner "Shift Aktif" + 3 KPI + Rincian Shift. Commit (shift kasir).
-- [ ] **Modal Pembayaran** — rework single-column 480. TODO (audit §12).
-- [ ] **Pengaturan Info Toko** — selaraskan field Email/NPWP/Tipe Bisnis vs toggle. TODO (audit §11).
+- [x] **Modal Pembayaran** — single-column 480px (kolom kiri Offstage), verified di app. Commit d43f7b6.
+- [ ] **Pengaturan Info Toko** — selaraskan field Email/NPWP/Tipe Bisnis vs toggle. TODO (butuh backend key baru — audit §11).
 - [x] **Void dialog** — pindah ke showGoldenityDialog + StatefulBuilder. Commit (void).
 
 ## Verifikasi berjalan (screenshot app)
