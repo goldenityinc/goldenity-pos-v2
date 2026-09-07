@@ -12,6 +12,7 @@ import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
 
 class SalesHistoryScreen extends ConsumerStatefulWidget {
@@ -690,17 +691,11 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
     return Scaffold(
       backgroundColor: GoldenityColors.bg,
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Riwayat Penjualan', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 2),
-            Text(
+        title: GoldenityPageHeader(
+          title: 'Riwayat Penjualan',
+          subtitle:
               '$transaksiCount transaksi · Omzet: ${_currencyFormatter.format(totalOmzet)} · $dateLabel',
-              style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
-            ),
-          ],
+          dense: true,
         ),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,

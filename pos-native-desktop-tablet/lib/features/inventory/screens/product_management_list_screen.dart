@@ -6,6 +6,7 @@ import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
+import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../core/models/product_profile.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/product_list_provider.dart';
@@ -106,7 +107,7 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
     final totalInactive = all.where((p) => !p.isActive).length;
 
     return Scaffold(
-      backgroundColor: GoldenityColors.surface,
+      backgroundColor: GoldenityColors.bg,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ProductBuilderScreen.create()));
@@ -122,17 +123,11 @@ class _ProductManagementListScreenState extends ConsumerState<ProductManagementL
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Inventaris', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 2),
-            Text(
+        title: GoldenityPageHeader(
+          title: 'Inventaris',
+          subtitle:
               '$totalActive produk aktif · $totalInactive dinonaktifkan · ${filtered.length} tampil',
-              style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
-            ),
-          ],
+          dense: true,
         ),
         actions: [
           IconButton(

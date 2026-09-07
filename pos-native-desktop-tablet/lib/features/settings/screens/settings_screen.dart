@@ -695,7 +695,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
               boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
             ),
             padding: const EdgeInsets.all(GoldenitySpacing.lg),
-            child: Column(
+            // Material transparan → SwitchListTile di dalam kartu tetap merender
+            // ink-ripple (hilangkan warning "ListTile ... may be invisible").
+            child: Material(
+              type: MaterialType.transparency,
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
@@ -902,6 +906,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                   ),
                 ),
               ],
+              ),
             ),
           ),
         ],

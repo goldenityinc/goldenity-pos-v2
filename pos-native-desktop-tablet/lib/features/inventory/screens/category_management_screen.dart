@@ -5,6 +5,7 @@ import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_elevation.dart';
+import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../../../core/models/category_profile.dart';
 import '../providers/product_list_provider.dart';
@@ -309,22 +310,16 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
       });
 
     return Scaffold(
-      backgroundColor: GoldenityColors.surface,
+      backgroundColor: GoldenityColors.bg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: GoldenityColors.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Manajemen Kategori', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-            const SizedBox(height: 2),
-            Text(
+        title: GoldenityPageHeader(
+          title: 'Manajemen Kategori',
+          subtitle:
               '$totalKategori kategori aktif · $totalNonaktif dinonaktifkan',
-              style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
-            ),
-          ],
+          dense: true,
         ),
         actions: [
           FilterChip(

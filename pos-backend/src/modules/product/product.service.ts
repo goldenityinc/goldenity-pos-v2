@@ -129,6 +129,7 @@ export class ProductService {
   ): { where: Record<string, any> } {
     const scope = resolveEffectiveBranchFilter(user, query || {});
     const where: Record<string, any> = {};
+    const andClauses: Array<Record<string, any>> = [];
 
     if (scope.tenantId) {
       where.tenantId = scope.tenantId;
@@ -137,7 +138,13 @@ export class ProductService {
       if (scope.branchId === null) {
         where.branchId = null;
       } else {
-        where.branchId = scope.branchId;
+        // G4 audit E2E: produk `branchId = null` = milik SELURUH tenant
+        // (pola V1 offline-first, produk tidak per-cabang). Kasir yang
+        // ter-scope satu cabang tetap harus melihat produk tenant-wide
+        // + produk khusus cabangnya sendiri — bukan HANYA cabangnya.
+        andClauses.push({
+          OR: [{ branchId: scope.branchId }, { branchId: null }],
+        });
       }
     }
 
@@ -148,11 +155,17 @@ export class ProductService {
 
     if (query?.keyword && typeof query.keyword === 'string' && query.keyword.trim().length > 0) {
       const k = query.keyword.trim();
-      where.OR = [
-        { name: { contains: k, mode: 'insensitive' } },
-        { sku: { contains: k, mode: 'insensitive' } },
-        { barcode: { contains: k, mode: 'insensitive' } },
-      ];
+      andClauses.push({
+        OR: [
+          { name: { contains: k, mode: 'insensitive' } },
+          { sku: { contains: k, mode: 'insensitive' } },
+          { barcode: { contains: k, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (andClauses.length > 0) {
+      where.AND = andClauses;
     }
 
     return { where };

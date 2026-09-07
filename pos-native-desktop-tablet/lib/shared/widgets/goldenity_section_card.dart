@@ -54,10 +54,15 @@ class GoldenitySectionCard extends StatelessWidget {
         border: Border.all(color: GoldenityColors.border),
         boxShadow: GoldenityElevation.card,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      // `Material` transparan supaya `ListTile`/`SwitchListTile` di dalam kartu
+      // tetap merender ink-ripple dengan benar (tanpa ini Flutter warning
+      // "ListTile background color or ink splashes may be invisible").
+      child: Material(
+        type: MaterialType.transparency,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
           if (_hasHeader) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -112,8 +117,9 @@ class GoldenitySectionCard extends StatelessWidget {
             if (showDivider)
               const Divider(height: 1, color: GoldenityColors.border),
           ],
-          Padding(padding: padding, child: child),
-        ],
+            Padding(padding: padding, child: child),
+          ],
+        ),
       ),
     );
   }
