@@ -424,7 +424,7 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
           maxCrossAxisExtent: 172,
           mainAxisSpacing: GoldenitySpacing.md,
           crossAxisSpacing: GoldenitySpacing.md,
-          childAspectRatio: 0.92,
+          childAspectRatio: 1.08,
         ),
         itemCount: categories.length,
         itemBuilder: (context, i) {
