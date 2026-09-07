@@ -4,6 +4,7 @@ import { prisma } from '../../config/database';
 import { ok, fail, type ApiResponse, UserRole } from '../../config/types';
 import type { JwtAuthPayload } from '../../config/types';
 import { resolveEffectiveBranchFilter } from '../../utils/rbac';
+import { emitToBranch } from '../../realtime/socket';
 import {
   computeOrderTotals,
   getTenantTaxConfig,
@@ -307,6 +308,14 @@ export class WebOrderService {
       return wo;
     });
 
+    emitToBranch(branchId, 'web_order:submitted', {
+      webOrderId: created.id,
+      queueNumber,
+      tableCode: session.table.code,
+      total: totals.total,
+      itemCount: lineItems.length,
+      status: 'SUBMITTED',
+    });
     return ok({ ...mapWebOrder(created), message: 'Pesanan terkirim ke kasir.' });
   }
 
@@ -464,6 +473,12 @@ export class WebOrderService {
       return { updated, saleId: sale.id.toString() };
     });
 
+    emitToBranch(wo.branchId, 'web_order:status', {
+      webOrderId: wo.id,
+      queueNumber: wo.queueNumber,
+      status: 'ACCEPTED',
+      salesRecordId: result.saleId,
+    });
     return ok({ ...mapWebOrder(result.updated), salesRecordId: result.saleId, message: 'Order diterima & masuk pipeline penjualan.' });
   }
 
@@ -489,6 +504,12 @@ export class WebOrderService {
         channel: 'POLL',
         payload: { webOrderId: wo.id, status: 'CANCELLED', reason: parsed.data.reason.trim() } as any,
       },
+    });
+    emitToBranch(wo.branchId, 'web_order:status', {
+      webOrderId: wo.id,
+      queueNumber: wo.queueNumber,
+      status: 'CANCELLED',
+      reason: parsed.data.reason.trim(),
     });
     return ok(mapWebOrder(updated));
   }
@@ -517,6 +538,11 @@ export class WebOrderService {
         channel: 'POLL',
         payload: { webOrderId: wo.id, status: parsed.data.status, queueNumber: wo.queueNumber } as any,
       },
+    });
+    emitToBranch(wo.branchId, 'web_order:status', {
+      webOrderId: wo.id,
+      queueNumber: wo.queueNumber,
+      status: parsed.data.status,
     });
     return ok(mapWebOrder(updated));
   }

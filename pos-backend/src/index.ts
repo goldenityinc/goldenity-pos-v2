@@ -1,8 +1,10 @@
 import 'dotenv/config';
+import { createServer } from 'node:http';
 import express, { type Request, type Response } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
+import { initSocket } from './realtime/socket';
 import authRoutes from './modules/auth/auth.routes';
 import testRoutes from './modules/test/test.routes';
 import categoryRoutes from './modules/category/category.routes';
@@ -91,7 +93,10 @@ app.use('/api/v1/order', orderRoutes);         // CUSTOMER (tanpa JWT, discope s
 app.use('/api/v1/notifications', notificationRoutes); // admin/kasir (JWT)
 app.use('/api/v1/staff', staffRoutes);                // Data Karyawan + Manajemen Role (TENANT_ADMIN)
 
-app.listen(PORT, () => {
-  console.log(`[goldenity-pos-backend] listening on :${PORT}`);
-  console.log(`[goldenity-pos-backend] mounted routes: /api/v1/health, /api/v1/auth (login, me), /api/v1/test/rbac-scope, /api/v1/categories (crud soft-delete), /api/v1/products (crud + auto-create category), /api/v1/sales (crud + idempotent referenceId + branch strict), /api/v1/settings (store TENANT_ADMIN, branches CRUD tenant-scoped, printers CRUD per cabang), /api/v1/shifts (buka tutup shift kasir, current open, histori), /api/v1/dashboard (summary, finance report)`);
+const httpServer = createServer(app);
+initSocket(httpServer);
+
+httpServer.listen(PORT, () => {
+  console.log(`[goldenity-pos-backend] listening on :${PORT} (+ Socket.IO /socket.io)`);
+  console.log(`[goldenity-pos-backend] mounted routes: /api/v1/health, /api/v1/auth, /api/v1/categories, /api/v1/products, /api/v1/sales, /api/v1/settings, /api/v1/shifts, /api/v1/dashboard, /api/v1/uploads, /api/v1/tables, /api/v1/web-orders, /api/v1/order (customer, no-JWT), /api/v1/notifications, /api/v1/staff`);
 });

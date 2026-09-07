@@ -16,7 +16,11 @@
     "db:seed": "tsx prisma/seed.ts",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["pos", "fnb", "goldenity"],
+  "keywords": [
+    "pos",
+    "fnb",
+    "goldenity"
+  ],
   "author": "Goldenity Team",
   "license": "UNLICENSED",
   "dependencies": {
@@ -28,7 +32,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "socket.io": "^4.7.5",
+    "socket.io": "^4.8.3",
     "uuid": "^10.0.0",
     "zod": "^3.23.8"
   },
@@ -41,6 +45,7 @@
     "@types/node": "^22.5.4",
     "@types/uuid": "^10.0.0",
     "prisma": "^5.19.1",
+    "socket.io-client": "^4.8.3",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4"
   }
