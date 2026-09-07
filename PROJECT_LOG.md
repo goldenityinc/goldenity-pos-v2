@@ -42,6 +42,17 @@ Gap: tidak ada endpoint kelola user/role sama sekali (user cuma via seed).
 `socket.io@4` + `src/realtime/socket.ts`: JWT auth di handshake, auto-join room `tenant:<id>` + `branch:<branchId>`. `web-order.service` emit `web_order:submitted` (setelah submit) + `web_order:status` (accept/reject/advance). `NotificationEvent` (DB) tetap log durable + catch-up polling.
 **Smoke PASS:** client authed connect → room join; token sampah → `AUTH_TOKEN_INVALID`; customer submit → POS terima `web_order:submitted` instan; kasir accept → `web_order:status` (ACCEPTED + salesRecordId).
 
+### `055c95c` — Revisi feedback Andre (2026-09-08)
+Referensi V1 (X-Device-ID + `/devices/register` + Multi-Printer Routing per role).
+- **Multi-Device**: model `Device` (id=UUID klien, role CASHIER|CHECKER|BOTH, lastSeenAt) + `/api/v1/devices` (register idempotent, heartbeat, list/patch/delete).
+- **Printer per-device**: `PrinterConfig.deviceId String?` (null=default cabang), unique `[branchId,deviceId,slot]`, `upsertPrinter` terima `deviceId`. Config lintas-cabang dari Settings = harus dikunci ke cabang login (catatan desain, §7.2 brief).
+- **Catatan kasir**: `SalesRecord.cashierNote` + `PATCH /api/v1/sales/:id/note`.
+- **Bukti transfer QRIS**: `WebOrder.paymentProofUrl` + `POST /api/v1/order/:id/proof` (customer, url dari `/uploads`) → PENDING_VERIFICATION + emit socket.
+- **Detail meja**: `GET /api/v1/tables/:id/orders` — semua web order dalam sesi (paid & unpaid) + `summary{orderCount,unpaidCount,unpaidTotal}`. Beberapa order aktif per meja sudah tersync (customer `getSession` juga balikin list).
+- **Detail notifikasi**: `GET /api/v1/notifications/:id` + isi web order.
+- **Brief Figma §7**: revisi lengkap (multi-device, printer dikunci cabang, Detail Meja "Lihat Pesanan", web order list bukan 1, footer POS/BO/struk, Riwayat detail Catatan Kasir + viewer bukti + Verifikasi, halaman Detail Notifikasi, **fix prototype login→PIN→cabang dengan auth stub**).
+- Migrasi `20260908150000` applied. `tsc` 0. Smoke PASS semua.
+
 ### Status Jalur B — inti SELESAI
 Backend Fase 2 fungsional end-to-end: meja/QR, web order (customer + kasir), queue atomik, notifikasi (polling + socket real-time), staf/role. `tsc` 0. Backend `:3001` + Socket.IO `/socket.io` live.
 
