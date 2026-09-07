@@ -27,6 +27,10 @@ tableRoutes.get('/:id/qr', async (req: Request, res: Response) => {
   send(res, await TableService.getQr(req.user as JwtAuthPayload, req.params.id));
 });
 
+tableRoutes.get('/:id/orders', async (req: Request, res: Response) => {
+  send(res, await TableService.orders(req.user as JwtAuthPayload, req.params.id));
+});
+
 tableRoutes.post('/', async (req: Request, res: Response) => {
   send(res, await TableService.create(req.user as JwtAuthPayload, req.body), 201);
 });

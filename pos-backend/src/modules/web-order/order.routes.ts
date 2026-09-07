@@ -52,6 +52,11 @@ orderRoutes.post('/:webOrderId/paid', async (req: Request, res: Response) => {
   send(res, await WebOrderService.markPaid(tokenFrom(req), req.params.webOrderId));
 });
 
+// Customer upload bukti transfer QRIS ({ url } dari /api/v1/uploads).
+orderRoutes.post('/:webOrderId/proof', async (req: Request, res: Response) => {
+  send(res, await WebOrderService.submitProof(tokenFrom(req), req.params.webOrderId, req.body));
+});
+
 // Tracking status 1 pesanan.
 orderRoutes.get('/:webOrderId/status', async (req: Request, res: Response) => {
   send(res, await WebOrderService.getStatus(tokenFrom(req), req.params.webOrderId));

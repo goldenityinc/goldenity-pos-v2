@@ -58,6 +58,7 @@ function mapWebOrder(row: any) {
     status: row.status,
     paymentMethod: row.paymentMethod,
     paymentStatus: row.paymentStatus,
+    paymentProofUrl: row.paymentProofUrl ?? null,
     subtotal: row.subtotal,
     discountAmount: row.discountAmount,
     taxAmount: row.taxAmount,
@@ -334,6 +335,34 @@ export class WebOrderService {
       data: { paymentStatus: 'PENDING_VERIFICATION' },
     });
     return ok({ paymentStatus: updated.paymentStatus, message: 'Menunggu verifikasi kasir.' });
+  }
+
+  /** Customer upload bukti transfer QRIS (URL dari /api/v1/uploads). */
+  static async submitProof(sessionToken: string, webOrderId: string, raw: unknown): Promise<ApiResponse<any>> {
+    const parsed = z.object({ url: z.string().trim().url('url bukti tidak valid').max(500) }).safeParse(raw);
+    if (!parsed.success) return fail(`Payload: ${parsed.error.issues[0]?.message}`);
+    const check = await WebOrderService.requireActiveSession(sessionToken);
+    if (!check.ok) return check.response;
+    const wo = await prisma.webOrder.findFirst({ where: { id: webOrderId, tableSessionId: check.session.id } });
+    if (!wo) return fail('Pesanan tidak ditemukan di sesi ini.', 'NOT_FOUND');
+    if (wo.paymentMethod !== 'QRIS_STATIC') return fail('Bukti transfer hanya untuk metode QRIS.');
+    if (wo.status === 'CANCELLED') return fail('Pesanan sudah dibatalkan.');
+    const updated = await prisma.webOrder.update({
+      where: { id: webOrderId },
+      data: {
+        paymentProofUrl: parsed.data.url,
+        paymentStatus: wo.paymentStatus === 'PAID' ? 'PAID' : 'PENDING_VERIFICATION',
+      },
+      include: webOrderInclude,
+    });
+    emitToBranch(wo.branchId, 'web_order:status', {
+      webOrderId: wo.id,
+      queueNumber: wo.queueNumber,
+      status: wo.status,
+      paymentStatus: updated.paymentStatus,
+      hasProof: true,
+    });
+    return ok({ paymentStatus: updated.paymentStatus, paymentProofUrl: updated.paymentProofUrl, message: 'Bukti transfer terkirim, menunggu verifikasi kasir.' });
   }
 
   static async getStatus(sessionToken: string, webOrderId: string): Promise<ApiResponse<any>> {

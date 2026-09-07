@@ -74,6 +74,17 @@ salesRoutes.post('/', async (req: Request, res: Response) => {
   }
 });
 
+salesRoutes.patch('/:id/note', async (req: Request, res: Response) => {
+  try {
+    const result = await SalesService.setCashierNote(req.user!, req.params.id, req.body ?? {});
+    if (result.success) return res.status(200).json(result);
+    const errResult = result as any;
+    return res.status(extractStatusFromError(result.error, errResult?.code)).json(result);
+  } catch (e: any) {
+    return res.status(500).json({ success: false, error: `Server error: ${e?.message || 'unknown'}` });
+  }
+});
+
 salesRoutes.patch('/:id/void', async (req: Request, res: Response) => {
   try {
     const result = await SalesService.voidSale(req.user!, req.params.id, req.body ?? {});

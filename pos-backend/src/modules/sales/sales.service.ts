@@ -181,6 +181,7 @@ const mapSalesRecord = (
     voidedBy: row.voidedBy ?? null,
     voidReason: row.voidReason ?? null,
     refundedAmount: row.refundedAmount ?? null,
+    cashierNote: (row as any).cashierNote ?? null,
     createdAt: row.createdAt,
     items,
     tenantName: row.tenant?.name ?? null,
@@ -599,6 +600,52 @@ export class SalesService {
       return ok({ sale: mapSalesRecord(updated) });
     } catch (e: any) {
       return fail(`Gagal membatalkan transaksi: ${e?.message || 'unknown'}`);
+    }
+  }
+
+  /** Catatan kasir pada transaksi (dari detail Riwayat Penjualan). */
+  static async setCashierNote(
+    user: JwtAuthPayload,
+    id: string,
+    raw: unknown
+  ): Promise<ApiResponse<{ sale: SalesRecordWithItems }>> {
+    const parsed = z
+      .object({ cashierNote: z.string().trim().max(500).nullable() })
+      .safeParse(raw);
+    if (!parsed.success) {
+      return fail(`Payload: ${parsed.error.issues[0]?.message}`);
+    }
+    try {
+      const scope = resolveEffectiveBranchFilter(user);
+      const numericId = Number(id);
+      if (!Number.isFinite(numericId) || numericId <= 0) {
+        return fail('ID penjualan tidak valid');
+      }
+      const existing = await prisma.salesRecord.findUnique({ where: { id: numericId } });
+      if (!existing) return fail('Penjualan tidak ditemukan', 'NOT_FOUND');
+      if (scope.tenantId && existing.tenantId !== scope.tenantId) {
+        return fail('Penjualan tidak ditemukan', 'NOT_FOUND');
+      }
+      if (
+        typeof scope.branchId === 'string' &&
+        scope.branchId.length > 0 &&
+        existing.branchId !== scope.branchId
+      ) {
+        return fail('Penjualan tidak ditemukan', 'NOT_FOUND');
+      }
+      const updated = await prisma.salesRecord.update({
+        where: { id: numericId },
+        data: { cashierNote: parsed.data.cashierNote?.trim() || null },
+        include: {
+          tenant: { select: { name: true } },
+          branch: { select: { name: true } },
+          cashier: { select: { username: true } },
+          items: true,
+        },
+      });
+      return ok({ sale: mapSalesRecord(updated) });
+    } catch (e: any) {
+      return fail(`Gagal menyimpan catatan: ${e?.message || 'unknown'}`);
     }
   }
 }

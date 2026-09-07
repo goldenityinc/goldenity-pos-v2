@@ -28,6 +28,8 @@ const UpdateBranchSchema = CreateBranchSchema.partial();
 
 const UpsertPrinterSchema = z.object({
   slot: z.nativeEnum({ defaultPrinter: 'defaultPrinter', kitchen: 'kitchen', cashier: 'cashier' } as Record<PrinterSlot, PrinterSlot>),
+  // null / tidak diisi = default cabang; diisi = override khusus device ini (multi-device).
+  deviceId: z.string().trim().min(1).optional().nullable(),
   connectionType: z.nativeEnum({ bluetooth: 'bluetooth', usb: 'usb', network: 'network', none: 'none' } as Record<PrinterConnectionType, PrinterConnectionType>),
   address: z.string().max(200).optional().nullable(),
   port: z.number().int().min(1).max(65535).optional().nullable(),
@@ -314,19 +316,29 @@ export class SettingsService {
       return fail(`Payload tidak valid: ${issues}`);
     }
 
+    const deviceId = parsed.data.deviceId ?? null;
+    if (deviceId) {
+      const dev = await prisma.device.findFirst({ where: { id: deviceId, branchId }, select: { id: true } });
+      if (!dev) return fail('Device tidak ditemukan / bukan milik cabang ini.', 'DEVICE_NOT_FOUND');
+    }
+    const { deviceId: _omit, ...rest } = parsed.data;
+
     try {
-      const result = await prisma.printerConfig.upsert({
-        where: { branchId_slot: { branchId, slot: parsed.data.slot } },
-        create: { branchId, ...parsed.data },
-        update: { ...parsed.data },
+      // Prisma tidak bisa target NULL di compound-unique `where` → findFirst dulu.
+      const existing = await prisma.printerConfig.findFirst({
+        where: { branchId, deviceId, slot: parsed.data.slot },
+        select: { id: true },
       });
+      const result = existing
+        ? await prisma.printerConfig.update({ where: { id: existing.id }, data: { ...rest } })
+        : await prisma.printerConfig.create({ data: { branchId, deviceId, ...rest } });
       return ok<PrinterConfig>(result);
     } catch (e: any) {
       return fail(`Gagal upsert printer config: ${e?.message || 'unknown'}`);
     }
   }
 
-  static async removePrinter(user: JwtAuthPayload, branchId: string, slot: PrinterSlot): Promise<ApiResponse<PrinterRemoveResult>> {
+  static async removePrinter(user: JwtAuthPayload, branchId: string, slot: PrinterSlot, deviceId: string | null = null): Promise<ApiResponse<PrinterRemoveResult>> {
     if (user.role !== TypesUserRole.TENANT_ADMIN) {
       return fail('Anda tidak memiliki izin untuk menghapus konfigurasi printer (butuh TENANT_ADMIN).', 'FORBIDDEN_ROLE');
     }
@@ -337,9 +349,13 @@ export class SettingsService {
     }
 
     try {
-      await prisma.printerConfig.delete({
-        where: { branchId_slot: { branchId, slot } },
+      const existing = await prisma.printerConfig.findFirst({
+        where: { branchId, deviceId, slot },
+        select: { id: true },
       });
+      if (existing) {
+        await prisma.printerConfig.delete({ where: { id: existing.id } });
+      }
       return ok<PrinterRemoveResult>({ deleted: true });
     } catch (e: any) {
       if (e?.code === 'P2025') {

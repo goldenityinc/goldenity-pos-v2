@@ -53,6 +53,58 @@ notificationRoutes.get('/', async (req: Request, res: Response) => {
   );
 });
 
+// GET /api/v1/notifications/:id — detail 1 notifikasi (untuk halaman detail lonceng).
+notificationRoutes.get('/:id', async (req: Request, res: Response) => {
+  const user = req.user as JwtAuthPayload;
+  const n = await prisma.notificationEvent.findUnique({
+    where: { id: req.params.id },
+    include: {
+      webOrder: {
+        include: {
+          items: true,
+          tableSession: { include: { table: { select: { code: true } } } },
+        },
+      },
+    },
+  });
+  if (!n || (user.role !== UserRole.SUPER_ADMIN && n.tenantId !== user.tenantId)) {
+    res.status(404).json(fail('Notifikasi tidak ditemukan', 'NOT_FOUND'));
+    return;
+  }
+  res.json(
+    ok({
+      id: n.id,
+      type: n.type,
+      channel: n.channel,
+      payload: n.payload,
+      delivered: n.delivered,
+      retryCount: n.retryCount,
+      printedAt: n.printedAt,
+      createdAt: n.createdAt,
+      webOrder: n.webOrder
+        ? {
+            id: n.webOrder.id,
+            queueNumber: n.webOrder.queueNumber,
+            status: n.webOrder.status,
+            paymentMethod: n.webOrder.paymentMethod,
+            paymentStatus: n.webOrder.paymentStatus,
+            paymentProofUrl: n.webOrder.paymentProofUrl,
+            total: n.webOrder.total,
+            customerNote: n.webOrder.customerNote,
+            tableCode: n.webOrder.tableSession?.table?.code ?? null,
+            items: n.webOrder.items.map((it) => ({
+              productName: it.productName,
+              qty: it.qty,
+              unitPrice: it.unitPrice,
+              lineTotal: it.lineTotal,
+              note: it.note,
+            })),
+          }
+        : null,
+    }),
+  );
+});
+
 // POST /api/v1/notifications/:id/ack  { printed?: boolean }
 notificationRoutes.post('/:id/ack', async (req: Request, res: Response) => {
   const user = req.user as JwtAuthPayload;

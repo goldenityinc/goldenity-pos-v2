@@ -94,6 +94,72 @@ export class TableService {
     });
   }
 
+  /** Detail sesi aktif meja + SEMUA web order di dalamnya (paid & unpaid). */
+  static async orders(user: JwtAuthPayload, tableId: string): Promise<ApiResponse<any>> {
+    const table = await prisma.diningTable.findUnique({
+      where: { id: tableId },
+      include: { branch: { select: { tenantId: true } } },
+    });
+    if (!table || (user.role !== UserRole.SUPER_ADMIN && table.branch.tenantId !== user.tenantId)) {
+      return fail('Meja tidak ditemukan', 'NOT_FOUND');
+    }
+    const session = await prisma.tableSession.findFirst({
+      where: { tableId, status: 'ACTIVE' },
+      orderBy: { openedAt: 'desc' },
+      include: {
+        webOrders: {
+          orderBy: { createdAt: 'asc' },
+          include: { items: true },
+        },
+      },
+    });
+    if (!session) {
+      return ok({ table: { id: table.id, code: table.code, status: table.status }, session: null, orders: [], summary: { orderCount: 0, unpaidCount: 0, grandTotal: 0, unpaidTotal: 0 } });
+    }
+    const active = session.webOrders.filter((o) => o.status !== 'CANCELLED');
+    const unpaid = active.filter((o) => o.paymentStatus !== 'PAID');
+    return ok({
+      table: { id: table.id, code: table.code, status: table.status },
+      session: {
+        id: session.id,
+        customerName: session.customerName,
+        customerPhone: session.customerPhone,
+        openedAt: session.openedAt,
+        expiresAt: session.expiresAt,
+      },
+      orders: session.webOrders.map((o) => ({
+        id: o.id,
+        queueNumber: o.queueNumber,
+        status: o.status,
+        paymentMethod: o.paymentMethod,
+        paymentStatus: o.paymentStatus,
+        paymentProofUrl: o.paymentProofUrl,
+        subtotal: o.subtotal,
+        taxAmount: o.taxAmount,
+        total: o.total,
+        customerNote: o.customerNote,
+        rejectionReason: o.rejectionReason,
+        salesRecordId: o.salesRecordId != null ? o.salesRecordId.toString() : null,
+        createdAt: o.createdAt,
+        items: o.items.map((it) => ({
+          id: it.id,
+          productName: it.productName,
+          qty: it.qty,
+          unitPrice: it.unitPrice,
+          lineTotal: it.lineTotal,
+          variantSelections: it.variantSelections,
+          note: it.note,
+        })),
+      })),
+      summary: {
+        orderCount: active.length,
+        unpaidCount: unpaid.length,
+        grandTotal: active.reduce((s, o) => s + Number(o.total), 0),
+        unpaidTotal: unpaid.reduce((s, o) => s + Number(o.total), 0),
+      },
+    });
+  }
+
   static async getQr(user: JwtAuthPayload, tableId: string): Promise<ApiResponse<any>> {
     const table = await prisma.diningTable.findUnique({
       where: { id: tableId },

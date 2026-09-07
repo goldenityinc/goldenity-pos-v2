@@ -46,6 +46,7 @@ model Tenant {
   cashierShifts           CashierShift[]
   webOrders               WebOrder[]
   notificationEvents      NotificationEvent[]
+  devices                 Device[]
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 }
@@ -65,6 +66,7 @@ model Branch {
   webOrders          WebOrder[]
   queueCounters      QueueCounter[]
   notificationEvents NotificationEvent[]
+  devices            Device[]
   createdAt      DateTime        @default(now())
 
   @@index([tenantId])
@@ -215,6 +217,7 @@ model SalesRecord {
   voidedBy               String?
   voidReason             String?
   refundedAmount         Decimal?       @default(0)
+  cashierNote            String?        // catatan kasir (ditambah/diedit dari detail Riwayat Penjualan)
   cashierShiftId         String?
   tenant                 Tenant         @relation(fields: [tenantId], references: [id])
   branch                 Branch         @relation(fields: [branchId], references: [id])
@@ -307,14 +310,45 @@ enum PrinterConnectionType {
 model PrinterConfig {
   id             String                @id @default(uuid())
   branchId       String
+  deviceId       String? // null = default cabang; non-null = override khusus 1 device (multi-device/cabang)
   slot           PrinterSlot
   connectionType PrinterConnectionType @default(none)
   address        String?
   port           Int?
   paperWidth     Int                   @default(58) // 58 | 80 (mm) — lebar kertas thermal per slot
   branch         Branch                @relation(fields: [branchId], references: [id])
+  device         Device?               @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  @@unique([branchId, slot])
+  @@unique([branchId, deviceId, slot])
+  @@index([deviceId])
+}
+
+// ─────────────────────────────────────────────────────────
+// Multi-Device per cabang (port dari V1: X-Device-ID + /devices/register).
+// Satu cabang bisa punya banyak device kasir + device dapur (CHECKER).
+// ─────────────────────────────────────────────────────────
+enum DeviceRole {
+  CASHIER
+  CHECKER
+  BOTH
+}
+
+model Device {
+  id             String          @id // UUID persisten dari klien (SharedPreferences `persistent_device_uuid`)
+  tenantId       String
+  branchId       String
+  name           String
+  role           DeviceRole      @default(BOTH)
+  isActive       Boolean         @default(true)
+  lastSeenAt     DateTime        @default(now())
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  branch         Branch          @relation(fields: [branchId], references: [id])
+  printerConfigs PrinterConfig[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([branchId, role, isActive])
+  @@index([tenantId])
 }
 
 // ─────────────────────────────────────────────────────────
@@ -383,6 +417,7 @@ model WebOrder {
   total           Decimal
   paymentMethod   String   @default("PAY_AT_CASHIER") // QRIS_STATIC | PAY_AT_CASHIER
   paymentStatus   String   @default("UNPAID") // UNPAID | PENDING_VERIFICATION | PAID
+  paymentProofUrl String?  // bukti transfer QRIS yang di-upload customer (untuk dicek kasir)
   customerNote    String?
   rejectionReason String?
   tenant          Tenant             @relation(fields: [tenantId], references: [id])
