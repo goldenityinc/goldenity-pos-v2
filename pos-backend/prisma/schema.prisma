@@ -44,6 +44,8 @@ model Tenant {
   salesRecords            SalesRecord[]
   storeSettings           StoreSetting[]
   cashierShifts           CashierShift[]
+  webOrders               WebOrder[]
+  notificationEvents      NotificationEvent[]
   createdAt               DateTime     @default(now())
   updatedAt               DateTime     @updatedAt
 }
@@ -59,6 +61,10 @@ model Branch {
   salesRecords   SalesRecord[]
   printerConfigs PrinterConfig[]
   cashierShifts  CashierShift[]
+  diningTables       DiningTable[]
+  webOrders          WebOrder[]
+  queueCounters      QueueCounter[]
+  notificationEvents NotificationEvent[]
   createdAt      DateTime        @default(now())
 
   @@index([tenantId])
@@ -145,6 +151,7 @@ model Product {
   category          Category? @relation(fields: [categoryId], references: [id])  // RELATION NAME TETAP "category" = 7 line BE code (product.service.ts/dashboard.service.ts) TIDAK perlu diubah 0 regression!
   items             SalesRecordItem[]
   productVariantStocks ProductVariantStock[]
+  webOrderItems     WebOrderItem[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -214,6 +221,7 @@ model SalesRecord {
   cashier                User           @relation("CashierSales", fields: [cashierId], references: [id])
   cashierShift           CashierShift?  @relation(fields: [cashierShiftId], references: [id])
   items                  SalesRecordItem[]
+  webOrder               WebOrder?
   createdAt              DateTime       @default(now())
 
   @@index([tenantId, branchId, createdAt])
@@ -307,4 +315,130 @@ model PrinterConfig {
   branch         Branch                @relation(fields: [branchId], references: [id])
 
   @@unique([branchId, slot])
+}
+
+// ─────────────────────────────────────────────────────────
+// EPIC 5 — Fase 2: Manajemen Meja / QR, Web Order, Queue & Notifikasi
+// Sumber: ERD_POS_V2_FASE2_WEBORDER.md. Scope awal: DINE_IN_QR saja,
+// QRIS statis manual (reuse Tenant/Branch.qrisImageUrl), tanpa delivery/KDS.
+// ─────────────────────────────────────────────────────────
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  INACTIVE
+}
+
+model DiningTable {
+  id        String        @id @default(uuid())
+  branchId  String
+  code      String // "A1", "B3" — WAJIB unik per branch
+  qrToken   String        @unique // di-rotate tiap kali status kembali ke AVAILABLE
+  capacity  Int?
+  status    TableStatus   @default(AVAILABLE)
+  branch    Branch        @relation(fields: [branchId], references: [id])
+  sessions  TableSession[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([branchId, code])
+  @@index([branchId, status])
+}
+
+enum TableSessionStatus {
+  ACTIVE
+  CLOSED
+  EXPIRED
+}
+
+model TableSession {
+  id            String             @id @default(uuid())
+  tableId       String
+  sessionToken  String             @unique // disimpan di localStorage browser customer (BUKAN qrToken meja)
+  status        TableSessionStatus @default(ACTIVE)
+  customerName  String?
+  customerPhone String?
+  table         DiningTable        @relation(fields: [tableId], references: [id])
+  webOrders     WebOrder[]
+  openedAt      DateTime           @default(now())
+  closedAt      DateTime?
+  expiresAt     DateTime // openedAt + N jam; sesi idle > N jam dianggap EXPIRED
+
+  @@index([tableId, status])
+}
+
+model WebOrder {
+  id              String   @id @default(uuid())
+  tenantId        String
+  branchId        String
+  tableSessionId  String?
+  salesRecordId   BigInt?  @unique // terisi setelah ACCEPTED & masuk pipeline SalesRecord
+  orderType       String   @default("DINE_IN_QR") // string bebas, validasi awal cuma DINE_IN_QR
+  queueNumber     Int
+  status          String   @default("SUBMITTED") // SUBMITTED|ACCEPTED|PREPARING|READY|SERVED|COMPLETED|CANCELLED (CART tidak dipersist di iterasi awal)
+  subtotal        Decimal
+  discountAmount  Decimal  @default(0)
+  taxAmount       Decimal  @default(0)
+  total           Decimal
+  paymentMethod   String   @default("PAY_AT_CASHIER") // QRIS_STATIC | PAY_AT_CASHIER
+  paymentStatus   String   @default("UNPAID") // UNPAID | PENDING_VERIFICATION | PAID
+  customerNote    String?
+  rejectionReason String?
+  tenant          Tenant             @relation(fields: [tenantId], references: [id])
+  branch          Branch             @relation(fields: [branchId], references: [id])
+  tableSession    TableSession?      @relation(fields: [tableSessionId], references: [id])
+  salesRecord     SalesRecord?       @relation(fields: [salesRecordId], references: [id])
+  items           WebOrderItem[]
+  notifications   NotificationEvent[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([branchId, status, createdAt])
+  @@index([tableSessionId])
+}
+
+model WebOrderItem {
+  id                String   @id @default(uuid())
+  webOrderId        String
+  productId         String?
+  productName       String // SNAPSHOT — konsisten dgn SalesRecordItem.productName
+  qty               Int
+  unitPrice         Decimal
+  lineTotal         Decimal
+  variantSelections Json?
+  note              String?
+  webOrder          WebOrder @relation(fields: [webOrderId], references: [id])
+  product           Product? @relation(fields: [productId], references: [id])
+
+  @@index([webOrderId])
+}
+
+model QueueCounter {
+  id         String   @id @default(uuid())
+  branchId   String
+  dateKey    DateTime @db.Date // tanggal lokal branch
+  lastNumber Int      @default(0) // increment atomik via $transaction
+  branch     Branch   @relation(fields: [branchId], references: [id])
+
+  @@unique([branchId, dateKey])
+}
+
+model NotificationEvent {
+  id         String    @id @default(uuid())
+  tenantId   String
+  branchId   String
+  webOrderId String?
+  type       String // ORDER_SUBMITTED | ORDER_STATUS_CHANGED | QUEUE_CALLED | ORDER_READY
+  channel    String    @default("POLL") // SOCKET | PUSH | POLL
+  payload    Json
+  delivered  Boolean   @default(false)
+  retryCount Int       @default(0)
+  printedAt  DateTime? // timestamp auto-print Checker+Struk berhasil
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  branch     Branch    @relation(fields: [branchId], references: [id])
+  webOrder   WebOrder? @relation(fields: [webOrderId], references: [id])
+  createdAt  DateTime  @default(now())
+
+  @@index([branchId, delivered, createdAt])
 }

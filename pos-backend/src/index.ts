@@ -12,6 +12,10 @@ import { settingsRoutes } from './modules/settings/settings.routes';
 import { cashierShiftRoutes } from './modules/cashier-shift/cashier-shift.routes';
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes';
 import { uploadRoutes, UPLOADS_DIR } from './modules/upload/upload.routes';
+import { tableRoutes } from './modules/table/table.routes';
+import { webOrderRoutes } from './modules/web-order/web-order.routes';
+import { orderRoutes } from './modules/web-order/order.routes';
+import { notificationRoutes } from './modules/notification/notification.routes';
 
 (BigInt.prototype as any).toJSON = function (this: bigint): string {
   return this.toString();
@@ -79,6 +83,11 @@ app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/shifts', cashierShiftRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/uploads', uploadRoutes);
+// Fase 2 — Manajemen Meja / QR, Web Order, Queue & Notifikasi.
+app.use('/api/v1/tables', tableRoutes);        // admin/kasir (JWT)
+app.use('/api/v1/web-orders', webOrderRoutes); // admin/kasir (JWT)
+app.use('/api/v1/order', orderRoutes);         // CUSTOMER (tanpa JWT, discope sessionToken)
+app.use('/api/v1/notifications', notificationRoutes); // admin/kasir (JWT)
 
 app.listen(PORT, () => {
   console.log(`[goldenity-pos-backend] listening on :${PORT}`);
