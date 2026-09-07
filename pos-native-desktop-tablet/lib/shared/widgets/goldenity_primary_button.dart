@@ -7,6 +7,13 @@ import '../../core/design/goldenity_typography.dart';
 
 enum GoldenityButtonState { normal, hovered, pressed, disabled }
 
+/// Tombol aksi utama — Design System handoff §05.
+/// Default: gradient 135° `#1D4ED8 → #2563EB`, radius 10, shadow btnPrimary.
+/// Pressed: gradient flat `#1E40AF → #1D4ED8`, shadow hilang.
+/// Disabled: bg `#E2E8F0`, teks `#94A3B8`, tanpa shadow.
+///
+/// Jika [backgroundColor] diisi (mis. hijau success), pakai warna solid itu
+/// (bukan gradient primary).
 class GoldenityPrimaryButton extends StatefulWidget {
   const GoldenityPrimaryButton({
     super.key,
@@ -43,32 +50,43 @@ class _GoldenityPrimaryButtonState extends State<GoldenityPrimaryButton> {
       widget.isLoading ||
       _state == GoldenityButtonState.disabled;
 
-  Color get _bgColor {
-    final Color base = widget.backgroundColor ?? GoldenityColors.primary;
-    switch (_state) {
-      case GoldenityButtonState.hovered:
-        return widget.backgroundColor ?? GoldenityColors.primaryHover;
-      case GoldenityButtonState.pressed:
-        return base.withValues(alpha: 0.85);
-      case GoldenityButtonState.disabled:
-      case GoldenityButtonState.normal:
-        return _isDisabled ? GoldenityColors.disabled : base;
-    }
+  bool get _pressed => _state == GoldenityButtonState.pressed;
+
+  Gradient? get _gradient {
+    if (_isDisabled || widget.backgroundColor != null) return null;
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: _pressed
+          ? const <Color>[Color(0xFF1E40AF), Color(0xFF1D4ED8)]
+          : const <Color>[Color(0xFF1D4ED8), Color(0xFF2563EB)],
+    );
+  }
+
+  Color? get _solidColor {
+    if (_isDisabled) return const Color(0xFFE2E8F0);
+    final Color? bg = widget.backgroundColor;
+    if (bg == null) return null; // pakai gradient
+    return _pressed ? bg.withValues(alpha: 0.88) : bg;
   }
 
   Color get _fgColor {
-    return widget.foregroundColor ??
-        (_isDisabled ? Colors.white60 : GoldenityColors.primaryFg);
+    if (_isDisabled) return const Color(0xFF94A3B8);
+    return widget.foregroundColor ?? Colors.white;
   }
 
   List<BoxShadow> get _effectiveShadow {
-    if (_isDisabled) return const [];
-    return widget.shadow ?? GoldenityElevation.btnPrimary;
+    if (_isDisabled || _pressed) return const <BoxShadow>[];
+    if (widget.shadow != null) return widget.shadow!;
+    return widget.backgroundColor == GoldenityColors.success
+        ? GoldenityElevation.btnSuccess
+        : GoldenityElevation.btnPrimary;
   }
 
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
+      cursor: _isDisabled ? SystemMouseCursors.basic : SystemMouseCursors.click,
       onEnter: (_) => setState(() {
         if (!_isDisabled) _state = GoldenityButtonState.hovered;
       }),
@@ -85,21 +103,16 @@ class _GoldenityPrimaryButtonState extends State<GoldenityPrimaryButton> {
         onTapCancel: () => setState(() {
           if (!_isDisabled) _state = GoldenityButtonState.normal;
         }),
-        onTap: _isDisabled
-            ? null
-            : () {
-                Future<void>.delayed(const Duration(milliseconds: 100), () {
-                  widget.onPressed?.call();
-                });
-              },
+        onTap: _isDisabled ? null : widget.onPressed,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
           width: widget.width,
           height: widget.height,
           decoration: BoxDecoration(
-            color: _bgColor,
-            borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+            color: _solidColor,
+            gradient: _gradient,
+            borderRadius: GoldenityRadius.buttonRadius,
             boxShadow: _effectiveShadow,
           ),
           alignment: Alignment.center,
@@ -124,8 +137,9 @@ class _GoldenityPrimaryButtonState extends State<GoldenityPrimaryButton> {
                       widget.label,
                       style: TextStyle(
                         fontFamily: GoldenityTypography.fontFamilySans,
-                        fontSize: 14,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
                         color: _fgColor,
                       ),
                     ),

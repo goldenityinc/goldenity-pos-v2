@@ -4,14 +4,19 @@ import '../../core/design/goldenity_colors.dart';
 import '../../core/design/goldenity_radius.dart';
 import '../../core/design/goldenity_typography.dart';
 
-class GoldenityCounterButton extends StatefulWidget {
+/// Stepper qty — Design System handoff §05.
+/// `−` : bg `#EFF6FF` + border `#E2E8F0`, glyph `#1D4ED8`. Disabled saat qty≤min.
+/// `+` : bg solid `#1D4ED8`, glyph putih. Disabled saat qty≥max.
+/// Disabled: bg `#F8FAFC`, glyph `#CBD5E1`, border `#E2E8F0`.
+/// Nilai di tengah: JetBrains Mono w700.
+class GoldenityCounterButton extends StatelessWidget {
   const GoldenityCounterButton({
     super.key,
     required this.value,
     required this.onChanged,
     this.min = 1,
     this.max = 99,
-    this.buttonSize = 32.0,
+    this.buttonSize = 28.0,
   });
 
   final int value;
@@ -20,102 +25,97 @@ class GoldenityCounterButton extends StatefulWidget {
   final int max;
   final double buttonSize;
 
-  @override
-  State<GoldenityCounterButton> createState() => _GoldenityCounterButtonState();
-}
-
-class _GoldenityCounterButtonState extends State<GoldenityCounterButton> {
-  Color _minusColor = GoldenityColors.text2;
-  Color _plusColor = GoldenityColors.primary;
-
-  bool get _canMinus => widget.value > widget.min;
-  bool get _canPlus => widget.value < widget.max;
-
-  void _handleMinus() {
-    if (!_canMinus) return;
-    widget.onChanged(widget.value - 1);
-  }
-
-  void _handlePlus() {
-    if (!_canPlus) return;
-    widget.onChanged(widget.value + 1);
-  }
+  bool get _canMinus => value > min;
+  bool get _canPlus => value < max;
 
   @override
   Widget build(BuildContext context) {
-    final double s = widget.buttonSize;
-    return Container(
-      height: s,
-      decoration: BoxDecoration(
-        color: GoldenityColors.surface2,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
-        border: Border.all(color: GoldenityColors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          MouseRegion(
-            onEnter: (_) => setState(() {
-              _minusColor = _canMinus
-                  ? GoldenityColors.error
-                  : GoldenityColors.disabled;
-            }),
-            onExit: (_) => setState(() {
-              _minusColor =
-                  _canMinus ? GoldenityColors.text2 : GoldenityColors.disabled;
-            }),
-            child: GestureDetector(
-              onTap: _canMinus ? _handleMinus : null,
-              behavior: HitTestBehavior.opaque,
-              child: SizedBox(
-                width: s,
-                height: s,
-                child: Icon(
-                  Icons.remove,
-                  size: s * 0.5,
-                  color: _canMinus ? _minusColor : GoldenityColors.disabled,
-                ),
-              ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _Btn(
+          icon: Icons.remove_rounded,
+          size: buttonSize,
+          enabled: _canMinus,
+          filled: false,
+          onTap: _canMinus ? () => onChanged(value - 1) : null,
+        ),
+        Container(
+          constraints: BoxConstraints(minWidth: buttonSize * 1.15),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            '$value',
+            style: const TextStyle(
+              fontFamily: GoldenityTypography.fontFamilyMono,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: GoldenityColors.text,
+              height: 1,
             ),
           ),
-          Container(
-            width: s * 1.2,
-            alignment: Alignment.center,
-            child: Text(
-              widget.value.toString(),
-              style: const TextStyle(
-                fontFamily: GoldenityTypography.fontFamilyMono,
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: GoldenityColors.text,
-              ),
-            ),
+        ),
+        _Btn(
+          icon: Icons.add_rounded,
+          size: buttonSize,
+          enabled: _canPlus,
+          filled: true,
+          onTap: _canPlus ? () => onChanged(value + 1) : null,
+        ),
+      ],
+    );
+  }
+}
+
+class _Btn extends StatelessWidget {
+  const _Btn({
+    required this.icon,
+    required this.size,
+    required this.enabled,
+    required this.filled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final double size;
+  final bool enabled;
+  final bool filled;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color bg;
+    final Color fg;
+    final Color border;
+    if (!enabled) {
+      bg = GoldenityColors.surface2;
+      fg = GoldenityColors.textXMuted;
+      border = GoldenityColors.border;
+    } else if (filled) {
+      bg = GoldenityColors.primary;
+      fg = Colors.white;
+      border = Colors.transparent;
+    } else {
+      bg = GoldenityColors.primaryLight;
+      fg = GoldenityColors.primary;
+      border = GoldenityColors.border;
+    }
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: bg,
+            border: Border.all(color: border),
+            borderRadius: BorderRadius.circular(GoldenityRadius.sm),
           ),
-          MouseRegion(
-            onEnter: (_) => setState(() {
-              _plusColor = _canPlus
-                  ? GoldenityColors.primaryHover
-                  : GoldenityColors.disabled;
-            }),
-            onExit: (_) => setState(() {
-              _plusColor =
-                  _canPlus ? GoldenityColors.primary : GoldenityColors.disabled;
-            }),
-            child: GestureDetector(
-              onTap: _canPlus ? _handlePlus : null,
-              behavior: HitTestBehavior.opaque,
-              child: SizedBox(
-                width: s,
-                height: s,
-                child: Icon(
-                  Icons.add,
-                  size: s * 0.5,
-                  color: _canPlus ? _plusColor : GoldenityColors.disabled,
-                ),
-              ),
-            ),
-          ),
-        ],
+          child: Icon(icon, size: size * 0.55, color: fg),
+        ),
       ),
     );
   }

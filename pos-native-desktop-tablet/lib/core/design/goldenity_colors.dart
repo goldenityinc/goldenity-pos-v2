@@ -8,6 +8,8 @@ abstract class GoldenityColors {
 
   static const Color sidebar = Color(0xFF0F172A);
   static const Color sidebarText = Color(0xFF94A3B8);
+  /// Background item nav aktif di sidebar (rgba(29,78,216,0.15)).
+  static const Color sidebarActive = Color(0x261D4ED8);
 
   static const Color bg = Color(0xFFF4F6F9);
   static const Color surface = Color(0xFFFFFFFF);
@@ -17,6 +19,8 @@ abstract class GoldenityColors {
   static const Color text2 = Color(0xFF334155);
   static const Color muted = Color(0xFF64748B);
   static const Color disabled = Color(0xFF94A3B8);
+  /// Nomor baris, teks dekoratif (#CBD5E1).
+  static const Color textXMuted = Color(0xFFCBD5E1);
 
   static const Color border = Color(0xFFE2E8F0);
   static const Color border2 = Color(0xFFCBD5E1);
