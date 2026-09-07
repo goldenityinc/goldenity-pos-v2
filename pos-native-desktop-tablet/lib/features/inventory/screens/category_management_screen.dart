@@ -417,16 +417,21 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
     return RefreshIndicator(
       onRefresh: () async => await ref.read(productListNotifierProvider.notifier).loadCategoriesOnly(includeInactive: _includeInactive),
       color: biz.base,
-      child: ListView.separated(
+      child: GridView.builder(
         padding: const EdgeInsets.all(GoldenitySpacing.lg),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          // Figma arch-sleek: kartu kategori ~150×170, grid rapat.
+          maxCrossAxisExtent: 172,
+          mainAxisSpacing: GoldenitySpacing.md,
+          crossAxisSpacing: GoldenitySpacing.md,
+          childAspectRatio: 0.92,
+        ),
         itemCount: categories.length,
-        separatorBuilder: (_, __) => const SizedBox(height: GoldenitySpacing.sm),
         itemBuilder: (context, i) {
           final c = categories[i];
-          return _CategoryRowCard(
+          return _CategoryGridCard(
             c: c,
             biz: biz,
-            textTheme: textTheme,
             loading: _loading,
             onToggle: (v) => _toggleActive(c, v),
             onEdit: () => _showEditDialog(c),
@@ -438,19 +443,19 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
   }
 }
 
-class _CategoryRowCard extends StatelessWidget {
+/// Kartu kategori (Figma arch-sleek): ikon tile di atas, nama, "N produk",
+/// toggle + link Edit di bawah. Kartu redup saat nonaktif.
+class _CategoryGridCard extends StatelessWidget {
   final CategoryProfile c;
   final GoldenityBizColors biz;
-  final TextTheme textTheme;
   final bool loading;
   final ValueChanged<bool> onToggle;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
-  const _CategoryRowCard({
+  const _CategoryGridCard({
     required this.c,
     required this.biz,
-    required this.textTheme,
     required this.loading,
     required this.onToggle,
     required this.onEdit,
@@ -459,103 +464,71 @@ class _CategoryRowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
-        border: Border.all(color: GoldenityColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
-      ),
-      padding: const EdgeInsets.all(GoldenitySpacing.md),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: biz.light,
-              borderRadius: BorderRadius.circular(GoldenityRadius.md),
+    return Opacity(
+      opacity: c.isActive ? 1.0 : 0.55,
+      child: Container(
+        padding: const EdgeInsets.all(GoldenitySpacing.md),
+        decoration: BoxDecoration(
+          color: GoldenityColors.surface,
+          borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+          border: Border.all(color: GoldenityColors.border),
+          boxShadow: GoldenityElevation.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: biz.light,
+                borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+              ),
+              child: Icon(Icons.sell_rounded, color: biz.base, size: 22),
             ),
-            child: Icon(Icons.category_outlined, color: biz.dark, size: 26),
-          ),
-          const SizedBox(width: GoldenitySpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+            const SizedBox(height: GoldenitySpacing.sm),
+            Text(
+              c.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  fontSize: 13.5, fontWeight: FontWeight.w700, color: GoldenityColors.text),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              '${c.productCount} produk',
+              style: const TextStyle(fontSize: 11.5, color: GoldenityColors.muted),
+            ),
+            const Spacer(),
+            Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        c.name,
-                        style: textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          decoration: c.isActive ? null : TextDecoration.lineThrough,
-                          color: c.isActive ? null : GoldenityColors.text2,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (!c.isActive)
-                      Chip(
-                        backgroundColor: GoldenityColors.warningLight,
-                        side: BorderSide.none,
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        label: Text(
-                          'Nonaktif',
-                          style: textTheme.labelSmall?.copyWith(color: GoldenityColors.warning, fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                  ],
+                Transform.scale(
+                  scale: 0.78,
+                  alignment: Alignment.centerLeft,
+                  child: Switch.adaptive(
+                    value: c.isActive,
+                    onChanged: loading ? null : onToggle,
+                  ),
                 ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: GoldenityColors.surface2,
-                        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                      ),
-                      child: Text(
-                        '${c.productCount} produk · ${c.activeProductCount} aktif',
-                        style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
-                      ),
-                    ),
-                  ],
+                const Spacer(),
+                GestureDetector(
+                  onTap: loading ? null : onEdit,
+                  child: const Text('Edit',
+                      style: TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w700, color: GoldenityColors.primary)),
+                ),
+                const SizedBox(width: 6),
+                GestureDetector(
+                  onTap: loading ? null : onDelete,
+                  child: const Icon(Icons.delete_outline_rounded, size: 15, color: GoldenityColors.error),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: GoldenitySpacing.md),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Switch.adaptive(
-                value: c.isActive,
-                onChanged: loading ? null : onToggle,
-              ),
-              const SizedBox(width: GoldenitySpacing.xs),
-              IconButton(
-                icon: const Icon(Icons.edit_outlined),
-                tooltip: 'Edit',
-                onPressed: loading ? null : onEdit,
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Hapus',
-                color: GoldenityColors.error,
-                onPressed: loading ? null : onDelete,
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
+
