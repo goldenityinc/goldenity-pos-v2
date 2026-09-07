@@ -17,15 +17,17 @@ abstract class GoldenitySpacing {
 }
 
 abstract class GoldenityLayout {
-  /// Sidebar tetap 240px (Design System handoff §03 — `GoldenityLayout.sidebarWidth`).
-  static const double tabletSidebar = 240.0;
-  static const double tabletCart = 360.0;
-  static const double backOfficeSidebar = 240.0;
+  /// Nilai AKTUAL dari layar Figma yang dipublish (arch-sleek-20433581):
+  /// `<aside>` sidebar = 200px, cart panel = 340px, top bar = 56px.
+  /// (Token doc handoff menulis 240/360 tapi layar render 200/340 — ikut layar.)
+  static const double tabletSidebar = 200.0;
+  static const double tabletCart = 340.0;
+  static const double backOfficeSidebar = 200.0;
+  static const double topBarHeight = 56.0;
   static const double mobileBottomNav = 56.0;
 
-  // Alias sesuai penamaan handoff.
-  static const double sidebarWidth = 240.0;
-  static const double cartWidth = 360.0;
+  static const double sidebarWidth = 200.0;
+  static const double cartWidth = 340.0;
   static const double mobileBreak = 600.0;
   static const double tabletBreak = 1024.0;
 }

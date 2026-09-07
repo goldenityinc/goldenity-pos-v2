@@ -11,7 +11,6 @@ import '../../../core/models/tenant_profile.dart';
 import '../../../core/models/user_profile.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/inventory/providers/product_list_provider.dart';
-import '../widgets/goldenity_primary_button.dart';
 
 enum GoldenitySidebarTab {
   pos,
@@ -20,194 +19,108 @@ enum GoldenitySidebarTab {
   finance,
   inventory,
   categories,
-  settings,
+  tables,
+  webOrders,
   shift,
+  settings,
 }
+
+const _navActiveText = Color(0xFF60A5FA);
+const _navActiveBorder = Color(0xFF3B82F6);
 
 class GoldenitySidebar extends ConsumerWidget {
   const GoldenitySidebar({
     super.key,
     this.currentTab = GoldenitySidebarTab.pos,
     this.onTabChanged,
+    this.tableBadge = 0,
+    this.webOrderBadge = 0,
   });
 
   final GoldenitySidebarTab currentTab;
   final ValueChanged<GoldenitySidebarTab>? onTabChanged;
+  final int tableBadge;
+  final int webOrderBadge;
 
-  static const double kWidth = 200;
+  static const double kWidth = GoldenityLayout.sidebarWidth; // 200
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
+    final textTheme = Theme.of(context).textTheme;
     final session = ref.watch(currentSessionProvider);
-    final tenant = session?.tenant;
-    final user = session?.user;
 
     return Container(
       width: kWidth,
-      decoration: const BoxDecoration(
-        color: GoldenityColors.sidebar,
-        border: Border(
-          right: BorderSide(color: Color(0x331E293B), width: 1),
-        ),
-      ),
+      decoration: const BoxDecoration(color: GoldenityColors.sidebar),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildBrandHeader(textTheme, tenant),
-          const SizedBox(height: GoldenitySpacing.md),
-          _buildBizModeSegmented(textTheme),
-          const SizedBox(height: GoldenitySpacing.md),
+        children: <Widget>[
+          _brandHeader(textTheme, session?.tenant),
+          const SizedBox(height: GoldenitySpacing.sm),
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.zero,
+              padding: const EdgeInsets.only(bottom: GoldenitySpacing.sm),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildNavItem(
-                    textTheme,
-                    icon: Icons.storefront_rounded,
-                    label: 'Point of Sale',
-                    tab: GoldenitySidebarTab.pos,
-                    onTap: onTabChanged != null
-                        ? () => onTabChanged!(GoldenitySidebarTab.pos)
-                        : null,
-                  ),
-                  const SizedBox(height: GoldenitySpacing.xs),
-                  _buildNavItem(
-                    textTheme,
-                    icon: Icons.dashboard_rounded,
-                    label: 'Dashboard',
-                    tab: GoldenitySidebarTab.dashboard,
-                    onTap: onTabChanged != null
-                        ? () => onTabChanged!(GoldenitySidebarTab.dashboard)
-                        : null,
-                  ),
-                  const SizedBox(height: GoldenitySpacing.xs),
-                  _buildNavItem(
-                    textTheme,
-                    icon: Icons.receipt_long_rounded,
-                    label: 'Riwayat Penjualan',
-                    tab: GoldenitySidebarTab.salesHistory,
-                    onTap: onTabChanged != null
-                        ? () => onTabChanged!(GoldenitySidebarTab.salesHistory)
-                        : null,
-                  ),
-                  const SizedBox(height: GoldenitySpacing.xs),
-                  _buildNavItem(
-                    textTheme,
-                    icon: Icons.account_balance_wallet_rounded,
-                    label: 'Keuangan',
-                    tab: GoldenitySidebarTab.finance,
-                    onTap: onTabChanged != null
-                        ? () => onTabChanged!(GoldenitySidebarTab.finance)
-                        : null,
-                  ),
-                  const SizedBox(height: GoldenitySpacing.xs),
-                  _buildNavItem(
-                    textTheme,
-                    icon: Icons.inventory_2_rounded,
-                    label: 'Daftar Produk',
-                    tab: GoldenitySidebarTab.inventory,
-                    onTap: onTabChanged != null
-                        ? () => onTabChanged!(GoldenitySidebarTab.inventory)
-                        : null,
-                  ),
-                  const SizedBox(height: GoldenitySpacing.xs),
-                  _buildNavItem(
-                    textTheme,
-                    icon: Icons.label_rounded,
-                    label: 'Kategori Produk',
-                    tab: GoldenitySidebarTab.categories,
-                    onTap: onTabChanged != null
-                        ? () => onTabChanged!(GoldenitySidebarTab.categories)
-                        : null,
-                  ),
-                  const SizedBox(height: GoldenitySpacing.xs),
-                  _buildNavItem(
-                    textTheme,
-                    icon: Icons.settings_rounded,
-                    label: 'Pengaturan',
-                    tab: GoldenitySidebarTab.settings,
-                    onTap: onTabChanged != null
-                        ? () => onTabChanged!(GoldenitySidebarTab.settings)
-                        : null,
-                  ),
-                  const SizedBox(height: GoldenitySpacing.xs),
-                  _buildNavItem(
-                    textTheme,
-                    icon: Icons.receipt_long_rounded,
-                    label: 'Shift Kasir',
-                    tab: GoldenitySidebarTab.shift,
-                    onTap: onTabChanged != null
-                        ? () => onTabChanged!(GoldenitySidebarTab.shift)
-                        : null,
-                  ),
+                children: <Widget>[
+                  _nav(Icons.storefront_rounded, 'Point of Sale', GoldenitySidebarTab.pos),
+                  _nav(Icons.grid_view_rounded, 'Dashboard', GoldenitySidebarTab.dashboard),
+                  _nav(Icons.receipt_long_rounded, 'Riwayat Penjualan', GoldenitySidebarTab.salesHistory),
+                  _nav(Icons.account_balance_wallet_rounded, 'Keuangan', GoldenitySidebarTab.finance),
+                  _nav(Icons.inventory_2_rounded, 'Daftar Produk', GoldenitySidebarTab.inventory),
+                  _nav(Icons.sell_rounded, 'Kategori Produk', GoldenitySidebarTab.categories),
+                  _nav(Icons.table_restaurant_rounded, 'Manajemen Meja', GoldenitySidebarTab.tables, badge: tableBadge),
+                  _nav(Icons.delivery_dining_rounded, 'Web Orders', GoldenitySidebarTab.webOrders, badge: webOrderBadge),
+                  _nav(Icons.timelapse_rounded, 'Shift Kasir', GoldenitySidebarTab.shift),
+                  _nav(Icons.settings_rounded, 'Pengaturan', GoldenitySidebarTab.settings),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  _bizMode(textTheme),
                 ],
               ),
             ),
           ),
-          _buildUserFooter(context, textTheme, ref, user, session),
+          _homeLink(textTheme),
+          _userFooter(context, textTheme, ref, session?.user, session),
           const SizedBox(height: GoldenitySpacing.md),
         ],
       ),
     );
   }
 
-  Widget _buildBrandHeader(TextTheme textTheme, TenantProfile? tenant) {
+  // ── Brand ────────────────────────────────────────────────
+  Widget _brandHeader(TextTheme t, TenantProfile? tenant) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
-        GoldenitySpacing.lg,
-        GoldenitySpacing.xl,
-        GoldenitySpacing.lg,
-        GoldenitySpacing.sm,
-      ),
+          GoldenitySpacing.md, GoldenitySpacing.lg, GoldenitySpacing.md, GoldenitySpacing.sm),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
+        children: <Widget>[
           Container(
-            width: 36,
-            height: 36,
+            width: 34,
+            height: 34,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: GoldenityColors.primary,
               borderRadius: BorderRadius.circular(GoldenityRadius.md),
             ),
-            alignment: Alignment.center,
-            child: Text(
-              'G',
-              style: textTheme.titleLarge?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-              ),
-            ),
+            child: const Text('G',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w900, fontSize: 17, letterSpacing: -0.5)),
           ),
           const SizedBox(width: GoldenitySpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Goldenity',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.titleMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.2,
-                  ),
-                ),
+              children: <Widget>[
+                const Text('Goldenity',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: -0.2)),
                 const SizedBox(height: 1),
-                Text(
-                  'POS V2',
-                  style: textTheme.labelSmall?.copyWith(
-                    color: GoldenityColors.primaryLight,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.05,
-                  ),
-                ),
+                Text('POS V2 · F&B',
+                    style: t.labelSmall?.copyWith(
+                        color: GoldenityColors.sidebarText, fontWeight: FontWeight.w600, letterSpacing: 0.03)),
               ],
             ),
           ),
@@ -216,122 +129,50 @@ class GoldenitySidebar extends ConsumerWidget {
     );
   }
 
-  Widget _buildBizModeSegmented(TextTheme textTheme) {
+  // ── Nav item ─────────────────────────────────────────────
+  Widget _nav(IconData icon, String label, GoldenitySidebarTab tab, {int badge = 0}) {
+    final active = currentTab == tab;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'MODE BISNIS',
-            style: textTheme.labelSmall?.copyWith(
-              color: GoldenityColors.sidebarText,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.08,
-            ),
-          ),
-          const SizedBox(height: GoldenitySpacing.sm),
-          _buildBizModeItem(
-            textTheme,
-            icon: Icons.restaurant_rounded,
-            label: 'F&B',
-            selected: true,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBizModeItem(
-    TextTheme textTheme, {
-    required IconData icon,
-    required String label,
-    required bool selected,
-  }) {
-    final bg = selected ? GoldenityColors.warning : Colors.transparent;
-    final fg = selected ? Colors.white : GoldenityColors.sidebarText;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-        onTap: selected ? null : () {},
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: GoldenitySpacing.md,
-            vertical: GoldenitySpacing.sm + 2,
-          ),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-          ),
-          child: Row(
-            children: [
-              Icon(icon, size: 14, color: fg),
-              const SizedBox(width: GoldenitySpacing.sm),
-              Text(
-                label,
-                style: textTheme.bodySmall?.copyWith(
-                  color: fg,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(
-    TextTheme textTheme, {
-    required IconData icon,
-    required String label,
-    required GoldenitySidebarTab tab,
-    VoidCallback? onTap,
-  }) {
-    final isActive = currentTab == tab;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm),
+      padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-          onTap: onTap ?? () => onTabChanged?.call(tab),
+          borderRadius: BorderRadius.circular(GoldenityRadius.md),
+          onTap: onTabChanged == null ? null : () => onTabChanged!(tab),
           child: Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: GoldenitySpacing.md,
-              vertical: GoldenitySpacing.md,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-              color: isActive
-                  ? GoldenityColors.primary.withValues(alpha: 0.18)
-                  : Colors.transparent,
-              border: Border.all(
-                color: isActive
-                    ? GoldenityColors.primary.withValues(alpha: 0.40)
-                    : Colors.transparent,
+              color: active ? GoldenityColors.sidebarActive : Colors.transparent,
+              borderRadius: BorderRadius.circular(GoldenityRadius.md),
+              border: Border(
+                left: BorderSide(
+                    color: active ? _navActiveBorder : Colors.transparent, width: 3),
               ),
             ),
             child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 18,
-                  color: isActive ? Colors.white : GoldenityColors.sidebarText,
-                ),
-                const SizedBox(width: GoldenitySpacing.md),
+              children: <Widget>[
+                Icon(icon,
+                    size: 17, color: active ? _navActiveText : GoldenityColors.sidebarText),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: isActive ? Colors.white : GoldenityColors.sidebarText,
-                      fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
-                    ),
-                  ),
+                  child: Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                        color: active ? _navActiveText : GoldenityColors.sidebarText,
+                      )),
                 ),
+                if (badge > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                        color: GoldenityColors.warning, borderRadius: BorderRadius.circular(GoldenityRadius.full)),
+                    child: Text('$badge',
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 10, fontWeight: FontWeight.w800)),
+                  ),
               ],
             ),
           ),
@@ -340,131 +181,167 @@ class GoldenitySidebar extends ConsumerWidget {
     );
   }
 
-  Widget _buildUserFooter(
+  // ── Biz mode ─────────────────────────────────────────────
+  Widget _bizMode(TextTheme t) {
+    Widget item(IconData icon, String label, {required bool active}) {
+      final fg = active ? Colors.white : GoldenityColors.sidebarText.withValues(alpha: 0.55);
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            children: <Widget>[
+              Icon(icon, size: 15, color: fg),
+              const SizedBox(width: 10),
+              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg)),
+              const Spacer(),
+              if (active)
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(color: GoldenityColors.warning, shape: BoxShape.circle),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+          child: Text('MODE BISNIS',
+              style: t.labelSmall?.copyWith(
+                  color: GoldenityColors.sidebarText.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.08,
+                  fontSize: 10)),
+        ),
+        item(Icons.restaurant_rounded, 'F&B', active: true),
+        item(Icons.shopping_bag_rounded, 'Retail', active: false),
+        item(Icons.build_rounded, 'Bengkel', active: false),
+      ],
+    );
+  }
+
+  Widget _homeLink(TextTheme t) {
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(16, 6, 16, 8),
+      child: Row(
+        children: <Widget>[
+          Icon(Icons.arrow_back_rounded, size: 13, color: GoldenityColors.sidebarText),
+          SizedBox(width: 6),
+          Text('Kembali ke Home',
+              style: TextStyle(fontSize: 11, color: GoldenityColors.sidebarText, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+
+  // ── User footer ──────────────────────────────────────────
+  Widget _userFooter(
     BuildContext context,
-    TextTheme textTheme,
+    TextTheme t,
     WidgetRef ref,
     UserProfile? user,
     AuthSession? session,
   ) {
-    final userRole = user?.role;
-    final isCashier = userRole == UserRole.CASHIER;
-    final isAdmin = userRole == UserRole.TENANT_ADMIN || userRole == UserRole.SUPER_ADMIN;
+    final role = user?.role;
+    final isCashier = role == UserRole.CASHIER;
+    final isAdmin = role == UserRole.TENANT_ADMIN || role == UserRole.SUPER_ADMIN;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(GoldenitySpacing.md),
-            decoration: BoxDecoration(
-              color: const Color(0x14FFFFFF),
-              borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-              border: Border.all(color: const Color(0x1FFFFFFF)),
+      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: const Color(0x14FFFFFF),
+          borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+          border: Border.all(color: const Color(0x1FFFFFFF)),
+        ),
+        child: Row(
+          children: <Widget>[
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: GoldenityColors.primary,
+              child: Text(user?.username.substring(0, 1).toUpperCase() ?? 'U',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
             ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: GoldenityColors.primary,
-                  child: Text(
-                    (user?.username.substring(0, 1).toUpperCase() ?? 'U'),
-                    style: textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                    ),
+            const SizedBox(width: GoldenitySpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(user?.username ?? 'User',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12.5)),
+                  const SizedBox(height: 1),
+                  FutureBuilder<ShiftProfile?>(
+                    future: () async {
+                      final token = ref.read(authNotifierProvider.notifier).session?.token;
+                      if (token == null) return null;
+                      try {
+                        return ref.read(shiftApiServiceProvider).getCurrentShift(authToken: token);
+                      } catch (_) {
+                        return null;
+                      }
+                    }(),
+                    builder: (context, snap) {
+                      final loading = snap.connectionState == ConnectionState.waiting;
+                      final shift = snap.data;
+                      String sub;
+                      if (loading) {
+                        sub = 'Memuat…';
+                      } else if (shift != null) {
+                        sub = 'Kasir · Shift Pagi (${DateFormat.Hm().format(shift.openedAt)})';
+                      } else if (isCashier) {
+                        sub = 'Kasir · Belum Buka Shift';
+                      } else if (isAdmin) {
+                        sub = 'Admin';
+                      } else {
+                        sub = role?.name.replaceAll('_', ' ') ?? 'CASHIER';
+                      }
+                      return Text(sub,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: GoldenityColors.sidebarText, fontWeight: FontWeight.w600, fontSize: 10.5));
+                    },
                   ),
-                ),
-                const SizedBox(width: GoldenitySpacing.sm),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user?.username ?? 'User',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodySmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      FutureBuilder<ShiftProfile?>(
-                        future: () async {
-                          final auth = ref.read(authNotifierProvider.notifier);
-                          final token = auth.session?.token;
-                          if (token == null) return null;
-                          try {
-                            return ref
-                                .read(shiftApiServiceProvider)
-                                .getCurrentShift(authToken: token);
-                          } catch (_) {
-                            return null;
-                          }
-                        }(),
-                        builder: (context, snapshot) {
-                          final loading =
-                              snapshot.connectionState == ConnectionState.waiting;
-                          final shift = snapshot.data;
-                          String subtitle;
-                          if (loading) {
-                            subtitle = isCashier ? 'Kasir · Memuat shift...' : 'Memuat...';
-                          } else if (shift != null) {
-                            final timeStr = DateFormat.Hm().format(shift.openedAt);
-                            subtitle = 'Kasir · Shift Pagi ($timeStr)';
-                          } else if (isCashier) {
-                            subtitle = 'Kasir · Belum Buka Shift';
-                          } else if (isAdmin) {
-                            subtitle = 'Admin';
-                          } else {
-                            subtitle = user?.role.name.replaceAll('_', ' ') ?? 'CASHIER';
-                          }
-                          return Text(
-                            subtitle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: textTheme.labelSmall?.copyWith(
-                              color: GoldenityColors.sidebarText,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: GoldenitySpacing.sm),
-          GoldenityPrimaryButton(
-            label: 'Logout',
-            icon: Icons.logout_rounded,
+            IconButton(
+              onPressed: () => _confirmLogout(context, ref),
+              icon: const Icon(Icons.logout_rounded, size: 16, color: GoldenityColors.sidebarText),
+              tooltip: 'Logout',
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmLogout(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: GoldenityRadius.modalRadius),
+        title: const Text('Konfirmasi Logout'),
+        content: const Text('Anda yakin ingin keluar dari sesi ini?'),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Batal')),
+          FilledButton(
             onPressed: () {
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.xl)),
-                  title: const Text('Konfirmasi Logout'),
-                  content: const Text('Anda yakin ingin keluar dari sesi ini?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      child: const Text('Batal'),
-                    ),
-                    FilledButton(
-                      onPressed: () {
-                        Navigator.of(ctx).pop();
-                        ref.read(authNotifierProvider.notifier).logout();
-                      },
-                      child: const Text('Ya, Logout'),
-                    ),
-                  ],
-                ),
-              );
+              Navigator.of(ctx).pop();
+              ref.read(authNotifierProvider.notifier).logout();
             },
+            child: const Text('Ya, Logout'),
           ),
         ],
       ),

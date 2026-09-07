@@ -11,6 +11,7 @@ import '../../../core/models/product_profile.dart';
 import '../../../features/sales/providers/cart_provider.dart';
 import '../../../shared/shell/goldenity_cart_panel.dart';
 import '../../../shared/shell/goldenity_payment_modal.dart';
+import '../../../shared/widgets/goldenity_counter_button.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../providers/product_list_provider.dart';
 import '../providers/sync_queue_notifier.dart';
@@ -499,14 +500,12 @@ class _ProductGridView extends ConsumerWidget {
           ),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 220,
+              // Figma POS F&B: kartu ±166×161 (image band 66 + nama/harga +
+              // stepper), rasio ≈ 1.03 — kompak, TANPA ruang mati.
+              maxCrossAxisExtent: 190,
               mainAxisSpacing: GoldenitySpacing.md,
               crossAxisSpacing: GoldenitySpacing.md,
-              // Diturunkan dari 0.82 → 0.70 (kartu jadi lebih tinggi) untuk
-              // memberi ruang vertikal ekstra ke area gambar placeholder yang
-              // sekarang jauh lebih besar (lihat _ProductCard) — mencegah
-              // konten (nama/harga/stepper qty) overflow di bawahnya.
-              childAspectRatio: 0.70,
+              childAspectRatio: 1.03,
             ),
             delegate: SliverChildBuilderDelegate(
               (ctx, i) => _ProductCard(
@@ -523,6 +522,8 @@ class _ProductGridView extends ConsumerWidget {
   }
 }
 
+/// Kartu produk POS — Figma F&B (arch-sleek). ±166×161, image band 66px `#F8FAFC`,
+/// nama 12.5/w600, harga 13/w700 mono `#1D4ED8`, stepper `[−] 0 [+]`.
 class _ProductCard extends ConsumerWidget {
   const _ProductCard({
     required this.product,
@@ -538,229 +539,121 @@ class _ProductCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
     final cart = ref.watch(cartNotifierProvider);
     final cartNotifier = ref.read(cartNotifierProvider.notifier);
     final inactive = !product.isActive;
     final outOfStock = product.isActive && product.stock <= 0;
-    final lowStock = product.isActive && product.stock > 0 && product.stock <= kLowStockThreshold;
+    final lowStock =
+        product.isActive && product.stock > 0 && product.stock <= kLowStockThreshold;
     final canAdd = !inactive && !outOfStock;
     final qty = cart[product.id]?.quantity ?? 0;
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-      onTap: canAdd
-          ? () {
-              cartNotifier.addToCart(product);
-            }
-          : null,
+    return Opacity(
+      opacity: outOfStock ? 0.55 : (inactive ? 0.7 : 1.0),
       child: Container(
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: GoldenityColors.surface,
           borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-          border: Border.all(
-            color: inactive ? GoldenityColors.border2 : GoldenityColors.border,
-          ),
+          border: Border.all(color: GoldenityColors.border),
           boxShadow: GoldenityElevation.card,
         ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            Opacity(
-              opacity: outOfStock
-                  ? 0.55
-                  : inactive
-                      ? 0.7
-                      : 1.0,
-              child: AbsorbPointer(
-                absorbing: outOfStock || inactive,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // FIX (temuan Andre): placeholder gambar sebelumnya cuma kotak
-                    // kecil 48x48 dengan sisa area kosong besar di sekitarnya —
-                    // terasa "bolong". Sekarang placeholder full-bleed di bagian
-                    // atas kartu (nempel ke sudut rounded kartu berkat
-                    // `clipBehavior: Clip.antiAlias` di Container induk), pakai
-                    // AspectRatio biar proporsinya konsisten di semua ukuran kartu
-                    // grid — begitu foto produk asli ditambahkan nanti, tinggal
-                    // ganti Icon ini dengan Image, areanya sudah pas & terasa penuh.
-                    AspectRatio(
-                      aspectRatio: 1.5,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            // ── Image band ──
+            Expanded(
+              child: Stack(
+                children: <Widget>[
+                  Positioned.fill(
+                    child: InkWell(
+                      onTap: canAdd ? () => cartNotifier.addToCart(product) : null,
                       child: Container(
-                        width: double.infinity,
-                        alignment: Alignment.center,
                         color: GoldenityColors.surface2,
-                        child: const Icon(
-                          Icons.restaurant_menu_rounded,
-                          size: 36,
-                          color: GoldenityColors.muted,
-                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.restaurant_menu_rounded,
+                            size: 26, color: GoldenityColors.disabled),
                       ),
                     ),
-                    const SizedBox(height: GoldenitySpacing.sm),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
-                      child: Text(
-                        product.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                          color: inactive ? GoldenityColors.muted : GoldenityColors.text,
-                        ),
-                      ),
+                  ),
+                  if (lowStock)
+                    const Positioned(top: 6, left: 6, child: _Tag('LOW', GoldenityColors.warningLight, GoldenityColors.warning)),
+                  if (outOfStock)
+                    const Positioned(top: 6, left: 6, child: _Tag('HABIS', GoldenityColors.errorLight, GoldenityColors.error)),
+                  if (inactive && !outOfStock)
+                    const Positioned(top: 6, left: 6, child: _Tag('ARSIP', GoldenityColors.surface2, GoldenityColors.text2)),
+                ],
+              ),
+            ),
+            // ── Name + price ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 9, 10, 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Text(
+                    product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 12.5, fontWeight: FontWeight.w600, color: GoldenityColors.text, height: 1.2),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    currencyFormatter.format(product.price),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: GoldenityColors.primary,
+                      fontFamily: GoldenityTypography.fontFamilyMono,
+                      fontFeatures: <FontFeature>[FontFeature.tabularFigures()],
                     ),
-                    const SizedBox(height: GoldenitySpacing.sm),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
-                      child: Text(
-                        currencyFormatter.format(product.price),
-                        style: textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: GoldenityColors.primary,
-                          fontFamily: GoldenityTypography.fontFamilyMono,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: GoldenitySpacing.sm),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          _buildStepperBtn(
-                            icon: Icons.remove,
-                            enabled: canAdd && qty > 0,
-                            filled: false,
-                            onTap: canAdd && qty > 0
-                                ? () => cartNotifier.updateQuantity(product.id, qty - 1)
-                                : null,
-                          ),
-                          Expanded(
-                            child: Center(
-                              child: Text(
-                                '$qty',
-                                style: textTheme.labelMedium?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: GoldenityColors.text,
-                                  fontFamily: GoldenityTypography.fontFamilyMono,
-                                ),
-                              ),
-                            ),
-                          ),
-                          _buildStepperBtn(
-                            icon: Icons.add,
-                            enabled: canAdd,
-                            filled: true,
-                            onTap: canAdd ? () => cartNotifier.addToCart(product) : null,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (!canAdd && inactive) ...[
-                      const SizedBox(height: GoldenitySpacing.sm),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 5),
-                          decoration: BoxDecoration(
-                            color: GoldenityColors.surface2,
-                            borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'Tidak Aktif',
-                            style: textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: GoldenityColors.text2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: GoldenitySpacing.md),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            // ── Stepper ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: GoldenityCounterButton(
+                  value: qty,
+                  min: 0,
+                  max: 99,
+                  onChanged: !canAdd
+                      ? (_) {}
+                      : (v) {
+                          if (v > qty) {
+                            cartNotifier.addToCart(product);
+                          } else {
+                            cartNotifier.updateQuantity(product.id, v);
+                          }
+                        },
                 ),
               ),
             ),
-            if (lowStock)
-              Positioned(
-                top: GoldenitySpacing.sm,
-                right: GoldenitySpacing.sm,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: GoldenityColors.warningLight,
-                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                    border: Border.all(color: GoldenityColors.warning.withValues(alpha: 0.3), width: 1),
-                  ),
-                  child: Text(
-                    'LOW',
-                    style: textTheme.labelSmall?.copyWith(
-                      color: GoldenityColors.warning,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 10,
-                    ),
-                  ),
-                ),
-              ),
-            if (outOfStock)
-              Positioned(
-                top: GoldenitySpacing.sm,
-                right: GoldenitySpacing.sm,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: GoldenityColors.errorLight,
-                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                    border: Border.all(color: GoldenityColors.error.withValues(alpha: 0.35), width: 1),
-                  ),
-                  child: Text(
-                    'HABIS',
-                    style: textTheme.labelSmall?.copyWith(
-                      color: GoldenityColors.error,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 10,
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildStepperBtn({
-    required IconData icon,
-    required bool enabled,
-    required bool filled,
-    required VoidCallback? onTap,
-  }) {
-    final bg = filled && enabled ? GoldenityColors.primary : Colors.transparent;
-    final fg = !enabled
-        ? GoldenityColors.disabled
-        : filled
-            ? Colors.white
-            : GoldenityColors.text;
-    final border = !filled && enabled ? Border.all(color: GoldenityColors.border) : null;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 24,
-        height: 24,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-          border: border,
-        ),
-        child: Icon(icon, size: 16, color: fg),
-      ),
+class _Tag extends StatelessWidget {
+  const _Tag(this.label, this.bg, this.fg);
+  final String label;
+  final Color bg;
+  final Color fg;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(GoldenityRadius.xs)),
+      child: Text(label,
+          style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: fg, letterSpacing: 0.3)),
     );
   }
 }
