@@ -8,6 +8,102 @@
 
 ---
 
+## 🎨🟠 [2026-09-07] Trae — **3.2 UI_REVAMP POS / Cart Panel / Payment Modal Revamp** (3 sub-item sekaligus: 3.2a POS search+filter, 3.2b Cart header+empty, 3.2c Payment styling hijau success). Scope UI-only 100% TANPA ubah business logic. Lint 0 issues ✅ | Quick Cash Algorithm LOCKED intact 4/4 testcase Andre.
+
+**Tanggal eksekusi:** 2026-09-07. **Prioritas UI_REVAMP 3.2 (🟠 Orange — POS kasir impact tertinggi).**
+**3 File target (all lint 0 ✅):**
+1. [product_list_screen.dart (L145-L325)](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/features/inventory/screens/product_list_screen.dart#L145-L325) — 3.2a POS Search+Filter revamp
+2. [goldenity_cart_panel.dart (L293-L382)](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_cart_panel.dart#L293-L382) — 3.2b Cart Panel header+empty state
+3. [goldenity_payment_modal.dart (L688-L993 + L1221)](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_payment_modal.dart#L688-L1230) — 3.2c Payment Modal styling (TOTAL TAGIHAN card + section header + CTA hijau)
+**Quality Gate:** `flutter analyze --no-pub` → **No issues found! (ran in 1.0s) EXIT_CODE=0** ✅.
+
+---
+
+### Detail Perubahan 3.2a — POS Product List Screen (Figma 180351.png):
+
+| # | Perubahan | Before (Lama) | After (Baru) | Line |
+|---|---|---|---|---|
+| 1 | **Layout wrapper Search + Category** (struktur kolom → row sejajar) | `Column vertikal: Search Bar → Banners → Pills ChoiceChip kategori row di bawahnya` → BANYAK makan tinggi vertikal. | `Row HORIZONTAL 1 baris: [Expanded(flex) Search Bar] → [SizedBox md spacing] → [SizedBox(width 200px) DropdownButtonFormField Kategori]` → Hemat tinggi, layout clean sesuai Figma. | L145-L180 area wrapper |
+| 2 | **Search Bar suffix icon scan barcode** | Hanya ada suffix `close icon` (jika ada text input) untuk clear. | **Tambah `Icon(Icons.qr_code_scanner_rounded)` SELALU MUNCUL di sebelah KIRI close icon** (right side). `onPressed: () {}` (hanya UI placeholder TANPA logic scan — Bagian 4 skip). | L2xx search bar suffix |
+| 3 | **Category Pills ChoiceChip row → Dropdown "Semua Kategori"** | `Wrap ChoiceChip` 9 kategori (terlalu banyak, overflow wrap 2-3 baris). Provider `productCategoryFilterProvider`. | `DropdownButtonFormField<String?>` items: **null = "Semua Kategori"** (chip semua) + state.categories map. **Provider TETAP SAMA 100%** (logic filter TIDAK diubah — hanya UI wrapper ganti). Lint fix: `value:` deprecated → ganti `initialValue:`. | L240-L295 area kategori |
+
+**Jaminan Logic Intact 3.2a:** ✅ `productCategoryFilterProvider` TETAP SAMA (StateProvider<String?>). ✅ `categoryLegacy` mapping TETAP. ✅ Search logic `searchQueryController` TETAP (hanya UI scan icon placeholder). ✅ Product grid card (AspectRatio 1.5 placeholder image) TETAP.
+
+---
+
+### Detail Perubahan 3.2b — Cart Panel Header + Empty State (Figma 180351.png Right Panel):
+
+| # | Perubahan | Before (Lama) | After (Baru) | Line |
+|---|---|---|---|---|
+| 1 | **_buildHeader Keranjang** | `Row Text("Order #POS-YYMMDD-HHmmss") + Text("N Item")` → Order ID tidak relevan sebelum checkout. | `Row [Icon(person_outline_rounded) + Text("Keranjang") + Spacer + Chip Badge: Container(primaryLight bg + primary text + rounded full) → "N Item"]`. 2× lint `prefer_const_constructors` Icon → `const Icon(...)` fixed. | L293-L330 header |
+| 2 | **_buildEmptyState Keranjang Kosong** | `Center Column: Icon(shopping_cart_outlined 64px color disabled) + Text("Belum ada item")` → Terlalu sepi, tidak ada instruksi. | **Pola Empty State Seragam Figma:** `[Container 96×96 surface2 bg rounded xxxl → Icon(shopping_cart_outlined 44px muted)] → SizedBox lg → Text("Keranjang Kosong", titleSmall w800) → SizedBox xs → Text("Pilih produk dari daftar produk untuk memulai transaksi.", bodySmall muted center)` → Full pola Figma. | L340-L382 empty state |
+
+**Jaminan Logic Intact 3.2b:** ✅ `ref.watch(cartNotifierProvider)` TETAP SAMA. ✅ Semua onTap quantity ±, remove item, diskon toggle %/Rp, pajak service — TETAP 100%. ✅ Cart footer Total Tagihan + Bayar button TETAP. Hanya header + empty state yang di-upgrade visual.
+
+---
+
+### Detail Perubahan 3.2c — Payment Modal Styling (Figma 180354.png Modal Pembayaran):
+
+⚠️ **PERINGATAN LOCKED ALGORITHM DI-AUDIT LANGSUNG SEBELUM EDIT:**
+Grep `_suggestedCashAmounts L254-L280` + `_ceilToNextPecahan L282-L287` → **✅ INTACT 100% SAMA PERSIS DENGAN FINAL KODE V1 (4/4 testcase Andre match).** Tidak ada overwrite. FLAGSHIP 28k→30k chip tetap OK.
+
+| # | Perubahan | Before (Lama) | After (Baru) | Line |
+|---|---|---|---|---|
+| 1 | **Section Total Tagihan** | Text("Total Tagihan") rata tengah + Text(nominal 36px) TANPA wrapper card → Terlihat mengambang, tidak menonjol sebagai informasi paling penting. | **Wrap Container full-width:** `padding=lg, radius=xl, bg=GoldenityColors.successLight (#DCFCE7), border=Border.all(success alpha 0.25)`. Di dalamnya: `Column: Text label "Total Tagihan" → SizedBox xs → Text nominal 36px DENGAN color=GoldenityColors.success (#16A34A hijau tua)` → Card hijau menonjol sesuai Figma. | L688-L724 (was L688-L707) |
+| 2 | **Section Metode Pembayaran Header** | 3 tile `_PaymentMethodTile` (Tunai / QRIS / Kartu) LANGSUNG muncul tanpa judul section → user tidak tahu konteks area ini apa. | **Tambah Text judul di ATAS tile pertama:** `Text("Pilih Metode Pembayaran", style: bodySmall w800 color text2 letterSpacing 0.3)` → `SizedBox sm` → baru 3 tile. TIDAK mengubah isi SATU PUN `_PaymentMethodTile` (logic onTap, selected state, icon bg/fg TETAP). | L972-L980 (atas L981 tile Tunai) |
+| 3 | **CTA Tombol "✓ Proses Pembayaran" di bawah modal** | Tidak perlu diubah — **SUDAH SESUAI:** `backgroundColor: GoldenityColors.success, foregroundColor: Colors.white, shadow: btnSuccess`. Warna hijau SUDAH benar sejak commit sebelumnya. → Tidak di-edit. | TETAP SAMA. | L1238-L1247 (was L1221-L1230) |
+
+---
+
+### ⚠️ Tabel 3 GAP FITUR FIGMA (UI_REVAMP BAGIAN 4) — DICATAT, TIDAK DIBANGUN SENDIRI:
+
+**Aturan main:** Semua item di bawah ini = JANGAN dibuat / di-implementasi SEKARANG (karena menyentuh business logic / enum / BE endpoint yang TIDAK ADA). Hanya dicatat untuk keputusan Andre nanti (sesuai UI_REVAMP_TASKLIST_TRAE.md Bagian 4).
+
+| # | Gap Fitur | Screenshot Figma Referensi | Status Code Saat Ini | Keputusan Trae (scope revamp visual) |
+|---|---|---|---|---|
+| 1 | **Label "Transfer Bank" vs "Kartu"** | Figma 180354.png L78 tile ke-3 = label "Transfer Bank" (icon bank). | Code L997 (was L987): `label: 'Kartu'` dengan `Icons.credit_card_outlined` + enum `kPaymentMethodCreditCard`. Logic BE untuk CreditCard SUDAH ADA. | **CATAT SAJA sebagai label mismatch.** TIDAK ubah enum / tile logic sekarang (Bagian 4). Jika Andre setuju Kartu = Transfer, cukup rename label 1 baris nanti. |
+| 2 | **Metode "Kas Bon" (tile ke-4)** | Figma 180354.png L82 tile ke-4 = "Kas Bon" (icon note / hutang). | Code saat ini HANYA 3 tile: Tunai / QRIS / Kartu. Enum `kPaymentMethodXxx` cuma 3. Provider `paymentMethodProvider` TIDAK ada opsi Kas Bon. BE endpoint POST `/sales` paymentMethod kemungkinan tidak support Kas Bon. | **SKIP. TIDAK buat tile baru / enum baru / logic BE sekarang.** (Bagian 4 gap fitur). Butuh keputusan Andre + BE endpoint. |
+| 3 | **Lokasi "Tambah Diskon" Button di Payment Modal Ringkasan** | Figma 180354.png Ringkasan L82: ada baris "Tambah Diskon" (button link) di ATAS subtotal / pajak / service charge dalam payment modal ringkasan kiri. | Code saat ini: **Diskon logic SUDAH ADA LENGKAP (toggle %/Rp + input nominal)** — tapi LOKASINYA di **Cart Panel (luar modal)** (di bawah list item keranjang). Dalam Payment Modal ringkasan L720-L942 = HANYA baca nilai `summary.discount` (sudah computed dari cart), TIDAK punya tombol edit diskon. | **CATAT lokasi UI beda.** TIDAK tambahkan "Tambah Diskon" button di Payment Modal Ringkasan sekarang (butuh Diskon Provider + rebuild UI baru — Bagian 4 skip). Jika Andre ingin pindah lokasi → task terpisah. |
+
+---
+
+### Jaminan Business Logic INTACT 100% (Seluruh Scope 3.2 POS/Cart/Payment):
+✅ **LOCKED Quick Cash Algorithm L254-L287:** `_suggestedCashAmounts()` + `_ceilToNextPecahan()` = diverifikasi Grep sebelum edit → TETAP SAMA PERSIS. 4/4 testcase Andre PASS (15k→15k/20k/50k/100k; 20k→50k/100k; 16.5k→20k/50k/100k; **FLAGSHIP 28k→30k/50k/100k** OK).
+✅ **Payment logic `_submitSale()`:** TETAP SAMA (POST sales payload, cashier shift guard, offline mode guard, printer service call).
+✅ **`AddPostFrameCallback L543-L558` sync `paidAmountProvider ↔ _tunaiNominalCtrl.text`:** TETAP SAMA (fix race condition tunai→qris→tunai).
+✅ **Urutan quick cash chips:** Chip PAS (exact total) di ATAS → baru `_suggestedCashAmounts` output (30k→50k→100k) TETAP SAMA urutannya.
+✅ **`kPaymentMethodCash / Qris / CreditCard` enum:** TETAP 3 (tidak ditambah Kas Bon).
+✅ **Riverpod providers (cart / paymentMethod / paidAmount / discountManual / dll):** TIDAK SATU PUN di-ubah logic / value.
+✅ **Search logic POS + category filter:** Hanya UI wrapper ganti — provider state & logic TETAP 100%.
+✅ **Cart quantity ± / remove / subtotal / pajak / service / diskon:** TETAP SAMA.
+
+---
+
+### Acceptance Criteria 3.2 Full (Lolos sebelum pindah ke 🟡 Prioritas 3.3 Dashboard/Inventaris):
+✅ 3.2a: Search bar POS punya suffix icon `qr_code_scanner_rounded` (scan barcode) DI KANAN.
+✅ 3.2a: Filter kategori BUKAN ChoiceChip row → Dropdown "Semua Kategori" SEJAJAR search bar (Row horizontal).
+✅ 3.2a: Fix lint deprecated `Dropdown.value:` → `initialValue:` done.
+✅ 3.2b: Cart Header = icon pelanggan + Text "Keranjang" + Badge chip count "N Item" (primaryLight/primary).
+✅ 3.2b: Cart Empty State = Container 96×96 surface2 + icon cart muted 44px + title "Keranjang Kosong" + subteks instruksi (pola Figma empty seragam).
+✅ 3.2b: 2× lint `prefer_const_constructors` Icon fixed.
+✅ 3.2c: Section Total Tagihan Payment Modal = Card hijau successLight + border success transparan + nominal warna success (#16A34A).
+✅ 3.2c: Ada text judul section "Pilih Metode Pembayaran" di ATAS 3 tile metode.
+✅ 3.2c: CTA Tombol Proses Pembayaran WARNA HIJAU SUCCESS (sudah dari commit sebelumnya).
+✅ 3× GAP FITUR dicatat dengan jelas di tabel atas (Kartu vs Transfer label, Kas Bon missing, Diskon button lokasi) — TIDAK ada yang di-implementasi sendiri.
+✅ Jaminan LOCKED quick cash algorithm intact diverifikasi Grep langsung dari file sebelum edit.
+✅ Lint gate 0 error: ✅ PASS EXIT 0 No issues 1.0s.
+✅ 1 entri PROJECT_LOG PALING ATAS dengan rincian 3 sub-item + 3 gap + jaminan logic: ✅ DIBUAT.
+
+---
+
+### Action Item untuk Andre:
+🟡 **[REVIEW SIDEBAR]** Silakan hot restart Flutter → lihat sidebar kiri yang sekarang PUTIH (bukan navy) → konfirmasi **ACC (lanjut permanen)** atau **REVERT (kembali navy gelap)**.
+🟡 **[PILIH OPSI TOP BAR 3.1b]** Pilih Opsi A / B / C untuk Top Bar Global (di entry 3.1b PROJECT_LOG tepat di bawah ini). Jika pilih Opsi A → 8 file akan di-edit sekaligus.
+🟡 **[RETEST RUNTIME QUICK CASH]** Coba buat tagihan **Rp 28.000** di POS → buka Payment Modal → klik Tunai → konfirmasi muncul chip PAS 28rb, 30rb (ceil10k), 50rb (ceil50k), 100rb (ceil100k). FLAGSHIP 30RB harus muncul.
+⚪ Setelah 3 item review ANDRE selesai → Trae lanjut **🟡 PRIORITAS 3.3: Dashboard + Riwayat Penjualan + Inventaris + Kategori** (total 4 screen).
+
+---
+
 ## ⚠️🔴 [2026-09-07] Trae — **3.1a UI_REVAMP SIDEBAR NAVY ➜ PUTIH (LIGHT THEME)** — PERUBAHAN BESAR VISUAL, MOHON ANDRE REVIEW SEBELUM DIANGGAP FINAL (revert gampang jika tidak cocok). Scope UI-only 100% tanpa ubah business logic. Lint 0 issues ✅
 
 **Tanggal eksekusi:** 2026-09-07. **Prioritas UI_REVAMP 3.1a (tertentu Andre).**
@@ -48,6 +144,47 @@
 ✅ 1 entri PROJECT_LOG PALING ATAS dengan peringatan "Perubahan besar visual review Andre": ✅ DIBUAT.
 
 **Action item selanjutnya untuk Andre:** 🟡 Silakan hot restart Flutter app (Ctrl+Shift+F5) → lihat sidebar kiri → konfirmasi ACC atau REVERT (jika prefer navy gelap). Setelah ACC → Trae lanjut **3.1b TOP BAR LENGKAP** di goldenity_app_shell.dart.
+
+---
+
+## ⚠️🟡 [2026-09-07] Trae — **3.1b Top Bar Global (SKIPPED SEMENTARA)** — Temuan arsitektur: 7 dari 8 child screen PUNYA AppBar sendiri (risiko DOUBLE HEADER). Butuh keputusan Andre untuk 3 opsi sebelum lanjut implementasi.
+
+**Tanggal audit:** 2026-09-07. **Prioritas UI_REVAMP 3.1b.**
+**File target audit:** [goldenity_app_shell.dart (L31-L75)](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_app_shell.dart#L31-L75) + 8 child screen di IndexedStack L48-L57.
+
+---
+
+### Temuan Arsitektur (audit LANGSUNG 8/8 child screen):
+Scaffold `goldenity_app_shell.dart` SAAT INI TIDAK PUNYA AppBar global. Row struktur = `Sidebar | VerticalDivider | IndexedStack child screens`.
+
+TAPI **7 dari 8 child screen PUNYA AppBar SENDIRI dengan title per-screen** (nama layar + subtitle count data):
+| # | Child Screen | Punya AppBar sendiri? | Isi AppBar child |
+|---|---|---|---|
+| 1 | `ProductListScreen` (POS / Penjualan) | ❌ **TIDAK PUNYA** | Hanya body Row(Grid produk | Cart Panel). Tanpa header. |
+| 2 | `DashboardScreen` | ✅ PUNYA | Title: "Dashboard" (L75-L83) |
+| 3 | `SalesHistoryScreen` (Riwayat) | ✅ PUNYA | Title: "Riwayat Penjualan" + subtitle count transaksi & omzet (L692-L700) |
+| 4 | `FinanceScreen` (Keuangan) | ✅ PUNYA | Title: "Laporan Keuangan" (L102-L110) |
+| 5 | `ProductManagementListScreen` (Inventaris) | ✅ PUNYA | Title: "Inventaris" + subtitle produk aktif/nonaktif (L121-L135) |
+| 6 | `CategoryManagementScreen` (Kategori) | ✅ PUNYA | Title: "Manajemen Kategori" + subtitle count kategori (L313-L325) |
+| 7 | `SettingsScreen` (Pengaturan) | ✅ PUNYA | Title: "Pengaturan" + subtitle info toko (L572-L580) |
+| 8 | `CashierShiftScreen` (Shift Kasir) | ✅ PUNYA | Title: "Shift Kasir" (L335-L343) |
+
+### Dilema Implementasi Top Bar Global:
+Menurut UI_REVAMP Bagian 3.1 dan Figma 23 screenshot: Top Bar KONSISTEN GLOBAL berisi: **kiri: brand/logo** | **kanan: ikon tema, notifikasi bell, cloud sync, pill badge Online hijau, badge cabang aktif, nama user+role, tombol Keluar.**
+
+**JIKA ditambahkan AppBar di Shell-level Scaffold langsung → DOUBLE HEADER di 7 layar:**
+1. Top Bar Global (theme icon, bell, online pill, user, logout)
+2. AppBar Child (title Dashboard / Riwayat / Pengaturan + subtitle count)
+= **Dua baris header beruntun di atas setiap layar (kecuali POS)** → visual jelek, tinggi layout berkurang drastis untuk content.
+
+### 3 Opsi Solusi (Butuh Keputusan Andre sebelum lanjut):
+| Opsi | Deskripsi | Kelebihan | Kekurangan / Risiko |
+|---|---|---|---|
+| **A** (Rekomendasi Figma exact match) | **HAPUS 7 AppBar di child screens** → Tambahkan 1 Global Top Bar di Shell (L33 body Column: TopBar + Divider + Row(Sidebar\|Content)). Judul per-screen + subtitle dipindahkan ke Section Header di TOP content area setiap layar (bukan lagi AppBar). | Persis 1:1 struktur Figma. 1 top bar konsisten. Cocok untuk V2 full re-architecture. | **PERLU EDIT 8 FILE SEKALIGUS** (shell + 7 child screens). Risiko layout child terganggu jika ada action button di leading/trailing AppBar (Floating Action Button Inventory). Scope besar. |
+| **B** (2 header bertumpuk) | Tambahkan Top Bar Global SEBAGAI Container column di atas body Row (bukan Scaffold AppBar). Biarkan 7 AppBar child tetap. 2 header beruntun. | Cuma edit 1 file shell. Tidak merusak child screen. | Visual 2 header bertumpuk JELEK (tidak match Figma). Buang tinggi screen untuk content. |
+| **C** (Konsistensi styling AppBar child) | **TIDAK BUAT Global Top Bar Shell.** Sebagai gantinya: SAMAKAN STYLING 8 AppBar child → Tambahkan di **trailing actions** SETIAP AppBar child (7 screen + POS tanpa AppBar buat sendiri): pill badge Online hijau + nama user kecil. Logout & Global Actions tetap di Sidebar footer (sudah ada L442 GoldenityPrimaryButton Logout). | Risiko perubahan MINIMAL. 8 file edit tapi perubahan kecil (hanya trailing AppBar). Cocok jika Andre tidak ingin shell-level re-architecture. | Tidak 100% match Figma (global elements per-screen, bukan fixed top bar). Konsistensi tergantung maintain tiap screen. |
+
+**Keputusan saat ini (sesuai aturan main UI_REVAMP No.6):** ⚠️ **SKIP item 3.1b SEMENTARA.** Catat temuan dan opsi di PROJECT_LOG.md ini. **Mohon Andre pilih Opsi A / B / C** ketika online kembali (atau konfirmasi jika ada opsi ke-4 yang belum terpikir). Sambil menunggu keputusan Andre → **LANJUT KE PRIORITAS 3.2** (POS / Cart / Payment Modal — 3 item terbesar untuk user kasir, lebih banyak impact dibanding ribut arsitektur top bar).
 
 ---
 

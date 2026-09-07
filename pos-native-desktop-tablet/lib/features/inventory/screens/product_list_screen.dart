@@ -146,9 +146,19 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: GoldenitySpacing.md),
-                  _buildSearchBar(context, textTheme, searchQuery),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(child: _buildSearchBar(context, textTheme, searchQuery)),
+                        const SizedBox(width: GoldenitySpacing.md),
+                        _buildCategoryDropdown(context, textTheme, state),
+                      ],
+                    ),
+                  ),
                   ...banners,
-                  _buildCategoryPills(context, textTheme, biz, state),
+                  const SizedBox(height: GoldenitySpacing.sm),
                   Expanded(
                     child: switch (state.status) {
                       ProductListStatus.loading => const _LoadingView(),
@@ -202,37 +212,94 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   }
 
   Widget _buildSearchBar(BuildContext context, TextTheme textTheme, String currentQuery) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        GoldenitySpacing.lg,
-        0,
-        GoldenitySpacing.lg,
-        0,
+    return TextField(
+      onChanged: (v) =>
+          ref.read(productSearchQueryProvider.notifier).state = v,
+      controller: TextEditingController(text: currentQuery),
+      decoration: InputDecoration(
+        hintText: 'Cari produk...',
+        hintStyle: textTheme.bodyMedium?.copyWith(
+          color: GoldenityColors.muted,
+        ),
+        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+        suffixIcon: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+              onPressed: () {},
+              tooltip: 'Scan Barcode',
+              color: GoldenityColors.text2,
+              padding: const EdgeInsets.all(8),
+              constraints: const BoxConstraints(),
+              splashRadius: 18,
+            ),
+            if (currentQuery.trim().isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 18),
+                onPressed: () => ref
+                    .read(productSearchQueryProvider.notifier)
+                    .state = '',
+                padding: const EdgeInsets.all(8),
+                constraints: const BoxConstraints(),
+                splashRadius: 18,
+              ),
+          ],
+        ),
+        filled: true,
+        fillColor: GoldenityColors.surface2,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(GoldenityRadius.md),
+          borderSide: const BorderSide(color: GoldenityColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(GoldenityRadius.md),
+          borderSide: const BorderSide(color: GoldenityColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(GoldenityRadius.md),
+          borderSide:
+              const BorderSide(color: GoldenityColors.primary, width: 2),
+        ),
       ),
-      child: TextField(
-        onChanged: (v) =>
-            ref.read(productSearchQueryProvider.notifier).state = v,
-        controller: TextEditingController(text: currentQuery),
+    );
+  }
+
+  Widget _buildCategoryDropdown(BuildContext context, TextTheme textTheme, ProductListState state) {
+    final selectedCatId = ref.watch(productCategoryFilterProvider);
+    final categories = state.categories;
+    final items = <DropdownMenuItem<String?>>[
+      DropdownMenuItem<String?>(
+        value: null,
+        child: Text(
+          'Semua Kategori',
+          style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ),
+      ...categories.map((c) => DropdownMenuItem<String?>(
+            value: c.id,
+            child: Text(
+              c.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          )),
+    ];
+    return SizedBox(
+      width: 200,
+      child: DropdownButtonFormField<String?>(
+        initialValue: items.any((item) => item.value == selectedCatId) ? selectedCatId : null,
+        items: items,
+        onChanged: (v) => ref.read(productCategoryFilterProvider.notifier).state = v,
         decoration: InputDecoration(
-          hintText: 'Cari produk...',
-          hintStyle: textTheme.bodyMedium?.copyWith(
-            color: GoldenityColors.muted,
-          ),
-          prefixIcon: const Icon(Icons.search_rounded, size: 20),
-          suffixIcon: currentQuery.trim().isEmpty
-              ? null
-              : IconButton(
-                  icon: const Icon(Icons.close_rounded, size: 18),
-                  onPressed: () => ref
-                      .read(productSearchQueryProvider.notifier)
-                      .state = '',
-                ),
           filled: true,
           fillColor: GoldenityColors.surface2,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 12,
-          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(GoldenityRadius.md),
             borderSide: const BorderSide(color: GoldenityColors.border),
@@ -243,87 +310,15 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(GoldenityRadius.md),
-            borderSide:
-                const BorderSide(color: GoldenityColors.primary, width: 2),
+            borderSide: const BorderSide(color: GoldenityColors.primary, width: 2),
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryPills(BuildContext context, TextTheme textTheme, GoldenityBizColors biz, ProductListState state) {
-    final selectedCatId = ref.watch(productCategoryFilterProvider);
-    final allProducts = state.products;
-    final categories = state.categories;
-
-    Widget buildFixedPill({
-      required String label,
-      required String? catId,
-      required bool selected,
-      required String? matchCategoryName,
-    }) {
-      return Padding(
-        padding: const EdgeInsets.only(right: GoldenitySpacing.sm),
-        child: ChoiceChip(
-          label: Text(
-            label,
-            style: textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: selected ? Colors.white : GoldenityColors.text,
-            ),
-          ),
-          selected: selected,
-          onSelected: (_) {
-            if (matchCategoryName != null) {
-              final match = categories.where((c) => c.name.toLowerCase() == matchCategoryName.toLowerCase()).firstOrNull;
-              ref.read(productCategoryFilterProvider.notifier).state = match?.id ?? catId;
-            } else {
-              ref.read(productCategoryFilterProvider.notifier).state = catId;
-            }
-          },
-          selectedColor: GoldenityColors.primary,
-          backgroundColor: GoldenityColors.surface,
-          side: BorderSide(
-            color: selected ? GoldenityColors.primary : GoldenityColors.border,
-            width: selected ? 1.5 : 1,
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: GoldenitySpacing.md,
-            vertical: GoldenitySpacing.sm,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(GoldenityRadius.full),
-          ),
-          showCheckmark: false,
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        GoldenitySpacing.lg,
-        GoldenitySpacing.md,
-        GoldenitySpacing.lg,
-        0,
-      ),
-      child: SizedBox(
-        height: 40,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          children: [
-            buildFixedPill(
-              label: 'All',
-              catId: null,
-              selected: selectedCatId == null,
-              matchCategoryName: null,
-            ),
-            buildFixedPill(label: 'Coffee', catId: selectedCatId, selected: selectedCatId != null && (categories.where((c) => c.id == selectedCatId).firstOrNull?.name.toLowerCase() == 'coffee' || allProducts.where((p) => p.id == selectedCatId).firstOrNull?.category.toLowerCase() == 'coffee'), matchCategoryName: 'Coffee'),
-            buildFixedPill(label: 'Pastry', catId: selectedCatId, selected: selectedCatId != null && (categories.where((c) => c.id == selectedCatId).firstOrNull?.name.toLowerCase() == 'pastry' || allProducts.where((p) => p.id == selectedCatId).firstOrNull?.category.toLowerCase() == 'pastry'), matchCategoryName: 'Pastry'),
-            buildFixedPill(label: 'Food', catId: selectedCatId, selected: selectedCatId != null && (categories.where((c) => c.id == selectedCatId).firstOrNull?.name.toLowerCase() == 'food' || allProducts.where((p) => p.id == selectedCatId).firstOrNull?.category.toLowerCase() == 'food'), matchCategoryName: 'Food'),
-            buildFixedPill(label: 'Drinks', catId: selectedCatId, selected: selectedCatId != null && (categories.where((c) => c.id == selectedCatId).firstOrNull?.name.toLowerCase() == 'drinks' || allProducts.where((p) => p.id == selectedCatId).firstOrNull?.category.toLowerCase() == 'drinks'), matchCategoryName: 'Drinks'),
-            buildFixedPill(label: 'Dessert', catId: selectedCatId, selected: selectedCatId != null && (categories.where((c) => c.id == selectedCatId).firstOrNull?.name.toLowerCase() == 'dessert' || allProducts.where((p) => p.id == selectedCatId).firstOrNull?.category.toLowerCase() == 'dessert'), matchCategoryName: 'Dessert'),
-          ],
-        ),
+        isExpanded: true,
+        icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
+        iconEnabledColor: GoldenityColors.text2,
+        style: textTheme.bodyMedium?.copyWith(color: GoldenityColors.text, fontWeight: FontWeight.w600),
+        dropdownColor: GoldenityColors.surface,
+        borderRadius: BorderRadius.circular(GoldenityRadius.lg),
       ),
     );
   }

@@ -71,8 +71,19 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
 
     Future<void>.microtask(() => cartNotifier.ensureTaxConfigCached());
 
+    // FIX (temuan Andre): lebar panel sebelumnya FIXED 340px — di layar
+    // tablet/desktop yang lebih lebar terasa "kekecilan"/non-standard
+    // dibanding proporsi layar. Sekarang dihitung relatif terhadap lebar
+    // layar (±26%), tetap dibatasi min/max supaya tidak terlalu sempit di
+    // layar kecil maupun terlalu lebar di monitor besar.
+    final screenWidth = MediaQuery.of(context).size.width;
+    final panelWidth = (screenWidth * 0.26).clamp(
+      GoldenityCartPanel.kWidth,
+      420.0,
+    );
+
     return Container(
-      width: GoldenityCartPanel.kWidth,
+      width: panelWidth,
       decoration: const BoxDecoration(
         color: GoldenityColors.surface,
         border: Border(
@@ -288,21 +299,37 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
         GoldenitySpacing.md,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          const Icon(
+            Icons.person_outline_rounded,
+            size: 18,
+            color: GoldenityColors.text2,
+          ),
+          const SizedBox(width: GoldenitySpacing.sm),
           Expanded(
             child: Text(
-              'Order #$_currentOrderId',
+              'Keranjang',
               style: textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800, fontSize: 15),
             ),
           ),
-          Text(
-            '$totalItems Item',
-            style: textTheme.bodySmall?.copyWith(
-              color: GoldenityColors.text2,
-              fontWeight: FontWeight.w600,
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: GoldenitySpacing.sm,
+              vertical: 4,
+            ),
+            decoration: BoxDecoration(
+              color: GoldenityColors.primaryLight,
+              borderRadius: BorderRadius.circular(GoldenityRadius.full),
+            ),
+            child: Text(
+              '$totalItems Item',
+              style: textTheme.labelSmall?.copyWith(
+                color: GoldenityColors.primary,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.02,
+              ),
             ),
           ),
         ],
@@ -317,17 +344,35 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.shopping_cart_outlined,
-              size: 64,
-              color: GoldenityColors.disabled,
+            Container(
+              width: 96,
+              height: 96,
+              decoration: BoxDecoration(
+                color: GoldenityColors.surface2,
+                borderRadius: BorderRadius.circular(GoldenityRadius.xxxl),
+              ),
+              child: const Icon(
+                Icons.shopping_cart_outlined,
+                size: 44,
+                color: GoldenityColors.muted,
+              ),
             ),
-            const SizedBox(height: GoldenitySpacing.md),
+            const SizedBox(height: GoldenitySpacing.lg),
             Text(
-              'Belum ada item',
-              style: textTheme.bodyMedium?.copyWith(
-                color: GoldenityColors.text2,
-                fontWeight: FontWeight.w600,
+              'Keranjang Kosong',
+              style: textTheme.titleSmall?.copyWith(
+                color: GoldenityColors.text,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: GoldenitySpacing.xs),
+            Text(
+              'Pilih produk dari daftar produk untuk memulai transaksi.',
+              textAlign: TextAlign.center,
+              style: textTheme.bodySmall?.copyWith(
+                color: GoldenityColors.muted,
+                fontWeight: FontWeight.w500,
+                height: 1.4,
               ),
             ),
           ],

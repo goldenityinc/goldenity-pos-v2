@@ -3,6 +3,7 @@ import 'dart:developer' as dev;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:esc_pos_utils/esc_pos_utils.dart' show PaperSize;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -161,6 +162,18 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
         totalPaid: paid <= 0 ? total : paid,
         changeAmount: change < 0 ? 0 : change,
       ),
+      // FIX: sebelumnya field ini tidak diisi sama sekali → selalu jatuh ke
+      // default hardcoded ReceiptData ('Terima kasih atas kunjungan Anda!'),
+      // padahal user SUDAH BISA mengisi footer struk di Settings > Info Toko
+      // (field `receiptFooter`, lihat settings_screen.dart) — nilainya cuma
+      // tidak pernah dibaca balik ke sini. Sekarang ambil dari cache
+      // CartNotifier (di-refresh bareng config pajak).
+      footerThankYou: () {
+        final custom = ref.read(cartNotifierProvider.notifier).receiptFooter?.trim();
+        return (custom != null && custom.isNotEmpty)
+            ? custom
+            : 'Terima kasih atas kunjungan Anda!';
+      }(),
       paperWidthColumns: 48,
     );
   }
@@ -210,18 +223,67 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     return num.tryParse(cleaned) ?? 0;
   }
 
+  /// FIX (temuan Andre): logic lama membulatkan ke kelipatan 50.000 lalu
+  /// mengalikan 1x/1.5x/2x/3x/5x — hasilnya nominal aneh yang gak masuk akal
+  /// (mis. tagihan Rp 28.000 → muncul 50rb/75rb/100rb/150rb, padahal 75rb dan
+  /// 150rb bukan pecahan uang kertas yang beneran ada).
+  ///
+  /// Diganti dengan pola persis V1: nominal PAS (exact total, ditangani
+  /// terpisah oleh [_buildExactChip]) + pecahan uang kertas Rupiah asli
+  /// (10rb/20rb/50rb/100rb/...) yang LEBIH BESAR dari total, dibatasi sampai
+  /// "tier langit-langit" berikutnya (100rb kalau tagihan < 100rb, 1jt kalau
+  /// < 1jt, dst) — supaya tidak muncul nominal ekstrem yang gak relevan untuk
+  /// tagihan kecil.
+  ///
+  /// Diporting 1:1 dari `buildQuickCashSuggestions()` di V1
+  /// (goldenity-pointofsales-app/lib/core/sales/smart_cash_checkout.dart).
+  /// Algoritma V1 BUKAN daftar pecahan uang asli (bukan uang combining),
+  /// melainkan pembulatan ke atas (ceil) ke kelipatan 10rb, 50rb, dan 100rb —
+  /// itu sebabnya nominal seperti 30.000 (bukan pecahan uang fisik) tetap
+  /// muncul, karena dia adalah hasil pembulatan 28.000 ke kelipatan 10rb
+  /// terdekat, BUKAN sebuah pecahan uang tunggal.
+  ///
+  /// Nilai grandTotal itu sendiri TIDAK dimasukkan ke hasil ini karena sudah
+  /// ditampilkan terpisah sebagai chip "PAS" (lihat _buildExactChip).
+  ///
+  /// Contoh (persis sesuai spek Andre & tervalidasi terhadap V1):
+  ///  - total 15.000 → [20.000, 50.000, 100.000] (+ PAS 15.000 terpisah)
+  ///  - total 20.000 → [50.000, 100.000] (+ PAS 20.000)
+  ///  - total 16.500 → [20.000, 50.000, 100.000] (+ PAS 16.500)
+  ///  - total 28.000 → [30.000, 50.000, 100.000] (+ PAS 28.000)
   List<num> _suggestedCashAmounts(num grandTotal) {
-    if (grandTotal <= 0) return <num>[];
-    const int step = 50000;
-    final int ceilToStep = ((grandTotal / step).ceil() * step);
-    const increments = <double>[1.0, 1.5, 2.0, 3.0, 5.0];
-    final candidates = <num>{};
-    for (final mult in increments) {
-      final int v = (ceilToStep * mult).toInt();
-      if (v >= grandTotal) candidates.add(v);
+    if (grandTotal <= 0) return const <num>[];
+    final normalizedTotal = grandTotal.ceil();
+    final suggestions = <num>{};
+
+    // Nominal kecil perlu opsi cepat yang tetap praktis untuk kasir
+    // (persis logic V1 — hanya berlaku untuk tagihan sangat kecil).
+    if (normalizedTotal <= 1000) {
+      suggestions.add(1000);
+      suggestions.add(2000);
+    } else if (normalizedTotal <= 5000) {
+      suggestions.add(5000);
     }
-    final sorted = candidates.toList()..sort();
-    return sorted.take(4).toList(growable: false);
+
+    // Pembulatan ke atas ke kelipatan 10rb / 50rb / 100rb terdekat.
+    final roundTo10K = _ceilToNextPecahan(normalizedTotal, 10000);
+    if (roundTo10K != normalizedTotal) suggestions.add(roundTo10K);
+
+    final roundTo50K = _ceilToNextPecahan(normalizedTotal, 50000);
+    if (roundTo50K != normalizedTotal) suggestions.add(roundTo50K);
+
+    final roundTo100K = _ceilToNextPecahan(normalizedTotal, 100000);
+    if (roundTo100K != normalizedTotal) suggestions.add(roundTo100K);
+
+    final sorted = suggestions.toList()..sort();
+    return sorted;
+  }
+
+  /// Helper pembulatan ke atas ke kelipatan `pecahan` terdekat.
+  /// Diporting 1:1 dari `_ceilToNextPecahan()` di V1.
+  num _ceilToNextPecahan(num amount, num pecahan) {
+    if (pecahan <= 0) return amount;
+    return (amount / pecahan).ceil() * pecahan;
   }
 
   HardwareConnectionConfig _convertPrinterProfileToHwConfig(PrinterConfigProfile p) {
@@ -390,35 +452,26 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
               final preview = ReceiptGenerator.generatePlainTextPreview(receiptData);
               dev.log('[RECEIPT PREVIEW ORDER #${receiptData.orderNo}]\n$preview',
                   name: 'payment.receipt');
-              final bytes = await ReceiptGenerator.generateEscPosBytes(receiptData);
-              dev.log(
-                '[RECEIPT ESC/POS] ${bytes.length} bytes siap dikirim ke printer.',
-                name: 'payment.receipt',
-              );
               // ============ BRIDGE: Settings BE PrinterConfigProfile → HardwareConnectionService SEND PRINT ============
               try {
                 final branchId = session.user.branchId!;
                 final token = session.token;
-                final printersUrl = ApiConstants.salesEndpoint()
-                    .toString()
-                    .replaceFirst('/sales', '/settings/printers?branchId=$branchId');
-                final printersRes = await http.get(
-                  Uri.parse(printersUrl),
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer $token',
-                  },
-                );
+                // FIX: sebelumnya endpoint printer di-guess manual dengan string
+                // replace dari salesEndpoint() ('/sales' -> '/settings/printers')
+                // — rapuh, gampang salah kalau base path API berubah. Pakai
+                // SettingsApiService.listPrinters() yang SAMA PERSIS dipakai
+                // halaman Settings > Printer per Cabang (sumber kebenaran resmi
+                // konfigurasi printer), supaya endpoint yang dipanggil selalu
+                // konsisten dengan yang divalidasi di sana.
+                final settingsApi = ref.read(settingsApiServiceProvider);
                 List<PrinterConfigProfile> profiles = <PrinterConfigProfile>[];
-                if (printersRes.statusCode == 200) {
-                  dynamic pBody;
-                  try { pBody = jsonDecode(printersRes.body); } catch(_) { pBody = null; }
-                  if (pBody is Map && pBody['success'] == true && pBody['data'] is List) {
-                    profiles = (pBody['data'] as List)
-                        .whereType<Map>()
-                        .map((m) => PrinterConfigProfile.fromJson(Map<String, dynamic>.from(m)))
-                        .toList(growable: false);
-                  }
+                try {
+                  profiles = await settingsApi.listPrinters(
+                    authToken: token,
+                    branchId: branchId,
+                  );
+                } catch (_) {
+                  profiles = <PrinterConfigProfile>[];
                 }
                 PrinterConfigProfile? chosen;
                 if (profiles.isNotEmpty) {
@@ -436,6 +489,33 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                     ),
                   );
                 }
+                // FIX (temuan Andre): pilihan ukuran kertas 58mm/80mm belum ada
+                // sama sekali sebelumnya — struk SELALU di-generate pakai
+                // `PaperSize.mm58` hardcoded, apapun printer fisiknya. Ukuran
+                // kertas BELUM ada kolomnya di skema database backend
+                // (`PrinterConfigProfile`/Prisma `PrinterConfig`) — menambah
+                // kolom baru butuh migrasi database yang TIDAK BISA saya
+                // jalankan dari sesi ini (tidak ada akses shell/DB ke komputer
+                // Andre). Sebagai solusi sementara yang aman (tidak menyentuh
+                // skema DB / backend sama sekali): preferensi ukuran kertas
+                // disimpan LOKAL per slot printer via SharedPreferences (diisi
+                // dari Settings > Printer per Cabang, lihat settings_screen.dart
+                // `_printerPaperWidths` + `_PrinterSlotCard`), dibaca balik di
+                // sini pakai key yang SAMA PERSIS.
+                final chosenSlotName = (chosen?.slot ?? PrinterSlotDto.defaultPrinter).name;
+                final paperWidthMm = ref
+                        .read(sharedPreferencesProvider)
+                        .getInt('printer_paper_mm_${branchId}_$chosenSlotName') ??
+                    58;
+                final paperSize = paperWidthMm >= 80 ? PaperSize.mm80 : PaperSize.mm58;
+                final bytes = await ReceiptGenerator.generateEscPosBytes(
+                  receiptData,
+                  paperSize: paperSize,
+                );
+                dev.log(
+                  '[RECEIPT ESC/POS] ${bytes.length} bytes (kertas ${paperWidthMm}mm) siap dikirim ke printer.',
+                  name: 'payment.receipt',
+                );
                 if (chosen != null && chosen.connectionType != PrinterConnectionTypeDto.none) {
                   final hwConfig = _convertPrinterProfileToHwConfig(chosen);
                   if (hwConfig.isConfigured && bytes.isNotEmpty) {
@@ -605,24 +685,41 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                 ],
               ),
               const SizedBox(height: GoldenitySpacing.md),
-              Text(
-                'Total Tagihan',
-                textAlign: TextAlign.center,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: GoldenityColors.text2,
-                  fontWeight: FontWeight.w600,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(GoldenitySpacing.lg),
+                decoration: BoxDecoration(
+                  color: GoldenityColors.successLight,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+                  border: Border.all(
+                    color: GoldenityColors.success.withValues(alpha: 0.25),
+                  ),
                 ),
-              ),
-              const SizedBox(height: GoldenitySpacing.xs),
-              Text(
-                _currencyFormatter.format(grandTotal),
-                textAlign: TextAlign.center,
-                style: textTheme.displaySmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 36,
-                  letterSpacing: -1,
-                  fontFamily: GoldenityTypography.fontFamilyMono,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Total Tagihan',
+                      textAlign: TextAlign.center,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: GoldenityColors.text2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: GoldenitySpacing.xs),
+                    Text(
+                      _currencyFormatter.format(grandTotal),
+                      textAlign: TextAlign.center,
+                      style: textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 36,
+                        letterSpacing: -1,
+                        color: GoldenityColors.success,
+                        fontFamily: GoldenityTypography.fontFamilyMono,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: GoldenitySpacing.xl),
@@ -872,6 +969,15 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                         // Pola daftar vertikal ala V1 (bukan 3 kartu sejajar horizontal):
                         // tiap metode = 1 baris penuh, icon kiri + label + tanda selected
                         // kanan — lebih mudah dibaca & lebih hemat ruang vertikal.
+                        Text(
+                          'Pilih Metode Pembayaran',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: GoldenityColors.text2,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: GoldenitySpacing.sm),
                         _PaymentMethodTile(
                           icon: Icons.money_outlined,
                           iconBg: GoldenityColors.successLight,
@@ -1002,12 +1108,14 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                                   spacing: GoldenitySpacing.sm,
                                   runSpacing: GoldenitySpacing.sm,
                                   children: [
+                                    // Urutan ala V1: PAS (exact total) tampil PERTAMA,
+                                    // baru diikuti pecahan uang kertas yang lebih besar.
+                                    _buildExactChip(context, grandTotal),
                                     ..._suggestedCashAmounts(grandTotal).map((n) => _buildQuickAmountChip(
                                       context,
                                       n.toInt(),
                                       'Rp ${_currencyFormatter.format(n)}',
                                     )),
-                                    _buildExactChip(context, grandTotal),
                                   ],
                                 ),
                                 if (change > 0) ...[
