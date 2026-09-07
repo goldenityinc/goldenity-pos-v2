@@ -63,60 +63,61 @@ class GoldenitySectionCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
-          if (_hasHeader) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                GoldenitySpacing.md,
-                GoldenitySpacing.md,
-                GoldenitySpacing.md,
-                GoldenitySpacing.sm,
-              ),
-              child: Row(
-                children: [
-                  if (icon != null) ...[
-                    Container(
-                      width: 36,
-                      height: 36,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: bg,
-                        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+            if (_hasHeader) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  GoldenitySpacing.md,
+                  GoldenitySpacing.md,
+                  GoldenitySpacing.md,
+                  GoldenitySpacing.sm,
+                ),
+                child: Row(
+                  children: [
+                    if (icon != null) ...[
+                      Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: bg,
+                          borderRadius:
+                              BorderRadius.circular(GoldenityRadius.sm),
+                        ),
+                        child: Icon(icon, color: fg, size: 20),
                       ),
-                      child: Icon(icon, color: fg, size: 20),
-                    ),
-                    const SizedBox(width: GoldenitySpacing.sm),
-                  ],
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (title != null)
-                          Text(
-                            title!,
-                            style: textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                          ),
-                        if (headerSubtitle != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            headerSubtitle!,
-                            style: textTheme.bodySmall?.copyWith(
-                              color: GoldenityColors.muted,
-                              fontWeight: FontWeight.w600,
+                      const SizedBox(width: GoldenitySpacing.sm),
+                    ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (title != null)
+                            Text(
+                              title!,
+                              style: textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w800),
                             ),
-                          ),
+                          if (headerSubtitle != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              headerSubtitle!,
+                              style: textTheme.bodySmall?.copyWith(
+                                color: GoldenityColors.muted,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                  if (headerTrailing != null) headerTrailing!,
-                ],
+                    if (headerTrailing != null) headerTrailing!,
+                  ],
+                ),
               ),
-            ),
-            if (showDivider)
-              const Divider(height: 1, color: GoldenityColors.border),
-          ],
+              if (showDivider)
+                const Divider(height: 1, color: GoldenityColors.border),
+            ],
             Padding(padding: padding, child: child),
           ],
         ),

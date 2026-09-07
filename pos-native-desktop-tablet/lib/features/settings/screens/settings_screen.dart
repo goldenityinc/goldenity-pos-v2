@@ -20,7 +20,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTickerProviderStateMixin {
+class _SettingsScreenState extends ConsumerState<SettingsScreen>
+    with SingleTickerProviderStateMixin {
   bool _loading = false;
   String _errMsg = '';
   final HardwareConnectionService _hwSvc = HardwareConnectionService();
@@ -143,11 +144,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       final settingsApi = ref.read(settingsApiServiceProvider);
       final payload = <String, dynamic>{
         'name': _storeNameCtrl.text.trim(),
-        if (_storeLogoCtrl.text.trim().isNotEmpty) 'logoUrl': _storeLogoCtrl.text.trim(),
-        if (_storeAddressCtrl.text.trim().isNotEmpty) 'address': _storeAddressCtrl.text.trim(),
-        if (_storePhoneCtrl.text.trim().isNotEmpty) 'phone': _storePhoneCtrl.text.trim(),
-        if (_storeReceiptFooterCtrl.text.trim().isNotEmpty) 'receiptFooter': _storeReceiptFooterCtrl.text.trim(),
-        if (_storeQrisUrlCtrl.text.trim().isNotEmpty) 'qrisImageUrl': _storeQrisUrlCtrl.text.trim(),
+        if (_storeLogoCtrl.text.trim().isNotEmpty)
+          'logoUrl': _storeLogoCtrl.text.trim(),
+        if (_storeAddressCtrl.text.trim().isNotEmpty)
+          'address': _storeAddressCtrl.text.trim(),
+        if (_storePhoneCtrl.text.trim().isNotEmpty)
+          'phone': _storePhoneCtrl.text.trim(),
+        if (_storeReceiptFooterCtrl.text.trim().isNotEmpty)
+          'receiptFooter': _storeReceiptFooterCtrl.text.trim(),
+        if (_storeQrisUrlCtrl.text.trim().isNotEmpty)
+          'qrisImageUrl': _storeQrisUrlCtrl.text.trim(),
         'allowPayAtCashier': _storeAllowPayAtCashier,
         'isPaymentProofMandatory': _storeIsPaymentProofMandatory,
         'blindShiftClose': _blindShiftClose,
@@ -210,8 +216,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.xl)),
-        title: Text(existing == null ? 'Tambah Cabang Baru' : 'Edit Cabang ${existing.name}'),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(GoldenityRadius.xl)),
+        title: Text(existing == null
+            ? 'Tambah Cabang Baru'
+            : 'Edit Cabang ${existing.name}'),
         content: Form(
           key: _branchFormKey,
           child: Column(
@@ -224,7 +233,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                   labelText: 'Nama Cabang',
                   hintText: 'Contoh: Cabang Pusat',
                 ),
-                validator: (v) => v!.trim().length < 3 ? 'Minimal 3 karakter' : null,
+                validator: (v) =>
+                    v!.trim().length < 3 ? 'Minimal 3 karakter' : null,
               ),
               const SizedBox(height: GoldenitySpacing.md),
               TextFormField(
@@ -259,7 +269,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                   await settingsApi.createBranch(
                     authToken: token,
                     name: _branchNameCtrl.text.trim(),
-                    qrisImageUrl: _branchQrisCtrl.text.trim().isNotEmpty ? _branchQrisCtrl.text.trim() : null,
+                    qrisImageUrl: _branchQrisCtrl.text.trim().isNotEmpty
+                        ? _branchQrisCtrl.text.trim()
+                        : null,
                   );
                   if (ctx.mounted) {
                     ScaffoldMessenger.of(ctx).showSnackBar(
@@ -338,7 +350,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       final token = auth.session?.token;
       if (token == null) throw Exception('Sesi tidak ditemukan');
       final settingsApi = ref.read(settingsApiServiceProvider);
-      final data = await settingsApi.removeBranch(authToken: token, branchId: b.id);
+      final data =
+          await settingsApi.removeBranch(authToken: token, branchId: b.id);
       final softDeleted = data['softDeleted'] as bool?;
       final affectedSales = data['affectedSales'] as int? ?? 0;
       final message = data['message'] as String?;
@@ -348,14 +361,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: GoldenityColors.warning,
-              content: Text(message ?? 'Masih dipakai $affectedSales transaksi'),
+              content:
+                  Text(message ?? 'Masih dipakai $affectedSales transaksi'),
             ),
           );
         } else if (softDeleted == true) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               backgroundColor: GoldenityColors.warning,
-              content: Text(message ?? 'Cabang di-nonaktifkan karena masih ada data'),
+              content: Text(
+                  message ?? 'Cabang di-nonaktifkan karena masih ada data'),
             ),
           );
         } else {
@@ -407,7 +422,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       final token = auth.session?.token;
       if (token == null) throw Exception('Sesi tidak ditemukan');
       final settingsApi = ref.read(settingsApiServiceProvider);
-      final list = await settingsApi.listPrinters(authToken: token, branchId: branchId);
+      final list =
+          await settingsApi.listPrinters(authToken: token, branchId: branchId);
       final prefs = ref.read(sharedPreferencesProvider);
       if (mounted) {
         for (final p in list) {
@@ -447,7 +463,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       final connType = _printerConnTypes[slot] ?? PrinterConnectionTypeDto.none;
       final address = _printerAddressCtrls[slot]?.text.trim();
       final portRaw = _printerPortCtrls[slot]?.text.trim();
-      final port = portRaw != null && portRaw.isNotEmpty ? int.tryParse(portRaw) : null;
+      final port =
+          portRaw != null && portRaw.isNotEmpty ? int.tryParse(portRaw) : null;
 
       await settingsApi.upsertPrinter(
         authToken: token,
@@ -511,7 +528,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             backgroundColor: GoldenityColors.warning,
-            content: Text('Pilih tipe koneksi terlebih dahulu (Bluetooth / USB) sebelum Scan.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            content: Text(
+                'Pilih tipe koneksi terlebih dahulu (Bluetooth / USB) sebelum Scan.',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700)),
           ),
         );
       }
@@ -522,7 +542,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             backgroundColor: GoldenityColors.primary,
-            content: Text('Network (LAN) tidak support auto-scan. Masukkan IP & Port secara manual.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            content: Text(
+                'Network (LAN) tidak support auto-scan. Masukkan IP & Port secara manual.',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.w700)),
           ),
         );
       }
@@ -534,8 +557,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       _scannedDevices[slot] = [];
     });
     try {
-      final hwType = connType == PrinterConnectionTypeDto.bluetooth ? ConnectionType.bluetooth : ConnectionType.usb;
-      final results = await _hwSvc.discoverDevices(hwType, timeout: const Duration(seconds: 5));
+      final hwType = connType == PrinterConnectionTypeDto.bluetooth
+          ? ConnectionType.bluetooth
+          : ConnectionType.usb;
+      final results = await _hwSvc.discoverDevices(hwType,
+          timeout: const Duration(seconds: 5));
       setState(() {
         _scannedDevices[slot] = results;
         _scanMsg[slot] = results.isEmpty
@@ -558,7 +584,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
       } else if (d.connectionType == ConnectionType.usb) {
         _printerConnTypes[slot] = PrinterConnectionTypeDto.usb;
       }
-      _printerAddressCtrls[slot]?.text = d.address.isNotEmpty ? d.address : d.name;
+      _printerAddressCtrls[slot]?.text =
+          d.address.isNotEmpty ? d.address : d.name;
     });
   }
 
@@ -580,11 +607,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Pengaturan', style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
+              Text('Pengaturan',
+                  style: textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800)),
               const SizedBox(height: 2),
               Text(
                 'Kelola cabang, printer & informasi toko',
-                style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w600),
+                style: textTheme.bodySmall?.copyWith(
+                    color: GoldenityColors.text2, fontWeight: FontWeight.w600),
               ),
             ],
           ),
@@ -617,18 +647,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
             ),
             if (_tabController.index == 1)
               Padding(
-                padding: const EdgeInsets.only(right: GoldenitySpacing.md, top: GoldenitySpacing.sm, bottom: GoldenitySpacing.sm),
+                padding: const EdgeInsets.only(
+                    right: GoldenitySpacing.md,
+                    top: GoldenitySpacing.sm,
+                    bottom: GoldenitySpacing.sm),
                 child: ElevatedButton.icon(
                   onPressed: _loading ? null : () => _showBranchDialog(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: biz.base,
                     foregroundColor: Colors.white,
                     elevation: 0,
-                    padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md, vertical: GoldenitySpacing.sm),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: GoldenitySpacing.md,
+                        vertical: GoldenitySpacing.sm),
+                    shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(GoldenityRadius.md)),
                   ),
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  label: Text('Tambah Cabang', style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
+                  label: Text('Tambah Cabang',
+                      style: textTheme.labelMedium
+                          ?.copyWith(fontWeight: FontWeight.w800)),
                 ),
               ),
           ],
@@ -637,7 +676,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
             labelColor: biz.base,
             unselectedLabelColor: GoldenityColors.text2,
             indicatorColor: biz.base,
-            labelStyle: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
+            labelStyle:
+                textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800),
             tabs: const [
               Tab(text: 'Info Toko'),
               Tab(text: 'Daftar Cabang'),
@@ -654,7 +694,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.error_outline_rounded, size: 48, color: GoldenityColors.error),
+                          const Icon(Icons.error_outline_rounded,
+                              size: 48, color: GoldenityColors.error),
                           const SizedBox(height: GoldenitySpacing.md),
                           Text(_errMsg, style: textTheme.bodyMedium),
                           const SizedBox(height: GoldenitySpacing.md),
@@ -681,7 +722,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
     );
   }
 
-  Widget _buildStoreInfoTab(BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
+  Widget _buildStoreInfoTab(
+      BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
     return Form(
       key: _storeFormKey,
       child: ListView(
@@ -692,7 +734,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
               color: Colors.white,
               borderRadius: BorderRadius.circular(GoldenityRadius.md),
               border: Border.all(color: GoldenityColors.border),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2))
+              ],
             ),
             padding: const EdgeInsets.all(GoldenitySpacing.lg),
             // Material transparan → SwitchListTile di dalam kartu tetap merender
@@ -700,212 +747,231 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
             child: Material(
               type: MaterialType.transparency,
               child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.store_rounded, color: biz.base),
-                    const SizedBox(width: GoldenitySpacing.sm),
-                    Text(
-                      'Informasi Toko',
-                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                TextFormField(
-                  controller: _storeNameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Nama Toko',
-                    hintText: 'Nama toko Anda',
-                  ),
-                  validator: (v) => v!.trim().isEmpty ? 'Nama toko wajib diisi' : null,
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                TextFormField(
-                  controller: _storeLogoCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'URL Logo Toko',
-                    hintText: 'https://.../logo.png',
-                  ),
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                TextFormField(
-                  controller: _storeAddressCtrl,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Alamat Toko',
-                    hintText: 'Alamat lengkap toko',
-                  ),
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                TextFormField(
-                  controller: _storePhoneCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Nomor Telepon',
-                    hintText: '08xx-xxxx-xxxx',
-                  ),
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                TextFormField(
-                  controller: _storeReceiptFooterCtrl,
-                  maxLines: 2,
-                  decoration: const InputDecoration(
-                    labelText: 'Footer Struk',
-                    hintText: 'Terima kasih atas kunjungan Anda',
-                  ),
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                TextFormField(
-                  controller: _storeQrisUrlCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'URL Gambar QRIS',
-                    hintText: 'https://.../qris.jpg',
-                  ),
-                ),
-                const SizedBox(height: GoldenitySpacing.lg),
-                const Divider(),
-                const SizedBox(height: GoldenitySpacing.md),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Izinkan Pembayaran di Kasir',
-                            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: GoldenitySpacing.xs),
-                          Text(
-                            'Jika aktif, pelanggan bisa bayar langsung di kasir',
-                            style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
-                          ),
-                        ],
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.store_rounded, color: biz.base),
+                      const SizedBox(width: GoldenitySpacing.sm),
+                      Text(
+                        'Informasi Toko',
+                        style: textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
                       ),
-                    ),
-                    Switch.adaptive(
-                      value: _storeAllowPayAtCashier,
-                      onChanged: (v) => setState(() => _storeAllowPayAtCashier = v),
-                      activeTrackColor: biz.base.withValues(alpha: 0.5),
-                      activeThumbColor: biz.base,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Bukti Pembayaran Wajib',
-                            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: GoldenitySpacing.xs),
-                          Text(
-                            'Jika aktif, wajib upload bukti transfer untuk non-tunai',
-                            style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Switch.adaptive(
-                      value: _storeIsPaymentProofMandatory,
-                      onChanged: (v) => setState(() => _storeIsPaymentProofMandatory = v),
-                      activeTrackColor: biz.base.withValues(alpha: 0.5),
-                      activeThumbColor: biz.base,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                SwitchListTile.adaptive(
-                  title: Text(
-                    'Blind Close Shift Kasir',
-                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                    ],
                   ),
-                  subtitle: Text(
-                    'Jika ON: kasir tidak melihat perkiraan uang sistem & selisih kasir saat buka/tutup shift (mode blind close).',
-                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
-                  ),
-                  value: _blindShiftClose,
-                  activeTrackColor: biz.base.withValues(alpha: 0.5),
-                  activeThumbColor: biz.base,
-                  contentPadding: EdgeInsets.zero,
-                  onChanged: _loading
-                      ? null
-                      : (val) => setState(() => _blindShiftClose = val),
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                SwitchListTile.adaptive(
-                  title: Text(
-                    'Aktifkan Pajak (PPN)',
-                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  subtitle: Text(
-                    'Jika ON: transaksi akan dikenakan pajak sesuai persentase di bawah.',
-                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
-                  ),
-                  value: _taxEnabled,
-                  activeTrackColor: biz.base.withValues(alpha: 0.5),
-                  activeThumbColor: biz.base,
-                  contentPadding: EdgeInsets.zero,
-                  onChanged: _loading
-                      ? null
-                      : (val) => setState(() => _taxEnabled = val),
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 0),
-                  child: TextFormField(
+                  const SizedBox(height: GoldenitySpacing.md),
+                  TextFormField(
+                    controller: _storeNameCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'Persentase PPN (%)',
-                      suffixText: '%',
-                      helperText: 'Default 11% (standar PPN UMKM F&B)',
+                      labelText: 'Nama Toko',
+                      hintText: 'Nama toko Anda',
                     ),
-                    enabled: _taxEnabled && !_loading,
-                    keyboardType: TextInputType.number,
-                    initialValue: _taxRatePercentage.toString(),
-                    onChanged: (s) {
-                      final n = num.tryParse(s);
-                      if (n != null) setState(() => _taxRatePercentage = n.clamp(0, 100));
-                    },
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(3)],
+                    validator: (v) =>
+                        v!.trim().isEmpty ? 'Nama toko wajib diisi' : null,
                   ),
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                SwitchListTile.adaptive(
-                  title: Text(
-                    'Harga Sudah Termasuk PPN',
-                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  TextFormField(
+                    controller: _storeLogoCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'URL Logo Toko',
+                      hintText: 'https://.../logo.png',
+                    ),
                   ),
-                  subtitle: Text(
-                    'ON: harga jual produk sudah termasuk pajak, PPN dihitung mundur '
-                    '(total ÷ (1 + rate) × rate) dan tidak ditambah lagi di atas total. '
-                    'OFF: PPN ditambahkan di atas subtotal.',
-                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  TextFormField(
+                    controller: _storeAddressCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Alamat Toko',
+                      hintText: 'Alamat lengkap toko',
+                    ),
                   ),
-                  value: _pricesIncludeTax,
-                  activeTrackColor: biz.base.withValues(alpha: 0.5),
-                  activeThumbColor: biz.base,
-                  contentPadding: EdgeInsets.zero,
-                  onChanged: (_taxEnabled && !_loading)
-                      ? (val) => setState(() => _pricesIncludeTax = val)
-                      : null,
-                ),
-                const SizedBox(height: GoldenitySpacing.xl),
-                SizedBox(
-                  width: double.infinity,
-                  child: GoldenityPrimaryButton(
-                    onPressed: _loading ? null : _updateStore,
-                    label: 'Simpan Pengaturan',
-                    icon: Icons.save_rounded,
-                    backgroundColor: biz.base,
-                    height: 48,
+                  const SizedBox(height: GoldenitySpacing.md),
+                  TextFormField(
+                    controller: _storePhoneCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Nomor Telepon',
+                      hintText: '08xx-xxxx-xxxx',
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: GoldenitySpacing.md),
+                  TextFormField(
+                    controller: _storeReceiptFooterCtrl,
+                    maxLines: 2,
+                    decoration: const InputDecoration(
+                      labelText: 'Footer Struk',
+                      hintText: 'Terima kasih atas kunjungan Anda',
+                    ),
+                  ),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  TextFormField(
+                    controller: _storeQrisUrlCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'URL Gambar QRIS',
+                      hintText: 'https://.../qris.jpg',
+                    ),
+                  ),
+                  const SizedBox(height: GoldenitySpacing.lg),
+                  const Divider(),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Izinkan Pembayaran di Kasir',
+                              style: textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: GoldenitySpacing.xs),
+                            Text(
+                              'Jika aktif, pelanggan bisa bayar langsung di kasir',
+                              style: textTheme.bodySmall
+                                  ?.copyWith(color: GoldenityColors.text2),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: _storeAllowPayAtCashier,
+                        onChanged: (v) =>
+                            setState(() => _storeAllowPayAtCashier = v),
+                        activeTrackColor: biz.base.withValues(alpha: 0.5),
+                        activeThumbColor: biz.base,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Bukti Pembayaran Wajib',
+                              style: textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: GoldenitySpacing.xs),
+                            Text(
+                              'Jika aktif, wajib upload bukti transfer untuk non-tunai',
+                              style: textTheme.bodySmall
+                                  ?.copyWith(color: GoldenityColors.text2),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: _storeIsPaymentProofMandatory,
+                        onChanged: (v) =>
+                            setState(() => _storeIsPaymentProofMandatory = v),
+                        activeTrackColor: biz.base.withValues(alpha: 0.5),
+                        activeThumbColor: biz.base,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  SwitchListTile.adaptive(
+                    title: Text(
+                      'Blind Close Shift Kasir',
+                      style: textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      'Jika ON: kasir tidak melihat perkiraan uang sistem & selisih kasir saat buka/tutup shift (mode blind close).',
+                      style: textTheme.bodySmall
+                          ?.copyWith(color: GoldenityColors.text2),
+                    ),
+                    value: _blindShiftClose,
+                    activeTrackColor: biz.base.withValues(alpha: 0.5),
+                    activeThumbColor: biz.base,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: _loading
+                        ? null
+                        : (val) => setState(() => _blindShiftClose = val),
+                  ),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  SwitchListTile.adaptive(
+                    title: Text(
+                      'Aktifkan Pajak (PPN)',
+                      style: textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      'Jika ON: transaksi akan dikenakan pajak sesuai persentase di bawah.',
+                      style: textTheme.bodySmall
+                          ?.copyWith(color: GoldenityColors.text2),
+                    ),
+                    value: _taxEnabled,
+                    activeTrackColor: biz.base.withValues(alpha: 0.5),
+                    activeThumbColor: biz.base,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: _loading
+                        ? null
+                        : (val) => setState(() => _taxEnabled = val),
+                  ),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 0),
+                    child: TextFormField(
+                      decoration: const InputDecoration(
+                        labelText: 'Persentase PPN (%)',
+                        suffixText: '%',
+                        helperText: 'Default 11% (standar PPN UMKM F&B)',
+                      ),
+                      enabled: _taxEnabled && !_loading,
+                      keyboardType: TextInputType.number,
+                      initialValue: _taxRatePercentage.toString(),
+                      onChanged: (s) {
+                        final n = num.tryParse(s);
+                        if (n != null) {
+                          setState(() => _taxRatePercentage = n.clamp(0, 100));
+                        }
+                      },
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(3)
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  SwitchListTile.adaptive(
+                    title: Text(
+                      'Harga Sudah Termasuk PPN',
+                      style: textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      'ON: harga jual produk sudah termasuk pajak, PPN dihitung mundur '
+                      '(total ÷ (1 + rate) × rate) dan tidak ditambah lagi di atas total. '
+                      'OFF: PPN ditambahkan di atas subtotal.',
+                      style: textTheme.bodySmall
+                          ?.copyWith(color: GoldenityColors.text2),
+                    ),
+                    value: _pricesIncludeTax,
+                    activeTrackColor: biz.base.withValues(alpha: 0.5),
+                    activeThumbColor: biz.base,
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (_taxEnabled && !_loading)
+                        ? (val) => setState(() => _pricesIncludeTax = val)
+                        : null,
+                  ),
+                  const SizedBox(height: GoldenitySpacing.xl),
+                  SizedBox(
+                    width: double.infinity,
+                    child: GoldenityPrimaryButton(
+                      onPressed: _loading ? null : _updateStore,
+                      label: 'Simpan Pengaturan',
+                      icon: Icons.save_rounded,
+                      backgroundColor: biz.base,
+                      height: 48,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -914,7 +980,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
     );
   }
 
-  Widget _buildBranchesTab(BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
+  Widget _buildBranchesTab(
+      BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
     final q = _branchSearchQuery.trim().toLowerCase();
     final filtered = q.isEmpty
         ? _branches
@@ -922,7 +989,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
             if (b.name.toLowerCase().contains(q)) return true;
             if (b.id.toLowerCase().contains(q)) return true;
             if (b.printerConfigs.length.toString().contains(q)) return true;
-            if ((b.qrisImageUrl ?? '').isNotEmpty && 'qris'.contains(q)) return true;
+            if ((b.qrisImageUrl ?? '').isNotEmpty && 'qris'.contains(q)) {
+              return true;
+            }
             return false;
           }).toList(growable: false);
     if (_branches.isEmpty) {
@@ -932,13 +1001,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.account_tree_outlined, size: 64, color: biz.base.withValues(alpha: 0.6)),
+              Icon(Icons.account_tree_outlined,
+                  size: 64, color: biz.base.withValues(alpha: 0.6)),
               const SizedBox(height: GoldenitySpacing.md),
-              Text('Belum ada cabang', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+              Text('Belum ada cabang',
+                  style: textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: GoldenitySpacing.xs),
               Text(
                 'Tekan "Tambah Cabang" di pojok kanan atas untuk mulai.',
-                style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                style:
+                    textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
               ),
             ],
           ),
@@ -977,7 +1050,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                borderSide: const BorderSide(color: GoldenityColors.border, width: 1),
+                borderSide:
+                    const BorderSide(color: GoldenityColors.border, width: 1),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(GoldenityRadius.md),
@@ -998,16 +1072,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.search_off_rounded, size: 48, color: GoldenityColors.muted),
+                          const Icon(Icons.search_off_rounded,
+                              size: 48, color: GoldenityColors.muted),
                           const SizedBox(height: GoldenitySpacing.md),
                           Text(
                             'Tidak ada cabang yang cocok',
-                            style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                            style: textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             'Coba kata kunci lain atau hapus filter pencarian.',
-                            style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                            style: textTheme.bodySmall
+                                ?.copyWith(color: GoldenityColors.text2),
                           ),
                         ],
                       ),
@@ -1016,15 +1093,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                 : ListView.separated(
                     padding: const EdgeInsets.all(GoldenitySpacing.lg),
                     itemCount: filtered.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: GoldenitySpacing.sm),
+                    separatorBuilder: (_, __) =>
+                        const SizedBox(height: GoldenitySpacing.sm),
                     itemBuilder: (context, i) {
                       final b = filtered[i];
                       return Container(
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                          borderRadius:
+                              BorderRadius.circular(GoldenityRadius.md),
                           border: Border.all(color: GoldenityColors.border),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+                          boxShadow: [
+                            BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.02),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2))
+                          ],
                         ),
                         padding: const EdgeInsets.all(GoldenitySpacing.md),
                         child: Row(
@@ -1035,9 +1119,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                               height: 52,
                               decoration: BoxDecoration(
                                 color: biz.light,
-                                borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                                borderRadius:
+                                    BorderRadius.circular(GoldenityRadius.md),
                               ),
-                              child: Icon(Icons.storefront_rounded, color: biz.dark, size: 28),
+                              child: Icon(Icons.storefront_rounded,
+                                  color: biz.dark, size: 28),
                             ),
                             const SizedBox(width: GoldenitySpacing.md),
                             Expanded(
@@ -1047,52 +1133,70 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                                 children: [
                                   Text(
                                     b.name,
-                                    style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                                    style: textTheme.titleSmall
+                                        ?.copyWith(fontWeight: FontWeight.w700),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 4),
-                                  if (b.qrisImageUrl != null && b.qrisImageUrl!.isNotEmpty)
+                                  if (b.qrisImageUrl != null &&
+                                      b.qrisImageUrl!.isNotEmpty)
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
                                         color: GoldenityColors.successLight,
-                                        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                                        borderRadius: BorderRadius.circular(
+                                            GoldenityRadius.sm),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(Icons.qr_code_2_rounded, size: 14, color: GoldenityColors.success),
+                                          const Icon(Icons.qr_code_2_rounded,
+                                              size: 14,
+                                              color: GoldenityColors.success),
                                           const SizedBox(width: 4),
                                           Text(
                                             'QRIS tersedia',
-                                            style: textTheme.labelSmall?.copyWith(color: GoldenityColors.success, fontWeight: FontWeight.w800),
+                                            style: textTheme.labelSmall
+                                                ?.copyWith(
+                                                    color:
+                                                        GoldenityColors.success,
+                                                    fontWeight:
+                                                        FontWeight.w800),
                                           ),
                                         ],
                                       ),
                                     )
                                   else
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
                                         color: GoldenityColors.surface2,
-                                        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                                        borderRadius: BorderRadius.circular(
+                                            GoldenityRadius.sm),
                                       ),
                                       child: Text(
                                         'Belum ada QRIS',
-                                        style: textTheme.labelSmall?.copyWith(color: GoldenityColors.text2, fontWeight: FontWeight.w700),
+                                        style: textTheme.labelSmall?.copyWith(
+                                            color: GoldenityColors.text2,
+                                            fontWeight: FontWeight.w700),
                                       ),
                                     ),
                                   const SizedBox(height: GoldenitySpacing.xs),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 3),
                                     decoration: BoxDecoration(
                                       color: GoldenityColors.surface2,
-                                      borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                                      borderRadius: BorderRadius.circular(
+                                          GoldenityRadius.sm),
                                     ),
                                     child: Text(
                                       '${b.printerConfigs.length} printer dikonfigurasi',
-                                      style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                                      style: textTheme.bodySmall?.copyWith(
+                                          color: GoldenityColors.text2),
                                     ),
                                   ),
                                 ],
@@ -1105,13 +1209,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                                 IconButton(
                                   icon: const Icon(Icons.edit_outlined),
                                   tooltip: 'Edit',
-                                  onPressed: _loading ? null : () => _showBranchDialog(existing: b),
+                                  onPressed: _loading
+                                      ? null
+                                      : () => _showBranchDialog(existing: b),
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.delete_outline),
                                   tooltip: 'Hapus',
                                   color: GoldenityColors.error,
-                                  onPressed: _loading ? null : () => _confirmDeleteBranch(b),
+                                  onPressed: _loading
+                                      ? null
+                                      : () => _confirmDeleteBranch(b),
                                 ),
                               ],
                             ),
@@ -1126,7 +1234,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
     );
   }
 
-  Widget _buildPrintersTab(BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
+  Widget _buildPrintersTab(
+      BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
     _ensurePrinterControllers();
     const slots = PrinterSlotDto.values;
 
@@ -1138,7 +1247,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
             color: Colors.white,
             borderRadius: BorderRadius.circular(GoldenityRadius.md),
             border: Border.all(color: GoldenityColors.border),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2))
+            ],
           ),
           padding: const EdgeInsets.all(GoldenitySpacing.lg),
           child: Column(
@@ -1150,7 +1264,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                   const SizedBox(width: GoldenitySpacing.sm),
                   Text(
                     'Konfigurasi Printer per Cabang',
-                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                    style: textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                 ],
               ),
@@ -1183,7 +1298,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                     padding: const EdgeInsets.all(GoldenitySpacing.xl),
                     child: Text(
                       'Silakan pilih cabang terlebih dahulu',
-                      style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+                      style: textTheme.bodySmall
+                          ?.copyWith(color: GoldenityColors.text2),
                     ),
                   ),
                 )
@@ -1191,24 +1307,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> with SingleTick
                 Column(
                   children: slots.map((slot) {
                     return Padding(
-                      padding: const EdgeInsets.only(bottom: GoldenitySpacing.md),
+                      padding:
+                          const EdgeInsets.only(bottom: GoldenitySpacing.md),
                       child: _PrinterSlotCard(
                         slot: slot,
                         slotLabel: _slotLabel(slot),
-                        connType: _printerConnTypes[slot] ?? PrinterConnectionTypeDto.none,
-                        addressCtrl: _printerAddressCtrls[slot] ?? TextEditingController(),
-                        portCtrl: _printerPortCtrls[slot] ?? TextEditingController(),
+                        connType: _printerConnTypes[slot] ??
+                            PrinterConnectionTypeDto.none,
+                        addressCtrl: _printerAddressCtrls[slot] ??
+                            TextEditingController(),
+                        portCtrl:
+                            _printerPortCtrls[slot] ?? TextEditingController(),
                         connTypeLabelFn: _connTypeLabel,
                         biz: biz,
                         textTheme: textTheme,
-                        onConnTypeChanged: (t) => setState(() => _printerConnTypes[slot] = t),
+                        onConnTypeChanged: (t) =>
+                            setState(() => _printerConnTypes[slot] = t),
                         paperWidthMm: _printerPaperWidths[slot] ?? 58,
-                        onPaperWidthChanged: (w) => setState(() => _printerPaperWidths[slot] = w),
+                        onPaperWidthChanged: (w) =>
+                            setState(() => _printerPaperWidths[slot] = w),
                         onSave: _loading ? null : () => _upsertPrinter(slot),
                         scanning: _scanning[slot] ?? false,
                         scanMsg: _scanMsg[slot] ?? '',
                         scannedDevices: _scannedDevices[slot] ?? const [],
-                        onAutoScan: _loading ? null : () => _runPrinterAutoScan(slot),
+                        onAutoScan:
+                            _loading ? null : () => _runPrinterAutoScan(slot),
                         onApplyDevice: (d) => _applyScannedDevice(slot, d),
                       ),
                     );
@@ -1289,17 +1412,22 @@ class _PrinterSlotCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Slot $slotLabel',
-                  style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                  style: textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
               Chip(
-                backgroundColor: connType == PrinterConnectionTypeDto.none ? GoldenityColors.surface : biz.light,
+                backgroundColor: connType == PrinterConnectionTypeDto.none
+                    ? GoldenityColors.surface
+                    : biz.light,
                 side: BorderSide.none,
                 visualDensity: VisualDensity.compact,
                 label: Text(
                   connTypeLabelFn(connType),
                   style: textTheme.labelSmall?.copyWith(
-                    color: connType == PrinterConnectionTypeDto.none ? GoldenityColors.text2 : biz.dark,
+                    color: connType == PrinterConnectionTypeDto.none
+                        ? GoldenityColors.text2
+                        : biz.dark,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -1370,19 +1498,26 @@ class _PrinterSlotCard extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: onAutoScan,
                 icon: Icon(
-                  scanning ? Icons.wifi_tethering_rounded : Icons.manage_search_rounded,
+                  scanning
+                      ? Icons.wifi_tethering_rounded
+                      : Icons.manage_search_rounded,
                   size: 18,
                 ),
                 label: scanning
-                    ? const Text('Scan...', style: TextStyle(fontWeight: FontWeight.w700))
-                    : const Text('Cari', style: TextStyle(fontWeight: FontWeight.w700)),
+                    ? const Text('Scan...',
+                        style: TextStyle(fontWeight: FontWeight.w700))
+                    : const Text('Cari',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: scanning ? GoldenityColors.disabled : GoldenityColors.primary,
+                  backgroundColor: scanning
+                      ? GoldenityColors.disabled
+                      : GoldenityColors.primary,
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: GoldenityColors.disabled,
                   disabledForegroundColor: GoldenityColors.text2,
                   minimumSize: const Size(110, 48),
-                  padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: GoldenitySpacing.md),
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(GoldenityRadius.md),
@@ -1404,11 +1539,13 @@ class _PrinterSlotCard extends StatelessWidget {
           if (scanMsg.isNotEmpty) ...[
             const SizedBox(height: GoldenitySpacing.sm),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm),
               child: Text(
                 scanMsg,
                 style: textTheme.bodySmall?.copyWith(
-                  color: scanMsg.toLowerCase().contains('gagal') || scanMsg.toLowerCase().contains('tidak ditemukan')
+                  color: scanMsg.toLowerCase().contains('gagal') ||
+                          scanMsg.toLowerCase().contains('tidak ditemukan')
                       ? GoldenityColors.error
                       : GoldenityColors.text2,
                   fontWeight: FontWeight.w600,
@@ -1430,7 +1567,10 @@ class _PrinterSlotCard extends StatelessWidget {
                   final i = entry.key;
                   final d = entry.value;
                   return Padding(
-                    padding: EdgeInsets.only(bottom: i == scannedDevices.length - 1 ? 0 : GoldenitySpacing.xs),
+                    padding: EdgeInsets.only(
+                        bottom: i == scannedDevices.length - 1
+                            ? 0
+                            : GoldenitySpacing.xs),
                     child: Material(
                       color: GoldenityColors.surface,
                       borderRadius: BorderRadius.circular(GoldenityRadius.md),
@@ -1446,7 +1586,8 @@ class _PrinterSlotCard extends StatelessWidget {
                                 height: 32,
                                 decoration: BoxDecoration(
                                   color: GoldenityColors.surface2,
-                                  borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                                  borderRadius:
+                                      BorderRadius.circular(GoldenityRadius.sm),
                                 ),
                                 alignment: Alignment.center,
                                 child: Icon(
@@ -1463,7 +1604,9 @@ class _PrinterSlotCard extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      d.name.isEmpty ? 'Perangkat Tanpa Nama' : d.name,
+                                      d.name.isEmpty
+                                          ? 'Perangkat Tanpa Nama'
+                                          : d.name,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: textTheme.bodySmall?.copyWith(
@@ -1476,18 +1619,21 @@ class _PrinterSlotCard extends StatelessWidget {
                                       [
                                         connectionTypeLabel(d.connectionType),
                                         if (d.address.isNotEmpty) d.address,
-                                        if (d.vendorId != null && d.productId != null)
+                                        if (d.vendorId != null &&
+                                            d.productId != null)
                                           'USB: ${d.vendorId}/${d.productId}',
                                       ].join('  ·  '),
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
-                                      style: textTheme.labelSmall?.copyWith(color: GoldenityColors.text2),
+                                      style: textTheme.labelSmall?.copyWith(
+                                          color: GoldenityColors.text2),
                                     ),
                                   ],
                                 ),
                               ),
                               const SizedBox(width: GoldenitySpacing.sm),
-                              const Icon(Icons.chevron_right_rounded, size: 18, color: GoldenityColors.muted),
+                              const Icon(Icons.chevron_right_rounded,
+                                  size: 18, color: GoldenityColors.muted),
                             ],
                           ),
                         ),
