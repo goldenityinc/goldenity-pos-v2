@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../../../core/design/goldenity_colors.dart';
+import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
 import '../../../core/models/dashboard_profile.dart';
-import '../../../shared/widgets/goldenity_metric_card.dart';
-import '../../../shared/widgets/goldenity_page_header.dart';
-import '../../../shared/widgets/goldenity_section_card.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../inventory/providers/product_list_provider.dart';
 
@@ -25,8 +24,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   String _range = 'today';
   DashboardSummaryProfile? _summary;
 
-  final NumberFormat _currencyFormatter =
-      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ');
+  final NumberFormat _currency =
+      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+
+  static const int _lowStockThreshold = 5;
 
   @override
   void initState() {
@@ -46,393 +47,635 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       final dashboardApi = ref.read(dashboardApiServiceProvider);
       final summary =
           await dashboardApi.getSummary(authToken: token, range: _range);
-      if (mounted) {
-        setState(() {
-          _summary = summary;
-        });
-      }
+      if (mounted) setState(() => _summary = summary);
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _errMsg = e.toString().replaceAll('Exception: ', '');
-        });
+        setState(() => _errMsg = e.toString().replaceAll('Exception: ', ''));
       }
     } finally {
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  String _formatCurrency(num value) => _currencyFormatter.format(value);
+  String _fmt(num v) => _currency.format(v);
+
+  String _greeting() {
+    final h = DateTime.now().hour;
+    if (h < 11) return 'Selamat pagi';
+    if (h < 15) return 'Selamat siang';
+    if (h < 19) return 'Selamat sore';
+    return 'Selamat malam';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
-    final biz = theme.extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
-
     return Scaffold(
       backgroundColor: GoldenityColors.bg,
-      appBar: AppBar(
-        backgroundColor: GoldenityColors.surface,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        title: const GoldenityPageHeader(
-          title: 'Dashboard',
-          subtitle: 'Ringkasan penjualan periode ini',
-          dense: true,
-        ),
-        actions: [
-          for (final entry in const [
-            ('today', 'Hari Ini'),
-            ('week', 'Minggu Ini'),
-            ('month', 'Bulan Ini'),
-          ]) ...[
-            ChoiceChip(
-              label: Text(entry.$2),
-              selected: _range == entry.$1,
-              onSelected: _loading
-                  ? null
-                  : (v) {
-                      if (v) {
-                        setState(() => _range = entry.$1);
-                        _loadData();
-                      }
-                    },
-            ),
-            const SizedBox(width: GoldenitySpacing.xs),
-          ],
-          const SizedBox(width: GoldenitySpacing.xs),
-          IconButton(
-            onPressed: _loading ? null : _loadData,
-            icon: _loading
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: biz.base),
-                  )
-                : const Icon(Icons.refresh_rounded),
-            tooltip: 'Refresh',
-          ),
-          const SizedBox(width: GoldenitySpacing.sm),
-        ],
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _errMsg.isNotEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(GoldenitySpacing.xl),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.error_outline_rounded,
-                            size: 48, color: GoldenityColors.error),
-                        const SizedBox(height: GoldenitySpacing.md),
-                        Text(_errMsg, style: textTheme.bodyMedium),
-                        const SizedBox(height: GoldenitySpacing.md),
-                        OutlinedButton.icon(
-                          onPressed: () {
-                            setState(() => _errMsg = '');
-                            _loadData();
-                          },
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Coba Lagi'),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
+              ? _ErrorState(message: _errMsg, onRetry: _loadData)
               : _summary == null
                   ? const SizedBox.shrink()
-                  : _buildBody(context, textTheme, biz, _summary!),
+                  : _buildBody(_summary!),
     );
   }
 
-  Widget _buildBody(BuildContext context, TextTheme textTheme,
-      GoldenityBizColors biz, DashboardSummaryProfile summary) {
+  Widget _buildBody(DashboardSummaryProfile s) {
+    final session = ref.watch(currentSessionProvider);
+    final username = session?.user.username ?? 'Kasir';
+    final now = DateTime.now();
+    final dateStr = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(now);
+
+    final products = ref.watch(productListNotifierProvider).products;
+    final lowStock = products
+        .where((p) => p.isActive && p.stock <= _lowStockThreshold)
+        .toList()
+      ..sort((a, b) => a.stock.compareTo(b.stock));
+
     return RefreshIndicator(
       onRefresh: _loadData,
-      color: biz.base,
+      color: GoldenityColors.primary,
       child: ListView(
         padding: const EdgeInsets.all(GoldenitySpacing.lg),
         children: [
-          _buildStatCards(biz, summary),
+          // ── Header: greeting + shift badge ──
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${_greeting()}, $username! 👋',
+                        style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: GoldenityColors.text)),
+                    const SizedBox(height: 4),
+                    Text(dateStr,
+                        style: const TextStyle(
+                            fontSize: 13, color: GoldenityColors.muted)),
+                  ],
+                ),
+              ),
+              _RangeTabs(
+                value: _range,
+                onChanged: _loading
+                    ? null
+                    : (v) {
+                        setState(() => _range = v);
+                        _loadData();
+                      },
+              ),
+            ],
+          ),
           const SizedBox(height: GoldenitySpacing.md),
-          _buildTopProducts(context, textTheme, biz, summary),
-          const SizedBox(height: GoldenitySpacing.md),
-          _buildPaymentBreakdown(context, textTheme, biz, summary),
-          const SizedBox(height: GoldenitySpacing.md),
-          _buildCategoryBreakdown(context, textTheme, biz, summary),
+          // ── Status row ──
+          const Wrap(
+            spacing: GoldenitySpacing.sm,
+            runSpacing: GoldenitySpacing.sm,
+            children: [
+              _StatusPill(
+                  icon: Icons.circle,
+                  iconColor: GoldenityColors.success,
+                  label: 'Online'),
+              _StatusPill(
+                  icon: Icons.cloud_done_rounded,
+                  iconColor: GoldenityColors.muted,
+                  label: 'Tersinkron'),
+              _StatusPill(
+                  icon: Icons.print_rounded,
+                  iconColor: GoldenityColors.muted,
+                  label: 'Printer OK'),
+            ],
+          ),
+          const SizedBox(height: GoldenitySpacing.lg),
+          // ── KPI row ──
+          _KpiRow(children: [
+            _KpiCard(label: 'PENDAPATAN', value: _fmt(s.totalRevenue)),
+            _KpiCard(
+                label: 'TRANSAKSI', value: '${s.totalTransactions}'),
+            _KpiCard(
+                label: 'RATA-RATA TRANSAKSI', value: _fmt(s.avgTransaction)),
+            _KpiCard(label: 'PENDAPATAN BERSIH', value: _fmt(s.netRevenue)),
+          ]),
+          const SizedBox(height: GoldenitySpacing.lg),
+          // ── Two columns: payment summary + top products ──
+          LayoutBuilder(
+            builder: (context, c) {
+              final twoCol = c.maxWidth >= 900;
+              final left = _PaymentSummaryCard(summary: s, fmt: _fmt);
+              final right = _TopProductsCard(summary: s, fmt: _fmt);
+              if (!twoCol) {
+                return Column(children: [
+                  left,
+                  const SizedBox(height: GoldenitySpacing.md),
+                  right,
+                ]);
+              }
+              return IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(flex: 3, child: left),
+                    const SizedBox(width: GoldenitySpacing.md),
+                    Expanded(flex: 2, child: right),
+                  ],
+                ),
+              );
+            },
+          ),
+          if (lowStock.isNotEmpty) ...[
+            const SizedBox(height: GoldenitySpacing.lg),
+            _LowStockStrip(
+              items: lowStock,
+              label: (p) => p.stock <= 0
+                  ? '${p.name} · habis'
+                  : '${p.name} · ${p.stock} tersisa',
+            ),
+          ],
+          const SizedBox(height: GoldenitySpacing.lg),
+          _CategoryBreakdownCard(summary: s, fmt: _fmt),
         ],
       ),
     );
   }
+}
 
-  Widget _buildStatCards(
-      GoldenityBizColors biz, DashboardSummaryProfile summary) {
-    final cards = <(String, num, IconData, Color, Color, bool)>[
-      ('Total Pendapatan', summary.totalRevenue, Icons.payments_rounded,
-          GoldenityColors.successLight, GoldenityColors.success, false),
-      ('Total Transaksi', summary.totalTransactions,
-          Icons.receipt_long_rounded, GoldenityColors.primaryLight,
-          GoldenityColors.primary, true),
-      ('Rata-rata Transaksi', summary.avgTransaction,
-          Icons.trending_up_rounded, GoldenityColors.warningLight,
-          GoldenityColors.warning, false),
-      ('Pendapatan Bersih', summary.netRevenue,
-          Icons.account_balance_wallet_rounded, biz.light, biz.base, false),
-    ];
+// ────────────────────────────────────────────────────────────
+// Range tabs (Hari Ini / Minggu Ini / Bulan Ini)
+// ────────────────────────────────────────────────────────────
+class _RangeTabs extends StatelessWidget {
+  const _RangeTabs({required this.value, required this.onChanged});
+  final String value;
+  final ValueChanged<String>? onChanged;
 
-    return Column(
-      children: [
-        for (int i = 0; i < cards.length; i += 2)
-          Padding(
-            padding: EdgeInsets.only(
-                bottom: i + 2 < cards.length ? GoldenitySpacing.md : 0),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(child: _metricFor(cards[i])),
-                  const SizedBox(width: GoldenitySpacing.md),
-                  Expanded(
-                    child: i + 1 < cards.length
-                        ? _metricFor(cards[i + 1])
-                        : const SizedBox.shrink(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
+  static const _opts = [
+    ('today', 'Hari Ini'),
+    ('week', 'Minggu Ini'),
+    ('month', 'Bulan Ini'),
+  ];
 
-  Widget _metricFor((String, num, IconData, Color, Color, bool) c) {
-    return GoldenityMetricCard(
-      label: c.$1,
-      value: c.$6 ? '${c.$2}' : _formatCurrency(c.$2),
-      icon: c.$3,
-      iconBackground: c.$4,
-      iconColor: c.$5,
-    );
-  }
-
-  Widget _buildTopProducts(BuildContext context, TextTheme textTheme,
-      GoldenityBizColors biz, DashboardSummaryProfile summary) {
-    final topProducts = summary.topProducts.take(5).toList();
-    return GoldenitySectionCard(
-      title: 'Produk Terlaris',
-      icon: Icons.star_rounded,
-      iconColor: GoldenityColors.warning,
-      iconBackground: GoldenityColors.warningLight,
-      padding: EdgeInsets.zero,
-      child: topProducts.isEmpty
-          ? Padding(
-              padding: const EdgeInsets.all(GoldenitySpacing.xl),
-              child: Center(
-                child: Text('Belum ada data produk terlaris',
-                    style: textTheme.bodySmall
-                        ?.copyWith(color: GoldenityColors.muted)),
-              ),
-            )
-          : ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: GoldenityColors.surface2,
+        borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+        border: Border.all(color: GoldenityColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: _opts.map((o) {
+          final active = o.$1 == value;
+          return GestureDetector(
+            onTap: onChanged == null ? null : () => onChanged!(o.$1),
+            child: Container(
               padding:
-                  const EdgeInsets.symmetric(vertical: GoldenitySpacing.xs),
-              itemCount: topProducts.length,
-              separatorBuilder: (_, __) =>
-                  const Divider(height: 1, color: GoldenityColors.border),
-              itemBuilder: (context, i) {
-                final p = topProducts[i];
-                return ListTile(
-                  leading: Container(
-                    width: 36,
-                    height: 36,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: i < 3
-                          ? GoldenityColors.warningLight
-                          : biz.light,
-                      borderRadius:
-                          BorderRadius.circular(GoldenityRadius.sm),
-                    ),
-                    child: Text('${i + 1}',
-                        style: textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          color: i < 3
-                              ? GoldenityColors.warning
-                              : biz.dark,
-                        )),
-                  ),
-                  title: Text(p.productName,
-                      style: textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis),
-                  subtitle: Text('${p.qty} unit terjual',
-                      style: textTheme.bodySmall?.copyWith(
-                          color: GoldenityColors.muted,
-                          fontWeight: FontWeight.w600)),
-                  trailing: Text(
-                    _formatCurrency(p.total),
-                    style: textTheme.titleSmall?.copyWith(
-                        color: biz.dark,
-                        fontWeight: FontWeight.w800,
-                        fontFamily: GoldenityTypography.fontFamilyMono),
-                  ),
-                );
-              },
-            ),
-    );
-  }
-
-  Widget _buildPaymentBreakdown(BuildContext context, TextTheme textTheme,
-      GoldenityBizColors biz, DashboardSummaryProfile summary) {
-    const allMethods = ['CASH', 'QRIS', 'CREDIT_CARD'];
-    final byMethod = <String, PaymentBreakdownItem>{};
-    for (final item in summary.paymentBreakdown) {
-      byMethod[item.paymentMethod] = item;
-    }
-
-    return GoldenitySectionCard(
-      title: 'Breakdown Pembayaran',
-      icon: Icons.payment_rounded,
-      iconColor: GoldenityColors.primary,
-      iconBackground: GoldenityColors.primaryLight,
-      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.xs),
-      child: Column(
-        children: allMethods.map((method) {
-          final item = byMethod[method];
-          final total = item?.total ?? 0;
-          final percent = item?.percent ?? 0;
-          final count = item?.count ?? 0;
-          return ListTile(
-            leading: Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
-                color: biz.light,
-                borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                color: active ? GoldenityColors.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(GoldenityRadius.md),
               ),
-              child: Icon(
-                method == 'CASH'
-                    ? Icons.payments_rounded
-                    : method == 'QRIS'
-                        ? Icons.qr_code_2_rounded
-                        : Icons.credit_card_rounded,
-                color: biz.dark,
-                size: 20,
-              ),
-            ),
-            title: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    method == 'CASH'
-                        ? 'Tunai (CASH)'
-                        : method == 'QRIS'
-                            ? 'QRIS'
-                            : 'Kartu Kredit',
-                    style: textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                ),
-                const SizedBox(width: GoldenitySpacing.sm),
-                SizedBox(
-                  width: 120,
-                  child: ClipRRect(
-                    borderRadius:
-                        BorderRadius.circular(GoldenityRadius.full),
-                    child: LinearProgressIndicator(
-                      value: percent / 100,
-                      minHeight: 8,
-                      backgroundColor: GoldenityColors.surface2,
-                      valueColor:
-                          AlwaysStoppedAnimation<Color>(biz.base),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            subtitle: Text(
-              '$count transaksi · ${percent.toStringAsFixed(1)}%',
-              style: textTheme.bodySmall?.copyWith(
-                  color: GoldenityColors.muted,
-                  fontWeight: FontWeight.w600),
-            ),
-            trailing: Text(
-              _formatCurrency(total),
-              style: textTheme.titleSmall?.copyWith(
-                  color: biz.dark,
-                  fontWeight: FontWeight.w800,
-                  fontFamily: GoldenityTypography.fontFamilyMono),
+              child: Text(o.$2,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: active ? Colors.white : GoldenityColors.muted,
+                  )),
             ),
           );
         }).toList(),
       ),
     );
   }
+}
 
-  Widget _buildCategoryBreakdown(BuildContext context, TextTheme textTheme,
-      GoldenityBizColors biz, DashboardSummaryProfile summary) {
-    final categories = summary.categoryBreakdown;
-    return GoldenitySectionCard(
+class _StatusPill extends StatelessWidget {
+  const _StatusPill(
+      {required this.icon, required this.iconColor, required this.label});
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: GoldenityColors.surface,
+        borderRadius: BorderRadius.circular(GoldenityRadius.full),
+        border: Border.all(color: GoldenityColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: iconColor),
+          const SizedBox(width: 6),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: GoldenityColors.text2)),
+        ],
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// KPI cards
+// ────────────────────────────────────────────────────────────
+class _KpiRow extends StatelessWidget {
+  const _KpiRow({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      final perRow = c.maxWidth >= 900 ? 4 : (c.maxWidth >= 520 ? 2 : 1);
+      const gap = GoldenitySpacing.md;
+      final w = (c.maxWidth - gap * (perRow - 1)) / perRow;
+      return Wrap(
+        spacing: gap,
+        runSpacing: gap,
+        children: [
+          for (final child in children) SizedBox(width: w, child: child),
+        ],
+      );
+    });
+  }
+}
+
+class _KpiCard extends StatelessWidget {
+  const _KpiCard({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(GoldenitySpacing.md),
+      decoration: BoxDecoration(
+        color: GoldenityColors.surface,
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+        border: Border.all(color: GoldenityColors.border),
+        boxShadow: GoldenityElevation.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.04,
+                color: GoldenityColors.muted,
+              )),
+          const SizedBox(height: GoldenitySpacing.sm),
+          Text(value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontFamily: GoldenityTypography.fontFamilyMono,
+                fontFeatures: [FontFeature.tabularFigures()],
+                fontSize: 22,
+                fontWeight: FontWeight.w800,
+                height: 1.1,
+                color: GoldenityColors.text,
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// Shared card shell (matches Figma: white, radius 12, border, pad 20)
+// ────────────────────────────────────────────────────────────
+class _Card extends StatelessWidget {
+  const _Card({required this.title, required this.child});
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: GoldenityColors.surface,
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+        border: Border.all(color: GoldenityColors.border),
+        boxShadow: GoldenityElevation.card,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+                GoldenitySpacing.lg, GoldenitySpacing.md, GoldenitySpacing.lg, GoldenitySpacing.sm),
+            child: Text(title,
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w800, color: GoldenityColors.text)),
+          ),
+          const Divider(height: 1, color: GoldenityColors.border),
+          Padding(
+            padding: const EdgeInsets.all(GoldenitySpacing.md),
+            child: child,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentSummaryCard extends StatelessWidget {
+  const _PaymentSummaryCard({required this.summary, required this.fmt});
+  final DashboardSummaryProfile summary;
+  final String Function(num) fmt;
+
+  static const _methods = [
+    ('CASH', 'Tunai'),
+    ('QRIS', 'QRIS'),
+    ('CREDIT_CARD', 'Kartu'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final byMethod = {for (final i in summary.paymentBreakdown) i.paymentMethod: i};
+    return _Card(
+      title: 'Ringkasan Pembayaran',
+      child: Column(
+        children: [
+          for (final m in _methods) ...[
+            _row(
+              m.$2,
+              byMethod[m.$1]?.count ?? 0,
+              (byMethod[m.$1]?.percent ?? 0).toDouble(),
+              byMethod[m.$1]?.total ?? 0,
+            ),
+            if (m != _methods.last) const SizedBox(height: GoldenitySpacing.md),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _row(String label, int count, double percent, num total) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 56,
+          child: Text(label,
+              style: const TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w700, color: GoldenityColors.text)),
+        ),
+        const SizedBox(width: GoldenitySpacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                child: LinearProgressIndicator(
+                  value: (percent / 100).clamp(0.0, 1.0),
+                  minHeight: 7,
+                  backgroundColor: GoldenityColors.surface2,
+                  valueColor: const AlwaysStoppedAnimation<Color>(GoldenityColors.primary),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text('$count transaksi · ${percent.toStringAsFixed(1)}%',
+                  style: const TextStyle(fontSize: 11, color: GoldenityColors.muted)),
+            ],
+          ),
+        ),
+        const SizedBox(width: GoldenitySpacing.sm),
+        Text(fmt(total),
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: GoldenityColors.text,
+              fontFamily: GoldenityTypography.fontFamilyMono,
+              fontFeatures: [FontFeature.tabularFigures()],
+            )),
+      ],
+    );
+  }
+}
+
+class _TopProductsCard extends StatelessWidget {
+  const _TopProductsCard({required this.summary, required this.fmt});
+  final DashboardSummaryProfile summary;
+  final String Function(num) fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final top = summary.topProducts.take(5).toList();
+    return _Card(
+      title: 'Produk Terlaris',
+      child: top.isEmpty
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: GoldenitySpacing.lg),
+              child: Center(
+                child: Text('Belum ada data',
+                    style: TextStyle(color: GoldenityColors.muted, fontSize: 13)),
+              ),
+            )
+          : Column(
+              children: [
+                for (int i = 0; i < top.length; i++) ...[
+                  Row(
+                    children: [
+                      Container(
+                        width: 22,
+                        height: 22,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: GoldenityColors.primaryLight,
+                          borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                        ),
+                        child: Text('${i + 1}',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: GoldenityColors.primary)),
+                      ),
+                      const SizedBox(width: GoldenitySpacing.sm),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(top[i].productName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: GoldenityColors.text)),
+                            Text('${top[i].qty} terjual',
+                                style: const TextStyle(
+                                    fontSize: 11, color: GoldenityColors.muted)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: GoldenitySpacing.sm),
+                      Text(fmt(top[i].total),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: GoldenityColors.text,
+                            fontFamily: GoldenityTypography.fontFamilyMono,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          )),
+                    ],
+                  ),
+                  if (i != top.length - 1)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: GoldenitySpacing.sm),
+                      child: Divider(height: 1, color: GoldenityColors.border),
+                    ),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+class _LowStockStrip extends StatelessWidget {
+  const _LowStockStrip({required this.items, required this.label});
+  final List<dynamic> items;
+  final String Function(dynamic) label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(GoldenitySpacing.md),
+      decoration: BoxDecoration(
+        color: GoldenityColors.warningLight.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+        border: Border.all(color: const Color(0xFFFDE68A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.warning_amber_rounded, size: 15, color: GoldenityColors.warning),
+              SizedBox(width: 6),
+              Text('Peringatan Stok Rendah',
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w700, color: GoldenityColors.warning)),
+            ],
+          ),
+          const SizedBox(height: GoldenitySpacing.sm),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final it in items.take(12))
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: GoldenityColors.surface,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                    border: Border.all(color: const Color(0xFFFDE68A)),
+                  ),
+                  child: Text(label(it),
+                      style: const TextStyle(fontSize: 12.5, color: GoldenityColors.text)),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryBreakdownCard extends StatelessWidget {
+  const _CategoryBreakdownCard({required this.summary, required this.fmt});
+  final DashboardSummaryProfile summary;
+  final String Function(num) fmt;
+
+  @override
+  Widget build(BuildContext context) {
+    final cats = summary.categoryBreakdown;
+    return _Card(
       title: 'Breakdown Kategori',
-      icon: Icons.category_rounded,
-      iconColor: biz.dark,
-      iconBackground: biz.light,
-      child: categories.isEmpty
-          ? Center(
-              child: Text('Belum ada data kategori',
-                  style: textTheme.bodySmall
-                      ?.copyWith(color: GoldenityColors.muted)),
+      child: cats.isEmpty
+          ? const Padding(
+              padding: EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+              child: Center(
+                child: Text('Belum ada data kategori',
+                    style: TextStyle(color: GoldenityColors.muted, fontSize: 13)),
+              ),
             )
           : Wrap(
               spacing: GoldenitySpacing.sm,
               runSpacing: GoldenitySpacing.sm,
-              children: categories.map((cat) {
-                return Chip(
-                  backgroundColor: biz.light,
-                  side: BorderSide.none,
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: GoldenitySpacing.sm),
-                  label: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(cat.categoryName,
-                          style: textTheme.labelSmall?.copyWith(
-                              color: biz.dark,
-                              fontWeight: FontWeight.w800)),
-                      const SizedBox(width: GoldenitySpacing.xs),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: GoldenitySpacing.sm, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: GoldenityColors.surface,
-                          borderRadius:
-                              BorderRadius.circular(GoldenityRadius.full),
-                        ),
-                        child: Text(
-                          _formatCurrency(cat.total),
-                          style: textTheme.labelSmall?.copyWith(
-                              color: biz.base,
-                              fontWeight: FontWeight.w900,
-                              fontFamily:
-                                  GoldenityTypography.fontFamilyMono),
-                        ),
-                      ),
-                    ],
+              children: [
+                for (final c in cats)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: GoldenityColors.surface2,
+                      borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                      border: Border.all(color: GoldenityColors.border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(c.categoryName,
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700, color: GoldenityColors.text)),
+                        const SizedBox(width: 6),
+                        Text(fmt(c.total),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: GoldenityColors.primary,
+                              fontFamily: GoldenityTypography.fontFamilyMono,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            )),
+                      ],
+                    ),
                   ),
-                );
-              }).toList(),
+              ],
             ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(GoldenitySpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 44, color: GoldenityColors.error),
+            const SizedBox(height: GoldenitySpacing.md),
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: GoldenitySpacing.md),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Coba Lagi'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
