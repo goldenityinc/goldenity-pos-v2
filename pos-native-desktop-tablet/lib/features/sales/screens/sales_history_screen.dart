@@ -37,6 +37,23 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
   String _searchQuery = '';
   DateTime? _filterStartDate;
   DateTime? _filterEndDate;
+  // Tab status: '' = semua, 'DONE' = SELESAI/DANA, 'VOIDED', 'PENDING'
+  String _statusFilter = '';
+
+  bool _matchStatusFilter(String statusRaw) {
+    switch (_statusFilter) {
+      case '':
+        return true;
+      case 'VOIDED':
+        return statusRaw == 'VOIDED';
+      case 'PENDING':
+        return statusRaw == 'PENDING' || statusRaw == 'PARTIAL';
+      case 'DONE':
+        return statusRaw == 'COMPLETED' || statusRaw == 'DONE' || statusRaw == 'PAID';
+      default:
+        return true;
+    }
+  }
 
   @override
   void initState() {
@@ -71,6 +88,10 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
             orderType.contains(q) ||
             totalMatch;
         if (!any) return false;
+      }
+      // status tab filter
+      if (!_matchStatusFilter(s['status']?.toString() ?? 'COMPLETED')) {
+        return false;
       }
       // date filter
       final createdAtRaw = s['createdAt']?.toString();
@@ -709,7 +730,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(145),
+          preferredSize: const Size.fromHeight(150),
           child: Column(
             children: [
               Padding(
@@ -789,21 +810,53 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: GoldenitySpacing.xs),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
+              // ── Filter status tabs (Figma: Semua / Lunas / Void / Pending) ──
+              Padding(
+                padding: const EdgeInsets.fromLTRB(GoldenitySpacing.lg, 0, GoldenitySpacing.lg, GoldenitySpacing.sm),
                 child: Row(
                   children: [
-                    Expanded(child: _HeaderChip(label: 'No. Transaksi')),
-                    SizedBox(width: GoldenitySpacing.sm),
-                    Expanded(flex: 2, child: _HeaderChip(label: 'Info Kasir & Waktu')),
-                    SizedBox(width: GoldenitySpacing.sm),
-                    SizedBox(width: 140, child: _HeaderChip(label: 'Total')),
+                    for (final t in <(String, String)>[
+                      ('', 'Semua'),
+                      ('DONE', 'Selesai'),
+                      ('VOIDED', 'Void'),
+                      ('PENDING', 'Pending'),
+                    ]) ...[
+                      _StatusTab(
+                        label: t.$2,
+                        count: _sales.where((s) {
+                          final st = s['status']?.toString() ?? 'COMPLETED';
+                          return switch (t.$1) {
+                            '' => true,
+                            'VOIDED' => st == 'VOIDED',
+                            'PENDING' => st == 'PENDING' || st == 'PARTIAL',
+                            _ => st == 'COMPLETED' || st == 'DONE' || st == 'PAID',
+                          };
+                        }).length,
+                        active: _statusFilter == t.$1,
+                        onTap: () => setState(() => _statusFilter = t.$1),
+                      ),
+                      const SizedBox(width: GoldenitySpacing.xs),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(height: GoldenitySpacing.xs),
-              const Divider(height: 1, color: GoldenityColors.border2, thickness: 1),
+              // ── Table header ──
+              Container(
+                color: GoldenityColors.surface2,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: GoldenitySpacing.lg, vertical: GoldenitySpacing.sm),
+                child: const Row(
+                  children: [
+                    SizedBox(width: 64, child: _ColLabel('ID')),
+                    SizedBox(width: 108, child: _ColLabel('WAKTU')),
+                    Expanded(child: _ColLabel('KASIR / TIPE')),
+                    SizedBox(width: 120, child: _ColLabel('TOTAL', end: true)),
+                    SizedBox(width: 92, child: _ColLabel('STATUS', center: true)),
+                    SizedBox(width: 56),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: GoldenityColors.border, thickness: 1),
             ],
           ),
         ),
@@ -870,18 +923,14 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                               ),
                             ],
                           )
-                        : ListView.builder(
-                            padding: const EdgeInsets.fromLTRB(
-                              GoldenitySpacing.lg,
-                              GoldenitySpacing.md,
-                              GoldenitySpacing.lg,
-                              GoldenitySpacing.xl,
-                            ),
+                        : ListView.separated(
+                            padding: EdgeInsets.zero,
                             itemCount: filtered.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1, color: GoldenityColors.border),
                             itemBuilder: (ctx, i) {
                               final sale = filtered[i];
                               final id = sale['id']?.toString() ?? '-';
-                              final refId = sale['referenceId']?.toString();
                               final totalRaw = num.tryParse(sale['total']?.toString() ?? '0') ?? 0;
                               final createdAtRaw = sale['createdAt']?.toString();
                               DateTime createdAt = DateTime.now();
@@ -896,107 +945,85 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                                   : 'Makan di Tempat';
                               final voided = statusRaw == 'VOIDED';
                               final (chipBg, chipFg) = _statusColor(statusRaw);
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: GoldenitySpacing.md),
-                                child: Material(
-                                  color: GoldenityColors.surface,
-                                  borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-                                  clipBehavior: Clip.antiAlias,
-                                  elevation: 0,
-                                  shadowColor: Colors.transparent,
-                                  child: InkWell(
-                                    onTap: () => _showSaleDetail(sale),
-                                    borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(GoldenitySpacing.lg),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: <Widget>[
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: <Widget>[
-                                                Row(
-                                                  children: <Widget>[
-                                                    Text(
-                                                      '#$id',
-                                                      style: textTheme.titleMedium?.copyWith(
-                                                        color: voided ? GoldenityColors.muted : GoldenityColors.text,
-                                                        decoration: voided ? TextDecoration.lineThrough : null,
-                                                        fontWeight: FontWeight.w700,
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: GoldenitySpacing.sm),
-                                                    Container(
-                                                      padding: const EdgeInsets.symmetric(
-                                                        horizontal: GoldenitySpacing.sm,
-                                                        vertical: 2,
-                                                      ),
-                                                      decoration: BoxDecoration(
-                                                        color: chipBg,
-                                                        borderRadius: BorderRadius.circular(GoldenityRadius.full),
-                                                      ),
-                                                      child: Text(
-                                                        _statusLabel(statusRaw),
-                                                        style: TextStyle(
-                                                          fontFamily: GoldenityTypography.fontFamilySans,
-                                                          color: chipFg,
-                                                          fontSize: 12,
-                                                          fontWeight: FontWeight.w700,
-                                                          height: 1.3,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: GoldenitySpacing.xs),
-                                                Text(
-                                                  '${_dateFormatter.format(createdAt)} · $cashierName · $orderType',
-                                                  style: textTheme.bodyLarge?.copyWith(
-                                                    color: GoldenityColors.text2,
-                                                  ),
-                                                ),
-                                                if (refId != null && refId.trim().isNotEmpty)
-                                                  Padding(
-                                                    padding: const EdgeInsets.only(top: GoldenitySpacing.xs),
-                                                    child: Text(
-                                                      'Ref: $refId',
-                                                      style: const TextStyle(
-                                                        fontFamily: GoldenityTypography.fontFamilySans,
-                                                        color: GoldenityColors.muted,
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                if (voided && sale['voidReason']?.toString().trim().isNotEmpty == true)
-                                                  Padding(
-                                                    padding: const EdgeInsets.only(top: GoldenitySpacing.sm),
-                                                    child: Text(
-                                                      'Alasan batal: ${sale['voidReason']}',
-                                                      style: textTheme.bodyLarge?.copyWith(
-                                                        color: GoldenityColors.error,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: GoldenitySpacing.md),
-                                          Text(
-                                            _currencyFormatter.format(totalRaw),
-                                            textAlign: TextAlign.right,
-                                            style: textTheme.titleLarge?.copyWith(
-                                              color: voided ? GoldenityColors.muted : biz.base,
+                              return InkWell(
+                                onTap: () => _showSaleDetail(sale),
+                                child: Container(
+                                  color: voided ? GoldenityColors.surface2.withValues(alpha: 0.4) : null,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: GoldenitySpacing.lg, vertical: 10),
+                                  child: Row(
+                                    children: <Widget>[
+                                      SizedBox(
+                                        width: 64,
+                                        child: Text('#$id',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w700,
+                                              color: voided ? GoldenityColors.muted : GoldenityColors.text,
                                               decoration: voided ? TextDecoration.lineThrough : null,
-                                              fontWeight: FontWeight.w800,
-                                              fontFamily: GoldenityTypography.fontFamilyMono,
-                                              fontFeatures: const [FontFeature.tabularFigures()],
+                                            )),
+                                      ),
+                                      SizedBox(
+                                        width: 108,
+                                        child: Text(
+                                          DateFormat('dd MMM · HH:mm', 'id_ID').format(createdAt),
+                                          style: const TextStyle(
+                                              fontSize: 12, color: GoldenityColors.text2),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          '$cashierName · $orderType',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              fontSize: 12.5, color: GoldenityColors.text2),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 120,
+                                        child: Text(
+                                          _currencyFormatter.format(totalRaw),
+                                          textAlign: TextAlign.right,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w800,
+                                            color: voided ? GoldenityColors.muted : GoldenityColors.text,
+                                            decoration: voided ? TextDecoration.lineThrough : null,
+                                            fontFamily: GoldenityTypography.fontFamilyMono,
+                                            fontFeatures: const [FontFeature.tabularFigures()],
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: 92,
+                                        child: Center(
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: chipBg,
+                                              borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                                            ),
+                                            child: Text(
+                                              _statusLabel(statusRaw),
+                                              style: TextStyle(
+                                                  color: chipFg, fontSize: 10.5, fontWeight: FontWeight.w800),
                                             ),
                                           ),
-                                        ],
+                                        ),
                                       ),
-                                    ),
+                                      const SizedBox(
+                                        width: 56,
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: Text('Detail',
+                                              style: TextStyle(
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: GoldenityColors.primary)),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               );
@@ -1007,25 +1034,80 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
   }
 }
 
-class _HeaderChip extends StatelessWidget {
+/// Tab filter status — Figma: pill, aktif bg #1D4ED8 putih + angka badge.
+class _StatusTab extends StatelessWidget {
+  const _StatusTab({
+    required this.label,
+    required this.count,
+    required this.active,
+    required this.onTap,
+  });
   final String label;
-  const _HeaderChip({required this.label});
+  final int count;
+  final bool active;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm, vertical: 8),
-      decoration: BoxDecoration(
-        color: GoldenityColors.surface2,
-        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-      ),
-      child: Text(
-        label,
-        style: textTheme.labelSmall?.copyWith(
-          fontWeight: FontWeight.w700,
-          color: GoldenityColors.text2,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(GoldenityRadius.full),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: active ? GoldenityColors.primary : GoldenityColors.surface,
+            borderRadius: BorderRadius.circular(GoldenityRadius.full),
+            border: Border.all(color: active ? GoldenityColors.primary : GoldenityColors.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: active ? Colors.white : GoldenityColors.muted,
+                  )),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: active ? Colors.white.withValues(alpha: 0.25) : GoldenityColors.surface2,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                ),
+                child: Text('$count',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      color: active ? Colors.white : GoldenityColors.text2,
+                    )),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _ColLabel extends StatelessWidget {
+  const _ColLabel(this.label, {this.end = false, this.center = false});
+  final String label;
+  final bool end;
+  final bool center;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      textAlign: end ? TextAlign.right : (center ? TextAlign.center : TextAlign.left),
+      style: const TextStyle(
+        fontSize: 10.5,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.05,
+        color: GoldenityColors.muted,
       ),
     );
   }
