@@ -8,6 +8,38 @@
 
 ---
 
+## 🚀🟢 [2026-09-08] Claude Code — JALUR B: Backend Fase 2 (Manajemen Meja + Web Order QR + Queue + Notifikasi) — E2E smoke PASS
+
+Keputusan Andre: jalankan 2 jalur paralel — Jalur A (Andre + Figma Make lengkapi desain pakai `pos-designer-documentation/FIGMA_MAKE_DESIGN_BRIEF.md`), **Jalur B (Claude): backend Fase 2 yang design-independent**. Ini Jalur B.
+
+### Isu #2 & #3 (sesi sebelumnya, sudah commit — tinggal verifikasi visual setelah Dev Mode ON)
+- `526f154` **#2 kertas 58/80mm** → kolom `PrinterConfig.paperWidth` (buang hack SharedPreferences), payment modal baca dari profil printer.
+- `bdb0cb8` **#3 upload gambar** → backend `POST /api/v1/uploads` (JSON base64, tanpa dep) + `GoldenityImageUploadField` (dialog file Windows via PowerShell, tanpa plugin) + Settings logo/QRIS.
+- `9716445` **Brief Figma Make lengkap** — semua screen Fase 1 + Fase 2, state, komponen, token, prompt siap-paste.
+
+### ⚠️ Blocker build Windows
+`flutter pub get` (dari eksperimen dep #3) mengosongkan `.plugin_symlinks` → regenerasi butuh **Windows Developer Mode** (OFF di mesin Andre). App tidak bisa di-`flutter run` sampai `start ms-settings:developers` → Developer Mode ON. Kode Flutter lolos `flutter analyze` 0, cuma tidak bisa di-build/run.
+
+### `8bf833b` — Backend Fase 2 (murni backend, tidak butuh Flutter/desain)
+**Schema** (migrasi additive `20260908090000`, applied via `prisma db execute`): `DiningTable` (code unik/branch, `qrToken` unik + rotate, status enum), `TableSession` (`sessionToken` opaque di localStorage customer, `expiresAt` TTL 3 jam), `WebOrder` + `WebOrderItem` (snapshot `productName`), `QueueCounter` (unique `[branchId,dateKey]`, increment atomik `$transaction`), `NotificationEvent` (audit + `retryCount` + `printedAt`). Back-relation di Tenant/Branch/Product/SalesRecord.
+
+**Endpoint:**
+- `/api/v1/tables` (JWT) — list (+ sesi aktif & order-nya), create/patch/delete (soft→INACTIVE bila ada riwayat), `POST :id/rotate-token`, `POST :id/close-session` (→ AVAILABLE + rotate), `GET :id/qr` (URL customer).
+- `/api/v1/web-orders` (JWT) — list/get/accept/reject/status/verify-payment. **`accept` → buat `SalesRecord` (orderType `WEB_ORDER`, idempotent `referenceId=web_<id>`) + decrement stok + isi `salesRecordId`** = satu pipeline akuntansi (sesuai ERD §3.4).
+- `/api/v1/order` (**TANPA JWT**, discope `sessionToken`) — `POST /session` (scan QR), `GET /menu`, `POST /submit` (assign queue atomik + NotificationEvent), `POST /:id/paid` (QRIS → PENDING_VERIFICATION), `GET /:id/status`.
+- `/api/v1/notifications` (JWT) — poll pending + ack (+`printed` → `printedAt`).
+
+**Smoke E2E PASS:** buat meja → QR URL → customer session → menu → submit (queue #1, total 30rb) → notif `ORDER_SUBMITTED` → kasir `accept` (SalesRecord #28 dibuat) → `accept` lagi ditolak (idempotent) → PREPARING→READY → transisi ilegal ditolak → customer track READY → close-session (meja AVAILABLE + token dirotasi) → `WEB_ORDER` muncul di `/sales`.
+
+**Gate:** `tsc --noEmit` EXIT 0. Backend running `:3001` dengan semua route Fase 1 + Fase 2.
+
+### Belum (Jalur B lanjutan, kalau perlu)
+- Sisa Fase 1 backend polish (tidak ada gap besar tersisa selain 4.1/4.2 printer hardware).
+- Socket.IO Bridge / FCM untuk notifikasi real-time saat app minimize (ERD §4.4) — iterasi awal cukup polling.
+- Modul Staf (Data Karyawan / Role) — belum ada endpoint.
+
+---
+
 ## 🔬✅ [2026-09-07] Claude Code — BATCH-3: G4 (produk tenant-wide) + revamp back-office lanjutan (Finance/Riwayat/Inventaris/Kategori/Settings) + FIX runtime dari `flutter run -d windows`
 
 Dijalankan langsung di Windows desktop, iterasi sampai console 0 exception.
