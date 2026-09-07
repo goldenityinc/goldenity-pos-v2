@@ -7,7 +7,6 @@ import 'package:intl/intl.dart';
 
 import '../../../core/config/api_constants.dart';
 import '../../../core/design/goldenity_colors.dart';
-import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
@@ -605,16 +604,66 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
       );
       return;
     }
-    final result = await showDialog<_VoidDialogResult>(
+    final reasonCtrl = TextEditingController();
+    bool refundFull = true;
+    final confirmed = await showGoldenityDialog<bool>(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => _VoidConfirmDialog(
-        saleId: sale['id']?.toString() ?? '',
-        orderLabel: '#${sale['id'] ?? sale['referenceId'] ?? '-'}',
-        total: _currencyFormatter.format(num.tryParse(sale['total']?.toString() ?? '0') ?? 0),
+      title: 'Batalkan Transaksi',
+      subtitle:
+          '#${sale['id'] ?? sale['referenceId'] ?? '-'} · ${_currencyFormatter.format(num.tryParse(sale['total']?.toString() ?? '0') ?? 0)}',
+      primaryLabel: 'Ya, Batalkan',
+      primaryColor: GoldenityColors.error,
+      child: StatefulBuilder(
+        builder: (ctx, setLocal) => Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Transaksi yang dibatalkan (void) akan mengembalikan stok & tidak '
+              'bisa diaktifkan lagi. Wajib isi alasan.',
+              style: TextStyle(fontSize: 12.5, color: GoldenityColors.text2, height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            GoldenityModalField(
+                label: 'Alasan pembatalan', controller: reasonCtrl, hint: 'mis. salah input item', autofocus: true),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () => setLocal(() => refundFull = !refundFull),
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: refundFull,
+                    onChanged: (v) => setLocal(() => refundFull = v ?? true),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  const Expanded(
+                    child: Text('Refund penuh (kembalikan seluruh nilai transaksi)',
+                        style: TextStyle(fontSize: 12.5, color: GoldenityColors.text2)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
+      onPrimary: () async {
+        if (reasonCtrl.text.trim().length < 3) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                backgroundColor: GoldenityColors.error,
+                content: Text('Alasan minimal 3 karakter')));
+          }
+          return null;
+        }
+        return true;
+      },
     );
-    if (result == null || !result.confirmed) return;
+    if (confirmed != true) return;
+    final result = _VoidDialogResult(
+      confirmed: true,
+      reason: reasonCtrl.text.trim(),
+      refundFull: refundFull,
+    );
     final session = ref.read(currentSessionProvider);
     if (session == null) {
       _showSnackBar('Sesi login tidak valid untuk membatalkan transaksi.', isError: true);
@@ -1087,149 +1136,4 @@ class _VoidDialogResult {
   final String reason;
   final bool refundFull;
   const _VoidDialogResult({required this.confirmed, required this.reason, required this.refundFull});
-}
-
-class _VoidConfirmDialog extends StatefulWidget {
-  final String saleId;
-  final String orderLabel;
-  final String total;
-  const _VoidConfirmDialog({
-    required this.saleId,
-    required this.orderLabel,
-    required this.total,
-  });
-
-  @override
-  State<_VoidConfirmDialog> createState() => _VoidConfirmDialogState();
-}
-
-class _VoidConfirmDialogState extends State<_VoidConfirmDialog> {
-  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _reasonCtrl = TextEditingController();
-  bool _isSubmitting = false;
-
-  @override
-  void dispose() {
-    _reasonCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.xl)),
-      insetPadding: const EdgeInsets.all(GoldenitySpacing.xl),
-      child: Padding(
-        padding: const EdgeInsets.all(GoldenitySpacing.xl),
-        child: Form(
-          key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    const Icon(Icons.warning_amber, color: GoldenityColors.error, size: 28),
-                    const SizedBox(width: GoldenitySpacing.md),
-                    Expanded(
-                      child: Text(
-                        'Batalkan Transaksi ${widget.orderLabel}',
-                        style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: GoldenitySpacing.md),
-                Text(
-                  'Tindakan ini akan mengubah status transaksi menjadi DIBATALKAN dan nominal pengembalian (${widget.total}) akan dicatat sebagai refundedAmount. Pembatalan tidak dapat dikembalikan.',
-                  style: textTheme.bodyLarge?.copyWith(color: GoldenityColors.text2),
-                ),
-                const SizedBox(height: GoldenitySpacing.lg),
-                TextFormField(
-                  controller: _reasonCtrl,
-                  decoration: InputDecoration(
-                    labelText: 'Alasan Pembatalan *',
-                    hintText: 'Contoh: salah input item / pelanggan batal order',
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: GoldenityColors.border),
-                      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: GoldenityColors.primary, width: 2),
-                      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                    ),
-                    errorBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: GoldenityColors.error, width: 2),
-                      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                    ),
-                    focusedErrorBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: GoldenityColors.error, width: 2),
-                      borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                    ),
-                    contentPadding: const EdgeInsets.all(GoldenitySpacing.md),
-                  ),
-                  keyboardType: TextInputType.multiline,
-                  minLines: 2,
-                  maxLines: 4,
-                  textInputAction: TextInputAction.done,
-                  validator: (val) {
-                    final trimmed = (val ?? '').trim();
-                    if (trimmed.isEmpty) {
-                      return 'Alasan pembatalan WAJIB diisi (minimal 3 karakter).';
-                    }
-                    if (trimmed.length < 3) {
-                      return 'Alasan pembatalan minimal 3 karakter. Misal: salah input atau batal pesanan.';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: GoldenitySpacing.xl),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: <Widget>[
-                    TextButton(
-                      onPressed: _isSubmitting ? null : () => Navigator.of(context).pop(),
-                      child: const Text(
-                        'Batal',
-                        style: TextStyle(
-                          fontFamily: GoldenityTypography.fontFamilySans,
-                          color: GoldenityColors.text2,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: GoldenitySpacing.md),
-                    GoldenityPrimaryButton(
-                      onPressed: _isSubmitting
-                          ? null
-                          : () {
-                              if (!(_formKey.currentState?.validate() ?? false)) return;
-                              setState(() => _isSubmitting = true);
-                              Navigator.of(context).pop(
-                                _VoidDialogResult(
-                                  confirmed: true,
-                                  reason: _reasonCtrl.text,
-                                  refundFull: true,
-                                ),
-                              );
-                            },
-                      label: 'Konfirmasi Batalkan',
-                      backgroundColor: GoldenityColors.error,
-                      foregroundColor: GoldenityColors.surface,
-                      shadow: GoldenityElevation.btnSuccess,
-                      icon: Icons.cancel_outlined,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
