@@ -496,149 +496,96 @@ class _CashierShiftScreenState extends ConsumerState<CashierShiftScreen> {
         ? 0
         : (current.expectedCashLive ?? current.openingCash + totalCashIn - totalRefund);
 
+    final dur = DateTime.now().difference(current.openedAt);
+    final durLabel = '${dur.inHours}j ${dur.inMinutes % 60}m';
+
     return ListView(
       padding: const EdgeInsets.all(GoldenitySpacing.lg),
       children: [
+        // ── Banner shift aktif (Figma arch-sleek) ──
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(GoldenityRadius.md),
+            color: GoldenityColors.surface,
+            borderRadius: BorderRadius.circular(GoldenityRadius.xl),
             border: Border.all(color: GoldenityColors.border),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+            boxShadow: GoldenityElevation.card,
           ),
-          padding: const EdgeInsets.all(GoldenitySpacing.md),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.all(GoldenitySpacing.lg),
+          child: Row(
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: GoldenityColors.successLight,
-                      borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.login_rounded, color: GoldenityColors.success, size: 24),
-                  ),
-                  const SizedBox(width: GoldenitySpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text('Informasi Shift Aktif', style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-                            const SizedBox(width: GoldenitySpacing.sm),
-                            Chip(
-                              backgroundColor: GoldenityColors.successLight,
-                              side: BorderSide.none,
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              label: Text(
-                                'OPEN',
-                                style: textTheme.labelSmall?.copyWith(color: GoldenityColors.success, fontWeight: FontWeight.w900),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Kasir: ${current.cashierName ?? '-'} · Cabang: ${current.branchName ?? '-'}',
-                          style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Dibuka: ${_dateTimeFormatter.format(current.openedAt)}',
-                          style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, fontFamily: 'RobotoMono'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: GoldenitySpacing.md),
-              const Divider(),
-              const SizedBox(height: GoldenitySpacing.md),
-              Wrap(
-                spacing: GoldenitySpacing.sm,
-                runSpacing: GoldenitySpacing.sm,
-                children: [
-                  _InfoChip(
-                    icon: Icons.attach_money_rounded,
-                    label: 'Modal Awal',
-                    value: _formatCurrency(current.openingCash),
-                    biz: biz,
-                    textTheme: textTheme,
-                  ),
-                  _InfoChip(
-                    icon: Icons.receipt_long_rounded,
-                    label: 'Transaksi Tunai',
-                    value: '$cashTxCount transaksi',
-                    biz: biz,
-                    textTheme: textTheme,
-                    fgColor: GoldenityColors.success,
-                    bgColor: GoldenityColors.successLight,
-                  ),
-                  if (!_blindModeCashier)
-                    _InfoChip(
-                      icon: Icons.savings_rounded,
-                      label: 'Total Tunai Masuk',
-                      value: _formatCurrency(totalCashIn),
-                      biz: biz,
-                      textTheme: textTheme,
-                    ),
-                  if (!_blindModeCashier)
-                    _InfoChip(
-                      icon: Icons.money_off_rounded,
-                      label: 'Total Refund',
-                      value: _formatCurrency(totalRefund),
-                      biz: biz,
-                      textTheme: textTheme,
-                      fgColor: GoldenityColors.error,
-                      bgColor: GoldenityColors.errorLight,
-                    ),
-                ],
-              ),
-              const SizedBox(height: GoldenitySpacing.md),
-              if (!_blindModeCashier)
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: biz.light,
-                    borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                    border: Border.all(color: biz.base.withValues(alpha: 0.2)),
-                  ),
-                  padding: const EdgeInsets.all(GoldenitySpacing.md),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.info_outline_rounded, color: biz.dark, size: 20),
-                          const SizedBox(width: GoldenitySpacing.xs),
-                          Expanded(
-                            child: Text(
-                              'Uang seharusnya ada di kasir = modal awal + total tunai masuk dikurangi refund',
-                              style: textTheme.bodySmall?.copyWith(color: biz.dark, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: GoldenitySpacing.sm),
-                      Text(
-                        _formatCurrency(expectedCash),
-                        style: textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                          fontFamily: 'RobotoMono',
-                          color: biz.dark,
-                        ),
-                      ),
-                    ],
-                  ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: GoldenityColors.primaryLight,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.full),
                 ),
+                child: const Text('Shift Aktif',
+                    style: TextStyle(
+                        fontSize: 11.5, fontWeight: FontWeight.w800, color: GoldenityColors.primary)),
+              ),
+              const SizedBox(width: GoldenitySpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Buka ${DateFormat('HH:mm', 'id_ID').format(current.openedAt)}'
+                        '${current.branchName != null ? ' · ${current.branchName}' : ''}',
+                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text('${current.cashierName ?? 'Kasir'} · berjalan $durLabel',
+                        style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2)),
+                  ],
+                ),
+              ),
+              Text(_dateTimeFormatter.format(current.openedAt),
+                  style: const TextStyle(
+                      fontSize: 11, color: GoldenityColors.muted, fontFamily: 'RobotoMono')),
+            ],
+          ),
+        ),
+        const SizedBox(height: GoldenitySpacing.md),
+        // ── 3 KPI card ──
+        Row(
+          children: [
+            Expanded(child: _ShiftKpi(label: 'Modal Awal', value: _formatCurrency(current.openingCash))),
+            const SizedBox(width: GoldenitySpacing.md),
+            Expanded(
+                child: _ShiftKpi(
+                    label: 'Pemasukan',
+                    value: _blindModeCashier ? '••••' : _formatCurrency(totalCashIn))),
+            const SizedBox(width: GoldenitySpacing.md),
+            Expanded(
+                child: _ShiftKpi(
+                    label: 'Perkiraan Kas',
+                    value: _blindModeCashier ? '••••' : _formatCurrency(expectedCash),
+                    accent: GoldenityColors.primary)),
+          ],
+        ),
+        const SizedBox(height: GoldenitySpacing.md),
+        // ── Rincian pembayaran ringkas ──
+        Container(
+          decoration: BoxDecoration(
+            color: GoldenityColors.surface,
+            borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+            border: Border.all(color: GoldenityColors.border),
+            boxShadow: GoldenityElevation.card,
+          ),
+          padding: const EdgeInsets.all(GoldenitySpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Rincian Shift',
+                  style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: GoldenitySpacing.sm),
+              _shiftRow('Transaksi tunai', '$cashTxCount transaksi'),
+              if (!_blindModeCashier) _shiftRow('Total tunai masuk', _formatCurrency(totalCashIn)),
+              if (!_blindModeCashier)
+                _shiftRow('Total refund', '- ${_formatCurrency(totalRefund)}',
+                    color: GoldenityColors.error),
+              const Divider(height: 16, color: GoldenityColors.border),
+              _shiftRow('Perkiraan kas di laci',
+                  _blindModeCashier ? '••••' : _formatCurrency(expectedCash),
+                  bold: true),
             ],
           ),
         ),
@@ -733,6 +680,66 @@ class _CashierShiftScreenState extends ConsumerState<CashierShiftScreen> {
       ],
     );
   }
+
+  Widget _shiftRow(String label, String value, {bool bold = false, Color? color}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: bold ? 13.5 : 12.5,
+                    fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+                    color: GoldenityColors.text2)),
+            Text(value,
+                style: TextStyle(
+                  fontSize: bold ? 14 : 12.5,
+                  fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+                  color: color ?? GoldenityColors.text,
+                  fontFamily: 'RobotoMono',
+                )),
+          ],
+        ),
+      );
+}
+
+class _ShiftKpi extends StatelessWidget {
+  const _ShiftKpi({required this.label, required this.value, this.accent});
+  final String label;
+  final String value;
+  final Color? accent;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(GoldenitySpacing.md),
+        decoration: BoxDecoration(
+          color: GoldenityColors.surface,
+          borderRadius: BorderRadius.circular(GoldenityRadius.xl),
+          border: Border.all(color: GoldenityColors.border),
+          boxShadow: GoldenityElevation.card,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label.toUpperCase(),
+                style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.04,
+                    color: GoldenityColors.muted)),
+            const SizedBox(height: GoldenitySpacing.sm),
+            Text(value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    fontFamily: 'RobotoMono',
+                    color: accent ?? GoldenityColors.text)),
+          ],
+        ),
+      );
 }
 
 class _ReconRow extends StatelessWidget {
@@ -765,67 +772,6 @@ class _ReconRow extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final GoldenityBizColors biz;
-  final TextTheme textTheme;
-  final Color? fgColor;
-  final Color? bgColor;
-
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.biz,
-    required this.textTheme,
-    this.fgColor,
-    this.bgColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fgc = fgColor ?? biz.dark;
-    final bgc = bgColor ?? biz.light;
-    return Container(
-      constraints: const BoxConstraints(minWidth: 150),
-      decoration: BoxDecoration(
-        color: bgc,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
-      ),
-      padding: const EdgeInsets.all(GoldenitySpacing.sm),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: fgc),
-          const SizedBox(width: GoldenitySpacing.xs),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(label, style: textTheme.labelSmall?.copyWith(color: fgc, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: textTheme.titleSmall?.copyWith(
-                    color: fgc,
-                    fontWeight: FontWeight.w900,
-                    fontFamily: 'RobotoMono',
-                  ),
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
