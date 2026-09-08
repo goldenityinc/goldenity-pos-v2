@@ -32,6 +32,9 @@ model Tenant {
   taxEnabled              Boolean      @default(true)
   taxRatePercentage       Int          @default(11)
   pricesIncludeTax        Boolean      @default(false)
+  // Terima + cetak web order (struk kasir + nota dapur) otomatis begitu masuk.
+  // Off = kasir terima manual di POS, cetak menyusul saat diterima.
+  webOrderAutoAccept      Boolean      @default(false)
   isActive                Boolean      @default(true)
   subscriptionStatus      String?
   allowedSolutions        String[]

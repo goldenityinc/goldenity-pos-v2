@@ -37,7 +37,7 @@ export const config = {
   /** HTTP health/status server lokal. */
   port: num('PORT', 4599),
 
-  /** Printer dapur (CHECKER). console = cetak ke stdout (dev). */
+  /** Printer dapur (CHECKER / Nota Dapur). console = cetak ke stdout (dev). */
   printerMode: (opt('PRINTER_MODE', 'console') as PrinterMode),
   printerHost: opt('PRINTER_HOST', '192.168.1.50'),
   printerPort: num('PRINTER_PORT', 9100),
@@ -45,6 +45,14 @@ export const config = {
   printerCols: num('PRINTER_COLS', 48),
   /** Potong kertas otomatis di akhir tiket. */
   printerCut: opt('PRINTER_CUT', 'true') !== 'false',
+
+  /**
+   * Printer struk kasir (Struk Kasir). Kalau kosong → pakai printer utama
+   * (di banyak kafe kecil kasir & dapur satu printer).
+   */
+  receiptPrinterHost: opt('RECEIPT_PRINTER_HOST'),
+  receiptPrinterPort: num('RECEIPT_PRINTER_PORT', 9100),
+  receiptCols: num('RECEIPT_COLS', 48),
 
   /** Reconnect Socket.IO. */
   reconnectDelayMs: num('RECONNECT_DELAY_MS', 2000),

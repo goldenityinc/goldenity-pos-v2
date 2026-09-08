@@ -8,7 +8,7 @@ import {
   getWebOrder,
   resolvedBranchId,
 } from './backend.js';
-import { printKitchenTicket, type PrintResult } from './printer.js';
+import { printOrderTickets, type PrintResult } from './printer.js';
 
 interface JobLog {
   at: string;
@@ -16,7 +16,8 @@ interface JobLog {
   queueNumber?: number;
   tableCode?: string;
   event: string;
-  print?: PrintResult;
+  source?: string;
+  prints?: PrintResult[];
   error?: string;
 }
 
@@ -30,34 +31,47 @@ const state = {
   jobs: [] as JobLog[],
 };
 
+/** Order yang sudah dicetak — cegah dobel cetak saat socket replay / reconnect. */
+const printed = new Set<string>();
+
 function pushJob(j: JobLog) {
   state.jobs.unshift(j);
-  if (state.jobs.length > 50) state.jobs.length = 50;
+  if (state.jobs.length > 80) state.jobs.length = 80;
 }
 
-async function handleSubmitted(payload: any) {
-  const webOrderId: string = payload?.webOrderId;
+/**
+ * Cetak struk kasir + nota dapur untuk 1 order. Dipanggil saat order ACCEPTED
+ * (baik auto-accept dari server maupun kasir terima manual di POS).
+ */
+async function printForOrder(webOrderId: string, meta: Partial<JobLog>): Promise<void> {
   if (!webOrderId) return;
+  if (printed.has(webOrderId)) {
+    console.log(`[order] ${webOrderId.slice(0, 8)} sudah dicetak — lewati.`);
+    return;
+  }
+  printed.add(webOrderId);
   const base: JobLog = {
     at: new Date().toISOString(),
     webOrderId,
-    queueNumber: payload?.queueNumber,
-    tableCode: payload?.tableCode,
-    event: 'web_order:submitted',
+    event: 'print',
+    ...meta,
   };
   try {
     const wo = await getWebOrder(webOrderId);
-    const print = await printKitchenTicket(wo);
-    pushJob({ ...base, queueNumber: wo.queueNumber, tableCode: wo.table?.code, print });
+    const prints = await printOrderTickets(wo);
+    pushJob({ ...base, queueNumber: wo.queueNumber, tableCode: wo.table?.code, prints });
+    const okAll = prints.every((p) => p.ok);
     console.log(
-      `[order] Q-${wo.queueNumber} Meja ${wo.table?.code ?? '-'} → print ${print.mode} ${
-        print.ok ? 'OK' : 'GAGAL: ' + print.error
+      `[order] Q-${wo.queueNumber} Meja ${wo.table?.code ?? '-'} (${meta.source ?? '?'}) → cetak ${
+        prints.map((p) => `${p.kind}:${p.ok ? 'OK' : 'GAGAL'}`).join(' ')
       }`,
     );
+    if (!okAll) printed.delete(webOrderId); // biar bisa di-reprint / retry
   } catch (e: any) {
+    printed.delete(webOrderId);
     const error = e?.message ?? String(e);
     pushJob({ ...base, error });
-    console.error(`[order] gagal proses ${webOrderId}: ${error}`);
+    console.error(`[order] gagal cetak ${webOrderId}: ${error}`);
   }
 }
 
@@ -89,22 +103,39 @@ function wireSocket(): Socket {
   });
 
   socket.on('web_order:submitted', (p: any) => {
-    console.log(`[event] web_order:submitted Q-${p?.queueNumber} meja ${p?.tableCode}`);
-    void handleSubmitted(p);
-  });
-
-  socket.on('web_order:status', (p: any) => {
+    // Bridge TIDAK mencetak di sini. Cetak menyusul saat order ACCEPTED
+    // (auto-accept server ATAU kasir terima manual). Notifikasi = tugas POS.
     console.log(
-      `[event] web_order:status Q-${p?.queueNumber} → ${p?.status}${
-        p?.paymentStatus ? ' / ' + p.paymentStatus : ''
+      `[event] web_order:submitted Q-${p?.queueNumber} meja ${p?.tableCode}${
+        p?.autoAccept ? ' (auto-accept ON)' : ''
       }`,
     );
     pushJob({
       at: new Date().toISOString(),
       webOrderId: p?.webOrderId,
       queueNumber: p?.queueNumber,
-      event: `web_order:status ${p?.status ?? ''}`.trim(),
+      tableCode: p?.tableCode,
+      event: 'web_order:submitted',
     });
+  });
+
+  socket.on('web_order:status', (p: any) => {
+    console.log(
+      `[event] web_order:status Q-${p?.queueNumber} → ${p?.status}${
+        p?.paymentStatus ? ' / ' + p.paymentStatus : ''
+      }${p?.source ? ` (${p.source})` : ''}`,
+    );
+    pushJob({
+      at: new Date().toISOString(),
+      webOrderId: p?.webOrderId,
+      queueNumber: p?.queueNumber,
+      event: `web_order:status ${p?.status ?? ''}`.trim(),
+      source: p?.source,
+    });
+    // Sinyal cetak: order baru diterima → cetak struk + nota dapur.
+    if (p?.status === 'ACCEPTED') {
+      void printForOrder(p?.webOrderId, { source: p?.source ?? 'accept', queueNumber: p?.queueNumber });
+    }
   });
 
   socket.on('disconnect', (reason) => {
@@ -148,20 +179,21 @@ function startHttp(socket: Socket) {
     });
   });
 
-  // Cetak ulang tiket dapur untuk 1 order (kalau printer sempat error).
+  // Cetak ulang struk + nota dapur untuk 1 order (kalau printer sempat error).
   app.post('/reprint/:id', async (req, res) => {
     try {
       const wo = await getWebOrder(req.params.id);
-      const print = await printKitchenTicket(wo);
+      const prints = await printOrderTickets(wo);
       pushJob({
         at: new Date().toISOString(),
         webOrderId: wo.id,
         queueNumber: wo.queueNumber,
         tableCode: wo.table?.code,
         event: 'reprint',
-        print,
+        prints,
       });
-      res.json({ ok: print.ok, print });
+      printed.add(wo.id);
+      res.json({ ok: prints.every((p) => p.ok), prints });
     } catch (e: any) {
       res.status(500).json({ ok: false, error: e?.message ?? String(e) });
     }

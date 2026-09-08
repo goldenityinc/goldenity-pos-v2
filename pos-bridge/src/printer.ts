@@ -140,7 +140,56 @@ export function buildKitchenTicket(wo: WebOrder): TicketBuilder {
   return t;
 }
 
-async function sendTcp(buf: Buffer): Promise<void> {
+function money(n: number): string {
+  return 'Rp ' + Math.round(n).toLocaleString('id-ID');
+}
+
+function payLabel(method: string): string {
+  if (method === 'QRIS_STATIC') return 'QRIS';
+  if (method === 'PAY_AT_CASHIER') return 'Bayar di Kasir';
+  return method;
+}
+
+/** Struk kasir (Struk Kasir) - nomor order, item, total, metode bayar, info meja. */
+export function buildReceiptTicket(wo: WebOrder): TicketBuilder {
+  const t = new TicketBuilder(config.receiptCols);
+  t.align('center').bold(true).size(true);
+  t.text('STRUK KASIR');
+  t.size(false);
+  t.text(`Antrian Q-${wo.queueNumber}`);
+  t.bold(false).align('left');
+  t.rule('=');
+  t.row(`Meja ${wo.table?.code ?? '-'}`, timeId(wo.createdAt));
+  if (wo.customerName) t.text(`Pelanggan : ${wo.customerName}`);
+  t.text(`Order #${wo.id.slice(0, 8)}`);
+  t.rule('-');
+
+  for (const it of wo.items) {
+    t.text(`${it.qty} x ${it.productName}`);
+    const v = fmtVariant(it.variantSelections);
+    if (v) t.text(`   ${v}`);
+    t.row(`   @ ${money(it.unitPrice)}`, money(it.lineTotal));
+  }
+
+  t.rule('-');
+  t.row('Subtotal', money(wo.subtotal));
+  if (wo.discountAmount > 0) t.row('Diskon', '-' + money(wo.discountAmount));
+  if (wo.taxAmount > 0) t.row('Pajak', money(wo.taxAmount));
+  t.bold(true).row('TOTAL', money(wo.total)).bold(false);
+  t.rule('=');
+  t.row('Metode', payLabel(wo.paymentMethod));
+  t.row('Status Bayar', wo.paymentStatus === 'PAID' ? 'LUNAS' : 'BELUM DIBAYAR');
+  if (wo.customerNote) {
+    t.rule('-');
+    t.text(`Catatan: ${wo.customerNote}`);
+  }
+  t.rule('=');
+  t.align('center').text('Terima kasih').text('Goldenity POS');
+  t.feed(4).cut();
+  return t;
+}
+
+async function sendTcp(buf: Buffer, host: string, port: number): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const sock = new Socket();
     const done = (err?: Error) => {
@@ -149,7 +198,7 @@ async function sendTcp(buf: Buffer): Promise<void> {
     };
     sock.setTimeout(5000, () => done(new Error('printer timeout')));
     sock.on('error', done);
-    sock.connect(config.printerPort, config.printerHost, () => {
+    sock.connect(port, host, () => {
       sock.write(buf, () => sock.end(() => done()));
     });
   });
@@ -159,22 +208,44 @@ export interface PrintResult {
   ok: boolean;
   mode: string;
   target: string;
+  kind: 'kitchen' | 'receipt';
   error?: string;
 }
 
-export async function printKitchenTicket(wo: WebOrder): Promise<PrintResult> {
-  const ticket = buildKitchenTicket(wo);
+async function emit(
+  kind: 'kitchen' | 'receipt',
+  ticket: TicketBuilder,
+  host: string,
+  port: number,
+): Promise<PrintResult> {
   if (config.printerMode === 'tcp') {
-    const target = `${config.printerHost}:${config.printerPort}`;
+    const target = `${host}:${port}`;
     try {
-      await sendTcp(ticket.buffer());
-      return { ok: true, mode: 'tcp', target };
+      await sendTcp(ticket.buffer(), host, port);
+      return { ok: true, mode: 'tcp', target, kind };
     } catch (e: any) {
-      return { ok: false, mode: 'tcp', target, error: e?.message ?? String(e) };
+      return { ok: false, mode: 'tcp', target, kind, error: e?.message ?? String(e) };
     }
   }
-  // console mode
   const border = '-'.repeat(config.printerCols);
-  console.log(`\n${border}\n${ticket.plainText()}\n${border}\n`);
-  return { ok: true, mode: 'console', target: 'stdout' };
+  console.log(`\n[${kind.toUpperCase()}]\n${border}\n${ticket.plainText()}\n${border}\n`);
+  return { ok: true, mode: 'console', target: 'stdout', kind };
+}
+
+export function printKitchenTicket(wo: WebOrder): Promise<PrintResult> {
+  return emit('kitchen', buildKitchenTicket(wo), config.printerHost, config.printerPort);
+}
+
+export function printReceiptTicket(wo: WebOrder): Promise<PrintResult> {
+  const host = config.receiptPrinterHost || config.printerHost;
+  const port = config.receiptPrinterHost ? config.receiptPrinterPort : config.printerPort;
+  return emit('receipt', buildReceiptTicket(wo), host, port);
+}
+
+/** Cetak struk kasir + nota dapur untuk 1 web order (dipakai saat order ACCEPTED). */
+export async function printOrderTickets(wo: WebOrder): Promise<PrintResult[]> {
+  // Struk dulu (kasir), lalu nota dapur.
+  const receipt = await printReceiptTicket(wo);
+  const kitchen = await printKitchenTicket(wo);
+  return [receipt, kitchen];
 }

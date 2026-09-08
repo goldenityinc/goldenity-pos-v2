@@ -328,6 +328,12 @@ export class WebOrderService {
       return wo;
     });
 
+    const tenantCfg = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { webOrderAutoAccept: true },
+    });
+    const willAutoAccept = tenantCfg?.webOrderAutoAccept === true;
+
     emitToBranch(branchId, 'web_order:submitted', {
       webOrderId: created.id,
       queueNumber,
@@ -335,8 +341,17 @@ export class WebOrderService {
       total: totals.total,
       itemCount: lineItems.length,
       status: 'SUBMITTED',
+      autoAccept: willAutoAccept,
     });
-    return ok({ ...mapWebOrder(created), message: 'Pesanan terkirim ke kasir.' });
+
+    // Auto-accept jalan setelah emit `submitted` supaya POS sempat memunculkan
+    // notifikasi "pesanan masuk" sebelum status berubah jadi ACCEPTED.
+    if (willAutoAccept) {
+      await WebOrderService.autoAcceptIfEnabled(created.id);
+      const fresh = await prisma.webOrder.findUnique({ where: { id: created.id }, include: webOrderInclude });
+      return ok({ ...mapWebOrder(fresh ?? created), autoAccepted: fresh?.status === 'ACCEPTED', message: 'Pesanan diterima otomatis.' });
+    }
+    return ok({ ...mapWebOrder(created), autoAccepted: false, message: 'Pesanan terkirim ke kasir.' });
   }
 
   static async markPaid(sessionToken: string, webOrderId: string): Promise<ApiResponse<any>> {
@@ -448,7 +463,18 @@ export class WebOrderService {
     if (wo.status !== 'SUBMITTED') {
       return fail(`Web order status ${wo.status} — hanya SUBMITTED yang bisa diterima.`);
     }
+    return WebOrderService.acceptCore(wo, user.userId, 'manual');
+  }
 
+  /**
+   * Inti proses "terima order" — dipakai baik oleh kasir manual maupun
+   * auto-accept saat submit. `wo` harus sudah include items & berstatus SUBMITTED.
+   */
+  private static async acceptCore(
+    wo: any,
+    cashierId: string,
+    source: 'manual' | 'auto',
+  ): Promise<ApiResponse<any>> {
     const referenceId = `web_${wo.id}`;
     const paymentMethod = wo.paymentMethod === 'QRIS_STATIC' ? 'QRIS' : 'CASH';
 
@@ -461,7 +487,7 @@ export class WebOrderService {
             referenceId,
             tenantId: wo.tenantId,
             branchId: wo.branchId,
-            cashierId: user.userId,
+            cashierId,
             orderType: 'WEB_ORDER',
             subtotal: wo.subtotal,
             discountAmount: wo.discountAmount,
@@ -474,7 +500,7 @@ export class WebOrderService {
           },
         });
         await tx.salesRecordItem.createMany({
-          data: wo.items.map((it) => ({
+          data: wo.items.map((it: any) => ({
             salesRecordId: sale!.id,
             productId: it.productId,
             productName: it.productName,
@@ -515,19 +541,64 @@ export class WebOrderService {
           webOrderId: wo.id,
           type: 'ORDER_STATUS_CHANGED',
           channel: 'POLL',
-          payload: { webOrderId: wo.id, status: 'ACCEPTED', queueNumber: wo.queueNumber, salesRecordId: sale.id.toString() } as any,
+          payload: { webOrderId: wo.id, status: 'ACCEPTED', queueNumber: wo.queueNumber, salesRecordId: sale.id.toString(), source } as any,
         },
       });
       return { updated, saleId: sale.id.toString() };
     });
 
+    // Sinyal cetak: struk kasir + nota dapur dicetak oleh bridge saat ACCEPTED
+    // (berlaku untuk auto maupun manual).
     emitToBranch(wo.branchId, 'web_order:status', {
       webOrderId: wo.id,
       queueNumber: wo.queueNumber,
       status: 'ACCEPTED',
       salesRecordId: result.saleId,
+      source,
+      print: ['receipt', 'kitchen'],
     });
     return ok({ ...mapWebOrder(result.updated), salesRecordId: result.saleId, message: 'Order diterima & masuk pipeline penjualan.' });
+  }
+
+  /** Resolusi kasir untuk auto-accept: shift OPEN cabang → admin tenant → user manapun. */
+  private static async resolveAutoCashierId(tenantId: string, branchId: string): Promise<string | null> {
+    const shift = await prisma.cashierShift.findFirst({
+      where: { branchId, status: 'OPEN' },
+      orderBy: { openedAt: 'desc' },
+      select: { cashierId: true },
+    });
+    if (shift?.cashierId) return shift.cashierId;
+    const admin = await prisma.user.findFirst({
+      where: { tenantId, role: 'TENANT_ADMIN', isActive: true },
+      select: { id: true },
+    });
+    if (admin?.id) return admin.id;
+    const anyUser = await prisma.user.findFirst({
+      where: { tenantId, isActive: true },
+      select: { id: true },
+    });
+    return anyUser?.id ?? null;
+  }
+
+  /** Kalau tenant mengaktifkan auto-accept, terima order yang baru masuk saat itu juga. */
+  private static async autoAcceptIfEnabled(webOrderId: string): Promise<void> {
+    const wo = await prisma.webOrder.findUnique({ where: { id: webOrderId }, include: webOrderInclude });
+    if (!wo || wo.status !== 'SUBMITTED') return;
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: wo.tenantId },
+      select: { webOrderAutoAccept: true },
+    });
+    if (tenant?.webOrderAutoAccept !== true) return;
+    const cashierId = await WebOrderService.resolveAutoCashierId(wo.tenantId, wo.branchId);
+    if (!cashierId) {
+      console.warn(`[web-order] auto-accept dilewati untuk ${webOrderId}: tidak ada user kasir/admin di tenant.`);
+      return;
+    }
+    try {
+      await WebOrderService.acceptCore(wo, cashierId, 'auto');
+    } catch (e: any) {
+      console.error(`[web-order] auto-accept gagal untuk ${webOrderId}: ${e?.message ?? e}`);
+    }
   }
 
   static async reject(user: JwtAuthPayload, id: string, raw: unknown): Promise<ApiResponse<any>> {
