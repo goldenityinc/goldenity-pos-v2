@@ -98,6 +98,64 @@ class TableApiService {
     _ok(r);
   }
 
+  Future<void> openSession({
+    required String token,
+    required String tableId,
+    String? guestName,
+    String? guestPhone,
+    int? guests,
+  }) async {
+    final r = await _client
+        .post(Uri.parse('${ApiConstants.tableByIdEndpoint(tableId)}/open-session'),
+            headers: _h(token),
+            body: jsonEncode({
+              if (guestName != null && guestName.isNotEmpty) 'guestName': guestName,
+              if (guestPhone != null && guestPhone.isNotEmpty) 'guestPhone': guestPhone,
+              if (guests != null) 'guests': guests,
+            }))
+        .timeout(ApiConstants.defaultReceiveTimeout);
+    _ok(r);
+  }
+
+  Future<void> reserve({
+    required String token,
+    required String tableId,
+    required String name,
+    required String phone,
+    required DateTime reservedAt,
+    required int guests,
+    String? note,
+  }) async {
+    final r = await _client
+        .post(Uri.parse('${ApiConstants.tableByIdEndpoint(tableId)}/reserve'),
+            headers: _h(token),
+            body: jsonEncode({
+              'name': name,
+              'phone': phone,
+              'reservedAt': reservedAt.toIso8601String(),
+              'guests': guests,
+              if (note != null && note.isNotEmpty) 'note': note,
+            }))
+        .timeout(ApiConstants.defaultReceiveTimeout);
+    _ok(r);
+  }
+
+  Future<void> cancelReservation({required String token, required String tableId}) async {
+    final r = await _client
+        .post(Uri.parse('${ApiConstants.tableByIdEndpoint(tableId)}/reservation/cancel'),
+            headers: _h(token))
+        .timeout(ApiConstants.defaultReceiveTimeout);
+    _ok(r);
+  }
+
+  Future<void> checkinReservation({required String token, required String tableId}) async {
+    final r = await _client
+        .post(Uri.parse('${ApiConstants.tableByIdEndpoint(tableId)}/reservation/checkin'),
+            headers: _h(token))
+        .timeout(ApiConstants.defaultReceiveTimeout);
+    _ok(r);
+  }
+
   Future<String> qrUrl({required String token, required String tableId}) async {
     final r = await _client
         .get(ApiConstants.tableQrEndpoint(tableId), headers: _h(token))

@@ -6,6 +6,11 @@ import '../services/table_api_service.dart';
 
 final tableApiServiceProvider = Provider<TableApiService>((ref) => TableApiService());
 
+/// Token auth aktif — dipakai layar Meja untuk panggilan langsung (QR, dsb).
+final authTokenProvider = Provider<String>((ref) {
+  return ref.watch(currentSessionProvider)?.token ?? '';
+});
+
 class TableListState {
   final List<DiningTable> tables;
   final bool loading;
@@ -72,6 +77,44 @@ class TableListNotifier extends StateNotifier<TableListState> {
   Future<void> closeSession(String id) async {
     final session = _ref.read(currentSessionProvider);
     await _ref.read(tableApiServiceProvider).closeSession(token: session!.token, tableId: id);
+    await load();
+  }
+
+  Future<void> openSession(String id,
+      {String? guestName, String? guestPhone, int? guests}) async {
+    final t = _ref.read(currentSessionProvider)!.token;
+    await _ref.read(tableApiServiceProvider).openSession(
+        token: t, tableId: id, guestName: guestName, guestPhone: guestPhone, guests: guests);
+    await load();
+  }
+
+  Future<void> reserve(String id,
+      {required String name,
+      required String phone,
+      required DateTime reservedAt,
+      required int guests,
+      String? note}) async {
+    final t = _ref.read(currentSessionProvider)!.token;
+    await _ref.read(tableApiServiceProvider).reserve(
+        token: t,
+        tableId: id,
+        name: name,
+        phone: phone,
+        reservedAt: reservedAt,
+        guests: guests,
+        note: note);
+    await load();
+  }
+
+  Future<void> cancelReservation(String id) async {
+    final t = _ref.read(currentSessionProvider)!.token;
+    await _ref.read(tableApiServiceProvider).cancelReservation(token: t, tableId: id);
+    await load();
+  }
+
+  Future<void> checkinReservation(String id) async {
+    final t = _ref.read(currentSessionProvider)!.token;
+    await _ref.read(tableApiServiceProvider).checkinReservation(token: t, tableId: id);
     await load();
   }
 }

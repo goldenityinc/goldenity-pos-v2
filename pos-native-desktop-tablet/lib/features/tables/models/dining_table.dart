@@ -64,13 +64,41 @@ class TableSessionBrief {
       );
 }
 
+class TableReservationBrief {
+  final String id;
+  final String name;
+  final String phone;
+  final DateTime? reservedAt;
+  final int guests;
+  final String? note;
+
+  const TableReservationBrief({
+    required this.id,
+    required this.name,
+    required this.phone,
+    this.reservedAt,
+    this.guests = 1,
+    this.note,
+  });
+
+  factory TableReservationBrief.fromJson(Map<String, dynamic> j) => TableReservationBrief(
+        id: j['id']?.toString() ?? '',
+        name: j['name']?.toString() ?? '',
+        phone: j['phone']?.toString() ?? '',
+        reservedAt: DateTime.tryParse('${j['reservedAt']}'),
+        guests: (j['guests'] as num?)?.toInt() ?? 1,
+        note: j['note'] as String?,
+      );
+}
+
 class DiningTable {
   final String id;
   final String code;
   final int? capacity;
-  final String status; // AVAILABLE | OCCUPIED | RESERVED | INACTIVE
+  final String status; // AVAILABLE | OCCUPIED | RESERVED | CLEANING | INACTIVE
   final String qrToken;
   final TableSessionBrief? activeSession;
+  final TableReservationBrief? reservation;
 
   const DiningTable({
     required this.id,
@@ -79,6 +107,7 @@ class DiningTable {
     required this.status,
     required this.qrToken,
     this.activeSession,
+    this.reservation,
   });
 
   bool get isVip => code.toUpperCase().contains('VIP');
@@ -91,6 +120,9 @@ class DiningTable {
         qrToken: j['qrToken']?.toString() ?? '',
         activeSession: j['activeSession'] is Map<String, dynamic>
             ? TableSessionBrief.fromJson(j['activeSession'] as Map<String, dynamic>)
+            : null,
+        reservation: j['reservation'] is Map<String, dynamic>
+            ? TableReservationBrief.fromJson(j['reservation'] as Map<String, dynamic>)
             : null,
       );
 }
