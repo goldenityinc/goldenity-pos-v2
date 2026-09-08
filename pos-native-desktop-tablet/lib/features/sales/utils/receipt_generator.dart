@@ -12,8 +12,9 @@ class ReceiptLineItem {
   final num lineTotal;
   final String? note;
 
-  /// Ringkasan pilihan varian, mis. "Large · Level 3 · Extra keju".
-  final String? variantLabel;
+  /// Pilihan varian, satu opsi per baris ("Grup: Opsi"). Dirender sebagai
+  /// sub-baris di bawah nama produk.
+  final List<String> variantLines;
 
   const ReceiptLineItem({
     required this.name,
@@ -21,7 +22,7 @@ class ReceiptLineItem {
     required this.unitPrice,
     required this.lineTotal,
     this.note,
-    this.variantLabel,
+    this.variantLines = const [],
   });
 }
 
@@ -312,15 +313,13 @@ abstract class ReceiptGenerator {
         PosColumn(text: qtyPriceLine, width: 7, styles: const PosStyles()),
         PosColumn(text: '', width: 5),
       ]));
-      if (item.variantLabel != null && item.variantLabel!.trim().isNotEmpty) {
-        addChunk(generator.text(
-          '   > ${item.variantLabel!.trim()}',
-          styles: const PosStyles(),
-        ));
+      for (final vl in item.variantLines) {
+        if (vl.trim().isEmpty) continue;
+        addChunk(generator.text('  - ${vl.trim()}', styles: const PosStyles()));
       }
       if (item.note != null && item.note!.trim().isNotEmpty) {
         addChunk(generator.text(
-          '   Cat: ${item.note!.trim()}',
+          '  Cat: ${item.note!.trim()}',
           styles: const PosStyles(),
         ));
       }
@@ -470,8 +469,9 @@ abstract class ReceiptGenerator {
         }
       }
       buf.writeln(_padRight(qtyPrice, width));
-      if (item.variantLabel != null && item.variantLabel!.trim().isNotEmpty) {
-        for (final n in _wrapItemName('   > ${item.variantLabel!.trim()}', width)) {
+      for (final vl in item.variantLines) {
+        if (vl.trim().isEmpty) continue;
+        for (final n in _wrapWords('  - ${vl.trim()}', width)) {
           buf.writeln(_padRight(n, width));
         }
       }

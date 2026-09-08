@@ -22,20 +22,38 @@ class WebOrderItem {
     this.variantSelections,
   });
 
-  /// Ringkasan varian satu baris utk struk / nota dapur — "Large · Pedas 3".
-  String? get variantLabel {
+  /// Varian sebagai baris terpisah utk struk / nota dapur — satu opsi per
+  /// baris, format "Grup: Opsi" (mengikuti gaya struk ShopeeFood/GoFood).
+  /// Contoh: ["Ukuran: Jumbo", "Level Pedas: Level 5", "Topping: Keju",
+  /// "Topping: Telur Ceplok"].
+  List<String> get variantLines {
     final v = variantSelections;
-    if (v == null || v.isEmpty) return null;
-    final parts = <String>[];
+    if (v == null || v.isEmpty) return const [];
+    final lines = <String>[];
     for (final entry in v.entries) {
+      final group = entry.key.trim();
       final val = entry.value;
+      final opts = <String>[];
       if (val is List) {
-        parts.addAll(val.map((e) => '$e').where((e) => e.trim().isNotEmpty));
+        opts.addAll(val.map((e) => '$e'.trim()).where((e) => e.isNotEmpty));
       } else if (val != null && '$val'.trim().isNotEmpty) {
-        parts.add('$val');
+        opts.add('$val'.trim());
+      }
+      for (final o in opts) {
+        lines.add(group.isEmpty ? o : '$group: $o');
       }
     }
-    return parts.isEmpty ? null : parts.join(' · ');
+    return lines;
+  }
+
+  /// Ringkasan varian satu baris (kompat lama) — "Jumbo · Keju · Level 5".
+  String? get variantLabel {
+    final lines = variantLines;
+    if (lines.isEmpty) return null;
+    return lines.map((l) {
+      final i = l.indexOf(': ');
+      return i >= 0 ? l.substring(i + 2) : l;
+    }).join(' · ');
   }
 
   factory WebOrderItem.fromJson(Map<String, dynamic> j) => WebOrderItem(

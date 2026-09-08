@@ -192,7 +192,7 @@ class WebOrderPrintService {
               unitPrice: it.unitPrice,
               lineTotal: it.lineTotal,
               note: it.note,
-              variantLabel: it.variantLabel,
+              variantLines: it.variantLines,
             ))
         .toList();
     final isPaid = o.paymentStatus == 'PAID' || paidReprint;
@@ -272,9 +272,9 @@ class WebOrderPrintService {
     for (final it in o.items) {
       b.addAll(g.text('${it.qty}x  ${it.productName}',
           styles: const PosStyles(bold: true, height: PosTextSize.size2)));
-      final variant = it.variantLabel;
-      if (variant != null && variant.isNotEmpty) {
-        b.addAll(g.text('   > $variant', styles: const PosStyles(bold: true)));
+      for (final vl in it.variantLines) {
+        if (vl.trim().isEmpty) continue;
+        b.addAll(g.text('   - ${vl.trim()}', styles: const PosStyles(bold: true)));
       }
       if ((it.note ?? '').isNotEmpty) b.addAll(g.text('   * ${it.note}'));
     }
