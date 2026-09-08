@@ -12,32 +12,61 @@ const PORTS = { 9100: 'NOTA DAPUR', 9101: 'STRUK KASIR' };
 const tickets = []; // { id, label, port, ts, bytes, text }
 
 function decodeEscPos(buf) {
-  const out = [];
+  // Render per-baris: lacak posisi kolom absolut (ESC $) supaya row()
+  // (2-kolom kiri/kanan) tampil rapi seperti di printer thermal betulan.
+  const cols = 48;
+  const lines = [];
+  let line = ''; // string baris berjalan, di-pad sesuai posisi kolom
+  const put = (s) => { line += s; };
+  const setPos = (col) => { if (col > line.length) line += ' '.repeat(col - line.length); };
+  const flush = () => { lines.push(line.replace(/\s+$/, '')); line = ''; };
+
   for (let i = 0; i < buf.length; i++) {
     const b = buf[i];
     if (b === 0x1b) {
       const cmd = buf[i + 1];
-      if (cmd === 0x40) i += 1;
-      else if (cmd === 0x61) i += 2;
-      else if (cmd === 0x45) i += 2;
-      else if (cmd === 0x64) { out.push('\n'.repeat(Math.min(buf[i + 2] || 0, 6))); i += 2; }
-      else if (cmd === 0x21) i += 2;
+      if (cmd === 0x40) i += 1;                         // ESC @  init
+      else if (cmd === 0x61) i += 2;                    // ESC a n  align
+      else if (cmd === 0x45) i += 2;                    // ESC E n  bold
+      else if (cmd === 0x21) i += 2;                    // ESC ! n
+      else if (cmd === 0x2d) i += 2;                    // ESC - n  underline
+      else if (cmd === 0x32) i += 1;                    // ESC 2    default line spacing
+      else if (cmd === 0x33) i += 2;                    // ESC 3 n  line spacing
+      else if (cmd === 0x64) { for (let k = 0; k < Math.min(buf[i + 2] || 0, 6); k++) flush(); i += 2; } // ESC d n  feed
+      else if (cmd === 0x24) {                          // ESC $ nL nH  posisi absolut
+        const nL = buf[i + 2] || 0; const nH = buf[i + 3] || 0;
+        setPos(Math.round((nL + nH * 256) / 12)); // ~12 dot per char
+        i += 3;
+      } else if (cmd === 0x5c) i += 3;                  // ESC \ nL nH  relatif
       else i += 1;
       continue;
     }
     if (b === 0x1d) {
       const cmd = buf[i + 1];
-      if (cmd === 0x21) i += 2;
-      else if (cmd === 0x56) { out.push('\n[ POTONG KERTAS ]\n'); i += (buf[i + 2] === 0x42 ? 3 : 2); }
+      if (cmd === 0x21) i += 2;                         // GS ! n  ukuran
+      else if (cmd === 0x42) i += 2;                    // GS B n
+      else if (cmd === 0x56) { flush(); lines.push('[ POTONG KERTAS ]'); i += (buf[i + 2] === 0x42 ? 3 : 2); }
       else i += 1;
       continue;
     }
-    if (b === 0x0a) { out.push('\n'); continue; }
+    if (b === 0x0a) { flush(); continue; }
     if (b === 0x0d) continue;
+    if (b === 0x09) { setPos(Math.ceil((line.length + 1) / 8) * 8); continue; }
     if (b < 0x20) continue;
-    out.push(Buffer.from([b]).toString('latin1'));
+    put(Buffer.from([b]).toString('latin1'));
   }
-  return out.join('').replace(/\n{4,}/g, '\n\n\n').trimEnd();
+  if (line) flush();
+  void cols;
+  return lines
+    .map((l) =>
+      l
+        .replace(/^\.(?=[-=A-Za-z0-9*])/, '') // titik nyasar di awal baris
+        .replace(/ \.(?=\S)/g, '  ') // titik pengisi kolom row() → spasi
+        .replace(/ +\.$/, ''),
+    )
+    .join('\n')
+    .replace(/\n{4,}/g, '\n\n\n')
+    .trimEnd();
 }
 
 let n = 0;
