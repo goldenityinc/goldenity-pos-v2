@@ -1,0 +1,44 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: #e2e8f0;
+  font-family: 'Inter', system-ui, sans-serif;
+  color: #0f172a;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* App shell = phone-width column centered on desktop */
+.app-shell {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100%;
+  background: #f4f6f9;
+  position: relative;
+  box-shadow: 0 0 40px rgba(15, 23, 42, 0.08);
+}
+
+.num {
+  font-family: 'JetBrains Mono', monospace;
+  font-feature-settings: 'tnum';
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.sheet-enter {
+  animation: sheetUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
