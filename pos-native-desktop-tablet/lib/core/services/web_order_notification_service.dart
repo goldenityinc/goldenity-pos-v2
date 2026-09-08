@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:local_notifier/local_notifier.dart';
 
 /// Notifikasi desktop saat web order baru masuk — tetap muncul walau POS
@@ -18,6 +19,8 @@ class WebOrderNotificationService {
   bool _ready = false;
   Timer? _flushTimer;
   final List<_PendingOrder> _pending = [];
+  LocalNotification? _last;
+  int _seq = 0;
 
   Future<void> setup() async {
     if (_ready) return;
@@ -46,6 +49,7 @@ class WebOrderNotificationService {
     if (_pending.isEmpty) return;
     final batch = List<_PendingOrder>.from(_pending);
     _pending.clear();
+    debugPrint('[notif] flush ${batch.length} order → toast');
 
     final autoCount = batch.where((o) => o.autoAccepted).length;
     final n = batch.length;
@@ -79,10 +83,31 @@ class WebOrderNotificationService {
   }
 
   Future<void> _show(String title, String body) async {
-    if (!_ready) return;
+    // Bunyi dulu (selalu jalan, walau toast gagal / di-suppress Windows).
     try {
-      final notif = LocalNotification(title: title, body: body, silent: false);
-      await notif.show();
+      await SystemSound.play(SystemSoundType.alert);
+    } catch (_) {}
+    if (!_ready) return;
+    // local_notifier (Windows, 0.1.6) rewel utk toast beruntun. Lepas notif
+    // sebelumnya (serial, tapi ber-timeout supaya tak menggantung), lalu show
+    // dgn identifier unik + timeout.
+    final prev = _last;
+    _last = null;
+    if (prev != null) {
+      try {
+        await prev.destroy().timeout(const Duration(seconds: 2));
+      } catch (_) {}
+    }
+    final notif = LocalNotification(
+      identifier: 'weborder-${DateTime.now().millisecondsSinceEpoch}-${_seq++}',
+      title: title,
+      body: body,
+      silent: false,
+    );
+    _last = notif;
+    try {
+      await notif.show().timeout(const Duration(seconds: 3));
+      debugPrint('[notif] toast terkirim: $title');
     } catch (e) {
       debugPrint('[notif] show gagal: $e');
     }
