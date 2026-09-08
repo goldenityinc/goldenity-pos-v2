@@ -13,6 +13,7 @@ import {
 import {
   printOrderTickets,
   envTargets,
+  colsForPaper,
   type PrintResult,
   type OrderTargets,
   type PrintTarget,
@@ -50,7 +51,14 @@ function targetsFromConfigs(rows: PrinterConfigRow[]): OrderTargets {
   const pick = (slots: PrinterConfigRow['slot'][]): PrintTarget | null => {
     for (const s of slots) {
       const r = rows.find((x) => x.slot === s && x.connectionType === 'network' && x.address);
-      if (r) return { host: r.address as string, port: r.port ?? 9100, source: `settings:${s}` };
+      if (r) {
+        return {
+          host: r.address as string,
+          port: r.port ?? 9100,
+          cols: colsForPaper(r.paperWidth), // 58mm→32, 80mm→48
+          source: `settings:${s}`,
+        };
+      }
     }
     return null;
   };
@@ -78,8 +86,8 @@ async function refreshPrinterTargets(): Promise<void> {
 }
 
 function describeTarget(t: PrintTarget): string {
-  if (config.printerMode !== 'tcp' || !t.host) return `console (${t.source})`;
-  return `${t.host}:${t.port} (${t.source})`;
+  if (config.printerMode !== 'tcp' || !t.host) return `console (${t.source}, ${t.cols} kol)`;
+  return `${t.host}:${t.port} (${t.source}, ${t.cols} kol)`;
 }
 
 function pushJob(j: JobLog) {

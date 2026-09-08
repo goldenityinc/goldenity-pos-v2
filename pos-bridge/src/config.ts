@@ -41,8 +41,8 @@ export const config = {
   printerMode: (opt('PRINTER_MODE', 'console') as PrinterMode),
   printerHost: opt('PRINTER_HOST', '192.168.1.50'),
   printerPort: num('PRINTER_PORT', 9100),
-  /** Lebar kertas dalam karakter (58mm≈32, 80mm≈48). */
-  printerCols: num('PRINTER_COLS', 48),
+  /** Lebar karakter fallback dapur (biasanya kertas 58mm → 32 kolom). */
+  printerCols: num('PRINTER_COLS', 32),
   /** Potong kertas otomatis di akhir tiket. */
   printerCut: opt('PRINTER_CUT', 'true') !== 'false',
 

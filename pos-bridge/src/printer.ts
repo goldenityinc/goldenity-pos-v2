@@ -108,9 +108,14 @@ function timeId(iso: string): string {
   });
 }
 
+/** Lebar karakter untuk lebar kertas (mm). Font A: 58mm≈32, 80mm≈48. */
+export function colsForPaper(mm: number | null | undefined): number {
+  return mm != null && mm >= 80 ? 48 : 32;
+}
+
 /** Tiket dapur (CHECKER) - fokus item & catatan, tanpa harga. */
-export function buildKitchenTicket(wo: WebOrder): TicketBuilder {
-  const t = new TicketBuilder(config.printerCols);
+export function buildKitchenTicket(wo: WebOrder, cols = config.printerCols): TicketBuilder {
+  const t = new TicketBuilder(cols);
   t.align('center').bold(true).size(true);
   t.text('PESANAN DAPUR');
   t.size(false);
@@ -151,8 +156,8 @@ function payLabel(method: string): string {
 }
 
 /** Struk kasir (Struk Kasir) - nomor order, item, total, metode bayar, info meja. */
-export function buildReceiptTicket(wo: WebOrder): TicketBuilder {
-  const t = new TicketBuilder(config.receiptCols);
+export function buildReceiptTicket(wo: WebOrder, cols = config.receiptCols): TicketBuilder {
+  const t = new TicketBuilder(cols);
   t.align('center').bold(true).size(true);
   t.text('STRUK KASIR');
   t.size(false);
@@ -216,7 +221,8 @@ export interface PrintResult {
 export interface PrintTarget {
   host: string;
   port: number;
-  source: string; // 'settings' | 'env' | 'console'
+  cols: number; // lebar karakter (dari paperWidth: 58mm→32, 80mm→48)
+  source: string; // 'settings:<slot>' | 'env' | 'console'
 }
 
 async function emit(
@@ -226,7 +232,7 @@ async function emit(
 ): Promise<PrintResult> {
   const useTcp = config.printerMode === 'tcp' && !!target.host;
   if (useTcp) {
-    const t = `${target.host}:${target.port} (${target.source})`;
+    const t = `${target.host}:${target.port} (${target.source}, ${target.cols} kol)`;
     try {
       await sendTcp(ticket.buffer(), target.host, target.port);
       return { ok: true, mode: 'tcp', target: t, kind };
@@ -234,8 +240,8 @@ async function emit(
       return { ok: false, mode: 'tcp', target: t, kind, error: e?.message ?? String(e) };
     }
   }
-  const border = '-'.repeat(config.printerCols);
-  console.log(`\n[${kind.toUpperCase()}]  (${target.source})\n${border}\n${ticket.plainText()}\n${border}\n`);
+  const border = '-'.repeat(target.cols);
+  console.log(`\n[${kind.toUpperCase()}]  (${target.source}, ${target.cols} kol)\n${border}\n${ticket.plainText()}\n${border}\n`);
   return { ok: true, mode: 'console', target: 'stdout', kind };
 }
 
@@ -244,24 +250,32 @@ export interface OrderTargets {
   kitchen: PrintTarget;
 }
 
-/** Target default dari .env (fallback kalau backend belum punya config printer). */
+/** Target default dari .env (fallback kalau Pengaturan belum punya config printer). */
 export function envTargets(): OrderTargets {
   return {
-    kitchen: { host: config.printerHost, port: config.printerPort, source: 'env' },
+    kitchen: {
+      host: config.printerHost,
+      port: config.printerPort,
+      cols: config.printerCols,
+      source: 'env',
+    },
     receipt: {
       host: config.receiptPrinterHost || config.printerHost,
       port: config.receiptPrinterHost ? config.receiptPrinterPort : config.printerPort,
+      cols: config.receiptCols,
       source: 'env',
     },
   };
 }
 
 export function printKitchenTicket(wo: WebOrder, t?: PrintTarget): Promise<PrintResult> {
-  return emit('kitchen', buildKitchenTicket(wo), t ?? envTargets().kitchen);
+  const tgt = t ?? envTargets().kitchen;
+  return emit('kitchen', buildKitchenTicket(wo, tgt.cols), tgt);
 }
 
 export function printReceiptTicket(wo: WebOrder, t?: PrintTarget): Promise<PrintResult> {
-  return emit('receipt', buildReceiptTicket(wo), t ?? envTargets().receipt);
+  const tgt = t ?? envTargets().receipt;
+  return emit('receipt', buildReceiptTicket(wo, tgt.cols), tgt);
 }
 
 /** Cetak struk kasir + nota dapur untuk 1 web order (dipakai saat order ACCEPTED). */
