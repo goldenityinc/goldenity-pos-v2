@@ -28,7 +28,43 @@ class _WebOrdersScreenState extends ConsumerState<WebOrdersScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(webOrderListProvider);
     final notifier = ref.read(webOrderListProvider.notifier);
-    final visible = _tab == 0 ? state.baru : state.orders;
+
+    Widget card(WebOrder o) => Padding(
+          padding: const EdgeInsets.only(bottom: GoldenitySpacing.md),
+          child: _OrderCard(
+            order: o,
+            currency: _currency,
+            onAccept: () => _do(() => notifier.accept(o.id), 'Pesanan diterima'),
+            onReject: () => _reject(o),
+            onAdvance: (s) => _do(() => notifier.advance(o.id, s), 'Status: $s'),
+            onVerifyPayment: () =>
+                _do(() => notifier.verifyPayment(o.id), 'Pembayaran diverifikasi'),
+          ),
+        );
+
+    final needAction = state.perluProses; // SUBMITTED + ACCEPTED
+    final inKitchen = state.diproses; // PREPARING + READY
+
+    final List<Widget> children;
+    if (_tab == 0) {
+      children = [
+        _sectionHeader('PERLU DIPROSES', needAction.length, GoldenityColors.warning),
+        if (needAction.isEmpty)
+          _emptyLine('Tidak ada pesanan yang menunggu.')
+        else
+          ...needAction.map(card),
+        const SizedBox(height: GoldenitySpacing.lg),
+        _sectionHeader('SEDANG DI DAPUR', inKitchen.length, GoldenityColors.primary),
+        if (inKitchen.isEmpty)
+          _emptyLine('Belum ada pesanan di dapur.')
+        else
+          ...inKitchen.map(card),
+      ];
+    } else {
+      children = state.orders.isEmpty
+          ? [_emptyLine('Tidak ada pesanan.')]
+          : state.orders.map(card).toList();
+    }
 
     return Scaffold(
       backgroundColor: GoldenityColors.bg,
@@ -50,38 +86,49 @@ class _WebOrdersScreenState extends ConsumerState<WebOrdersScreen> {
                                   fontWeight: FontWeight.w800,
                                   color: GoldenityColors.text)),
                           const SizedBox(width: 16),
-                          _Tab('Baru', state.baruCount, _tab == 0, () => setState(() => _tab = 0)),
+                          _Tab('Aktif', state.perluProsesCount + inKitchen.length, _tab == 0,
+                              () => setState(() => _tab = 0)),
                           const SizedBox(width: 6),
-                          _Tab('Semua', state.orders.length, _tab == 1, () => setState(() => _tab = 1)),
+                          _Tab('Semua', state.orders.length, _tab == 1,
+                              () => setState(() => _tab = 1)),
                         ],
                       ),
                       const SizedBox(height: GoldenitySpacing.lg),
-                      if (visible.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 60),
-                          child: Center(
-                            child: Text('Tidak ada pesanan.',
-                                style: TextStyle(color: GoldenityColors.muted)),
-                          ),
-                        )
-                      else
-                        for (final o in visible) ...[
-                          _OrderCard(
-                            order: o,
-                            currency: _currency,
-                            onAccept: () => _do(() => notifier.accept(o.id), 'Pesanan diterima'),
-                            onReject: () => _reject(o),
-                            onAdvance: (s) => _do(() => notifier.advance(o.id, s), 'Status: $s'),
-                            onVerifyPayment: () =>
-                                _do(() => notifier.verifyPayment(o.id), 'Pembayaran diverifikasi'),
-                          ),
-                          const SizedBox(height: GoldenitySpacing.md),
-                        ],
+                      ...children,
                     ],
                   ),
                 ),
     );
   }
+
+  Widget _sectionHeader(String label, int count, Color color) => Padding(
+        padding: const EdgeInsets.only(bottom: GoldenitySpacing.sm),
+        child: Row(
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.06,
+                    color: color)),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+              decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999)),
+              child: Text('$count',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color)),
+            ),
+          ],
+        ),
+      );
+
+  Widget _emptyLine(String text) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Text(text,
+            style: const TextStyle(fontSize: 12.5, color: GoldenityColors.muted)),
+      );
 
   Future<void> _do(Future<void> Function() action, String okMsg) async {
     try {
@@ -159,7 +206,13 @@ class _OrderCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: GoldenityColors.surface,
         borderRadius: BorderRadius.circular(GoldenityRadius.xl),
-        border: Border.all(color: order.isNew ? const Color(0xFFFDE68A) : GoldenityColors.border),
+        border: Border.all(
+          color: order.isNew
+              ? const Color(0xFFFDE68A)
+              : order.status == 'ACCEPTED'
+                  ? const Color(0xFFBBF7D0)
+                  : GoldenityColors.border,
+        ),
         boxShadow: GoldenityElevation.card,
       ),
       child: Column(
@@ -176,6 +229,19 @@ class _OrderCard extends StatelessWidget {
                 Text('Pesanan Baru! Segera konfirmasi',
                     style: TextStyle(
                         fontSize: 11.5, fontWeight: FontWeight.w800, color: GoldenityColors.warning)),
+              ]),
+            )
+          else if (order.status == 'ACCEPTED')
+            Container(
+              width: double.infinity,
+              color: GoldenityColors.successLight,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              child: const Row(children: [
+                Icon(Icons.check_circle_rounded, size: 14, color: GoldenityColors.success),
+                SizedBox(width: 5),
+                Text('Diterima — siapkan pesanan · struk & nota dapur tercetak',
+                    style: TextStyle(
+                        fontSize: 11.5, fontWeight: FontWeight.w800, color: GoldenityColors.success)),
               ]),
             ),
           Padding(

@@ -54,6 +54,13 @@ export const config = {
   receiptPrinterPort: num('RECEIPT_PRINTER_PORT', 9100),
   receiptCols: num('RECEIPT_COLS', 48),
 
+  /**
+   * Cetak dari BRIDGE. Default OFF — printing web order sekarang tugas POS
+   * (punya akses USB/Bluetooth/Network). Nyalakan hanya kalau POS tak selalu
+   * hidup & printer dapur/kasir = jaringan (headless).
+   */
+  autoprint: opt('BRIDGE_AUTOPRINT', 'false') === 'true' || opt('BRIDGE_AUTOPRINT', '') === '1',
+
   /** Reconnect Socket.IO. */
   reconnectDelayMs: num('RECONNECT_DELAY_MS', 2000),
 };

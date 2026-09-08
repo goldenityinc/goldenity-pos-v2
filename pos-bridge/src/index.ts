@@ -188,8 +188,8 @@ function wireSocket(): Socket {
       event: `web_order:status ${p?.status ?? ''}`.trim(),
       source: p?.source,
     });
-    // Sinyal cetak: order baru diterima → cetak struk + nota dapur.
-    if (p?.status === 'ACCEPTED') {
+    // Cetak dari bridge HANYA kalau BRIDGE_AUTOPRINT=1 (default: POS yang cetak).
+    if (config.autoprint && p?.status === 'ACCEPTED') {
       void printForOrder(p?.webOrderId, { source: p?.source ?? 'accept', queueNumber: p?.queueNumber });
     }
   });
@@ -266,9 +266,14 @@ function startHttp(socket: Socket) {
 async function main() {
   console.log('Goldenity POS Bridge — mulai…');
   console.log(`  backend  : ${config.backendUrl}`);
-  console.log(`  printer  : ${config.printerMode}${
-    config.printerMode === 'tcp' ? ` (${config.printerHost}:${config.printerPort})` : ''
-  }`);
+  console.log(
+    `  cetak    : ${config.autoprint ? 'BRIDGE (BRIDGE_AUTOPRINT=1)' : 'POS (bridge tidak mencetak)'}`,
+  );
+  if (config.autoprint) {
+    console.log(`  printer  : ${config.printerMode}${
+      config.printerMode === 'tcp' ? ` (${config.printerHost}:${config.printerPort})` : ''
+    }`);
+  }
 
   await login();
   const info = getLoginInfo();

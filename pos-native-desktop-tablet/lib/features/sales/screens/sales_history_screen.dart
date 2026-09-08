@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -54,14 +55,21 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
     }
   }
 
+  Timer? _refreshTimer;
+
   @override
   void initState() {
     super.initState();
     Future<void>.microtask(() => _loadSales(initial: true));
+    // Segarkan berkala supaya penjualan baru (mis. web order yang diterima /
+    // dibayar) langsung muncul tanpa perlu keluar-masuk halaman.
+    _refreshTimer = Timer.periodic(
+        const Duration(seconds: 20), (_) => _loadSales(silent: true));
   }
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
@@ -134,15 +142,18 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
     }
   }
 
-  Future<void> _loadSales({bool initial = false}) async {
+  Future<void> _loadSales({bool initial = false, bool silent = false}) async {
     if (initial && !mounted) return;
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    if (!mounted) return;
+    if (!silent) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
     final session = ref.read(currentSessionProvider);
     if (session == null) {
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() {
           _isLoading = false;
           _errorMessage = 'Sesi login tidak ditemukan, silakan login ulang.';

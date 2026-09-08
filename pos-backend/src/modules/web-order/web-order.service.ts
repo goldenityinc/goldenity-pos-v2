@@ -495,6 +495,15 @@ export class WebOrderService {
     const referenceId = `web_${wo.id}`;
     const paymentMethod = wo.paymentMethod === 'QRIS_STATIC' ? 'QRIS' : 'CASH';
 
+    // Ikat ke shift kasir yang sedang OPEN di cabang ini supaya penjualan web
+    // masuk laporan shift & Riwayat Penjualan (kalau tak ada shift → null).
+    const openShift = await prisma.cashierShift.findFirst({
+      where: { branchId: wo.branchId, status: 'OPEN' },
+      orderBy: { openedAt: 'desc' },
+      select: { id: true },
+    });
+    const cashierShiftId = openShift?.id ?? null;
+
     const txBody = async (tx: Prisma.TransactionClient) => {
       // Idempotent: kalau SalesRecord dgn referenceId ini sudah ada, pakai itu.
       let sale = await tx.salesRecord.findUnique({ where: { referenceId } });
@@ -508,6 +517,7 @@ export class WebOrderService {
             tenantId: wo.tenantId,
             branchId: wo.branchId,
             cashierId,
+            cashierShiftId,
             orderType: 'WEB_ORDER',
             subtotal: wo.subtotal,
             discountAmount: wo.discountAmount,
