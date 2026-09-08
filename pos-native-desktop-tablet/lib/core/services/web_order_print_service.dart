@@ -2,11 +2,13 @@ import 'dart:developer' as dev;
 
 import 'package:flutter/foundation.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/auth_session.dart';
 import '../models/printer_config_profile.dart';
+import '../models/store_settings_profile.dart';
 import '../../features/inventory/services/settings_api_service.dart';
 import '../../features/sales/utils/receipt_generator.dart';
 import '../../features/web_orders/models/web_order.dart';
@@ -33,8 +35,44 @@ class WebOrderPrintService {
   CapabilityProfile? _cap;
   Future<CapabilityProfile> get _capability async => _cap ??= await CapabilityProfile.load();
 
+  // Cache info toko (alamat + footer + logo) — di-refresh tiap 5 menit.
+  StoreSettingsProfile? _store;
+  Uint8List? _logoBytes;
+  String? _logoFromUrl;
+  DateTime? _storeAt;
+
   static String _acceptKey(String id) => 'wo_print_accept_$id';
   static String _paidKey(String id) => 'wo_print_paid_$id';
+
+  Future<void> _refreshStore(AuthSession session) async {
+    final fresh = _storeAt != null &&
+        DateTime.now().difference(_storeAt!) < const Duration(minutes: 5);
+    if (fresh && _store != null) return;
+    try {
+      final s = await _settingsApi.getStore(authToken: session.token);
+      _store = s;
+      _storeAt = DateTime.now();
+      final url = s?.logoUrl?.trim();
+      if (url != null && url.isNotEmpty && url != _logoFromUrl) {
+        try {
+          final resp = await http
+              .get(Uri.parse(url))
+              .timeout(const Duration(seconds: 6));
+          if (resp.statusCode == 200 && resp.bodyBytes.isNotEmpty) {
+            _logoBytes = resp.bodyBytes;
+            _logoFromUrl = url;
+          }
+        } catch (e) {
+          debugPrint('[web-order print] gagal ambil logo: $e');
+        }
+      } else if (url == null || url.isEmpty) {
+        _logoBytes = null;
+        _logoFromUrl = null;
+      }
+    } catch (e) {
+      debugPrint('[web-order print] gagal ambil info toko: $e');
+    }
+  }
 
   /// Cetak Struk Kasir + Nota Dapur untuk order yang baru DITERIMA. Idempotent.
   Future<WebOrderPrintResult> printAccepted({
@@ -72,6 +110,7 @@ class WebOrderPrintService {
     required bool paidReprint,
   }) async {
     final branchId = session.selectedBranchId ?? session.user.branchId ?? '';
+    await _refreshStore(session);
     List<PrinterConfigProfile> profiles;
     try {
       profiles = await _settingsApi.listPrinters(authToken: session.token, branchId: branchId);
@@ -153,6 +192,7 @@ class WebOrderPrintService {
               unitPrice: it.unitPrice,
               lineTotal: it.lineTotal,
               note: it.note,
+              variantLabel: it.variantLabel,
             ))
         .toList();
     final isPaid = o.paymentStatus == 'PAID' || paidReprint;
@@ -162,10 +202,17 @@ class WebOrderPrintService {
             ? 'Bayar di Kasir'
             : o.paymentMethod;
 
+    final footerText = (_store?.receiptFooter?.trim().isNotEmpty ?? false)
+        ? _store!.receiptFooter!.trim()
+        : 'Terima kasih';
+
     final data = ReceiptData(
       tenantName: s.tenant.name,
       branchName: s.selectedBranch?.name ?? s.tenant.name,
+      storeAddress: _store?.address,
+      logoBytes: _logoBytes,
       cashierName: s.user.username,
+      customerName: o.customerName,
       orderNo: 'WEB Q-${o.queueNumber}',
       orderType: 'Web Order - Meja ${o.tableCode ?? '-'}',
       transactionAt: o.createdAt ?? DateTime.now(),
@@ -175,9 +222,10 @@ class WebOrderPrintService {
       taxAmount: o.taxAmount,
       serviceChargeAmount: 0,
       grandTotal: o.total,
+      isPaidReceipt: isPaid,
       payment: ReceiptPaymentData(
         methodLabel: methodLabel,
-        referenceNumber: o.customerName,
+        referenceNumber: null,
         totalPaid: isPaid ? o.total : 0,
         changeAmount: 0,
       ),
@@ -185,7 +233,7 @@ class WebOrderPrintService {
         isPaid ? '*** LUNAS ***' : '*** BELUM DIBAYAR ***',
         if (o.customerNote != null && o.customerNote!.trim().isNotEmpty)
           'Catatan: ${o.customerNote}',
-        'Terima kasih',
+        footerText,
       ].join('\n'),
       paperWidthColumns: paperWidthMm >= 80 ? 48 : 32,
     );
@@ -224,6 +272,10 @@ class WebOrderPrintService {
     for (final it in o.items) {
       b.addAll(g.text('${it.qty}x  ${it.productName}',
           styles: const PosStyles(bold: true, height: PosTextSize.size2)));
+      final variant = it.variantLabel;
+      if (variant != null && variant.isNotEmpty) {
+        b.addAll(g.text('   > $variant', styles: const PosStyles(bold: true)));
+      }
       if ((it.note ?? '').isNotEmpty) b.addAll(g.text('   * ${it.note}'));
     }
     if ((o.customerNote ?? '').isNotEmpty) {

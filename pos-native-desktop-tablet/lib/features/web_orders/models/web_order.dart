@@ -9,13 +9,34 @@ class WebOrderItem {
   final num lineTotal;
   final String? note;
 
+  /// Pilihan varian dari customer. Bentuk: `{ "Ukuran": ["Large"], "Level": ["Pedas 3"] }`
+  /// (map grup → daftar opsi). Bisa juga map datar `{ "Ukuran": "Large" }`.
+  final Map<String, dynamic>? variantSelections;
+
   const WebOrderItem({
     required this.productName,
     required this.qty,
     required this.unitPrice,
     required this.lineTotal,
     this.note,
+    this.variantSelections,
   });
+
+  /// Ringkasan varian satu baris utk struk / nota dapur — "Large · Pedas 3".
+  String? get variantLabel {
+    final v = variantSelections;
+    if (v == null || v.isEmpty) return null;
+    final parts = <String>[];
+    for (final entry in v.entries) {
+      final val = entry.value;
+      if (val is List) {
+        parts.addAll(val.map((e) => '$e').where((e) => e.trim().isNotEmpty));
+      } else if (val != null && '$val'.trim().isNotEmpty) {
+        parts.add('$val');
+      }
+    }
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
 
   factory WebOrderItem.fromJson(Map<String, dynamic> j) => WebOrderItem(
         productName: j['productName']?.toString() ?? 'Produk',
@@ -23,6 +44,9 @@ class WebOrderItem {
         unitPrice: _num(j['unitPrice']),
         lineTotal: _num(j['lineTotal']),
         note: j['note'] as String?,
+        variantSelections: j['variantSelections'] is Map
+            ? (j['variantSelections'] as Map).map((k, v) => MapEntry('$k', v))
+            : null,
       );
 }
 

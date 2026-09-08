@@ -15,6 +15,49 @@ import {
   type WebOrderStatus,
 } from './web-order.shared';
 
+/**
+ * Hitung tambahan harga (priceDelta) dari opsi varian yang dipilih customer.
+ * `variants` (kolom Product): array grup `[{ name, options: [{ name, priceDelta }] }]`.
+ * `selections`: `{ "NamaGrup": ["NamaOpsi", ...] }` atau `{ "NamaGrup": "NamaOpsi" }`.
+ */
+function priceDeltaForSelections(variants: unknown, selections: unknown): number {
+  if (!variants || !selections || typeof selections !== 'object') return 0;
+  let groups: any = variants;
+  if (typeof groups === 'string') {
+    try {
+      groups = JSON.parse(groups);
+    } catch {
+      return 0;
+    }
+  }
+  if (!Array.isArray(groups)) {
+    groups = Array.isArray((groups as any)?.groups) ? (groups as any).groups : [];
+  }
+  // index: "grup|opsi" (lowercase) -> delta
+  const deltaByKey = new Map<string, number>();
+  for (const g of groups as any[]) {
+    const gName = `${g?.name ?? g?.title ?? g?.label ?? ''}`.trim().toLowerCase();
+    const opts = g?.options ?? g?.choices ?? g?.values ?? [];
+    if (!Array.isArray(opts)) continue;
+    for (const o of opts) {
+      const oName = `${o?.name ?? o?.label ?? o?.title ?? ''}`.trim().toLowerCase();
+      const delta =
+        Number(o?.priceDelta ?? o?.extraPrice ?? o?.addPrice ?? o?.price ?? 0) || 0;
+      if (oName) deltaByKey.set(`${gName}|${oName}`, delta);
+    }
+  }
+  let total = 0;
+  for (const [gRaw, vRaw] of Object.entries(selections as Record<string, unknown>)) {
+    const gName = `${gRaw}`.trim().toLowerCase();
+    const picks = Array.isArray(vRaw) ? vRaw : [vRaw];
+    for (const pk of picks) {
+      const oName = `${pk}`.trim().toLowerCase();
+      total += deltaByKey.get(`${gName}|${oName}`) ?? 0;
+    }
+  }
+  return total;
+}
+
 // ── Schemas (customer) ─────────────────────────────────────
 const StartSessionSchema = z.object({
   qrToken: z.string().trim().min(8, 'qrToken tidak valid'),
@@ -251,7 +294,7 @@ export class WebOrderService {
     const productIds = [...new Set(parsed.data.items.map((it) => it.productId))];
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, tenantId, isActive: true, OR: [{ branchId }, { branchId: null }] },
-      select: { id: true, name: true, price: true, stock: true },
+      select: { id: true, name: true, price: true, stock: true, variants: true },
     });
     const byId = new Map(products.map((p) => [p.id, p]));
     for (const it of parsed.data.items) {
@@ -262,7 +305,8 @@ export class WebOrderService {
 
     const lineItems = parsed.data.items.map((it) => {
       const p = byId.get(it.productId)!;
-      const unitPrice = Number(p.price);
+      const variantDelta = priceDeltaForSelections(p.variants, it.variantSelections);
+      const unitPrice = Number(p.price) + variantDelta;
       const lineTotal = unitPrice * it.qty;
       return {
         productId: p.id,

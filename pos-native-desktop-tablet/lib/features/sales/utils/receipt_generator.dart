@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:goldenity_pos_native/features/sales/providers/cart_provider.dart';
+import 'package:image/image.dart' as img;
 import 'package:intl/intl.dart';
 
 class ReceiptLineItem {
@@ -11,12 +12,16 @@ class ReceiptLineItem {
   final num lineTotal;
   final String? note;
 
+  /// Ringkasan pilihan varian, mis. "Large · Level 3 · Extra keju".
+  final String? variantLabel;
+
   const ReceiptLineItem({
     required this.name,
     required this.qty,
     required this.unitPrice,
     required this.lineTotal,
     this.note,
+    this.variantLabel,
   });
 }
 
@@ -70,6 +75,19 @@ class ReceiptData {
   final ManualDiscountType? manualDiscountType;
   final num? manualDiscountValue;
 
+  /// Nama pelanggan (tampil "Pelanggan: ..." di header).
+  final String? customerName;
+
+  /// Alamat toko (tampil di bawah nama cabang, rata tengah).
+  final String? storeAddress;
+
+  /// Bytes logo toko (PNG/JPG). Dirender sebagai raster di paling atas.
+  final Uint8List? logoBytes;
+
+  /// `true` = struk pembayaran (tampil "Simpan struk ini sebagai bukti
+  /// pembayaran"). `false` = PRE-BILL / tagihan sementara.
+  final bool isPaidReceipt;
+
   const ReceiptData({
     required this.tenantName,
     required this.branchName,
@@ -91,6 +109,10 @@ class ReceiptData {
     this.pricesIncludeTax = false,
     this.manualDiscountType,
     this.manualDiscountValue,
+    this.customerName,
+    this.storeAddress,
+    this.logoBytes,
+    this.isPaidReceipt = true,
   });
 }
 
@@ -149,6 +171,34 @@ abstract class ReceiptGenerator {
     return result;
   }
 
+  /// Bungkus per-KATA (bukan per-karakter) — buat alamat toko dll. supaya
+  /// tidak memotong angka/kata di tengah.
+  static List<String> _wrapWords(String text, int width) {
+    final clean = text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (clean.isEmpty) return const [];
+    if (clean.length <= width) return [clean];
+    final lines = <String>[];
+    var cur = '';
+    for (final word in clean.split(' ')) {
+      final cand = cur.isEmpty ? word : '$cur $word';
+      if (cand.length <= width) {
+        cur = cand;
+      } else {
+        if (cur.isNotEmpty) lines.add(cur);
+        if (word.length > width) {
+          for (final piece in _wrapItemName(word, width)) {
+            lines.add(piece);
+          }
+          cur = '';
+        } else {
+          cur = word;
+        }
+      }
+    }
+    if (cur.isNotEmpty) lines.add(cur);
+    return lines;
+  }
+
   static Future<Uint8List> generateEscPosBytes(
     ReceiptData data, {
     PaperSize paperSize = PaperSize.mm58,
@@ -160,6 +210,32 @@ abstract class ReceiptGenerator {
     void addChunk(List<int> chunk) { bytes.addAll(chunk); }
 
     addChunk(generator.reset());
+
+    // Logo toko (opsional) — raster di paling atas, rata tengah.
+    if (data.logoBytes != null && data.logoBytes!.isNotEmpty) {
+      try {
+        var decoded = img.decodeImage(data.logoBytes!);
+        if (decoded != null) {
+          final maxW = paperSize == PaperSize.mm80 ? 384 : 300;
+          const maxH = 160;
+          if (decoded.width > maxW) {
+            decoded = img.copyResize(decoded, width: maxW);
+          }
+          if (decoded.height > maxH) {
+            decoded = img.copyResize(decoded, height: maxH);
+          }
+          // Ratakan transparansi ke putih supaya area bening tidak jadi hitam.
+          final flat = img.Image(decoded.width, decoded.height);
+          img.fill(flat, img.getColor(255, 255, 255));
+          img.drawImage(flat, decoded);
+          addChunk(generator.imageRaster(flat, align: PosAlign.center));
+          addChunk(generator.feed(1));
+        }
+      } catch (_) {
+        // logo korup / format tak didukung → lewati, jangan gagalkan struk.
+      }
+    }
+
     addChunk(generator.text(
       data.tenantName.toUpperCase(),
       styles: const PosStyles(
@@ -173,6 +249,12 @@ abstract class ReceiptGenerator {
       data.branchName,
       styles: const PosStyles(align: PosAlign.center, bold: true),
     ));
+    if (data.storeAddress != null && data.storeAddress!.trim().isNotEmpty) {
+      final w = data.paperWidthColumns < 32 ? 48 : data.paperWidthColumns;
+      for (final ln in _wrapWords(data.storeAddress!, w)) {
+        addChunk(generator.text(ln, styles: const PosStyles(align: PosAlign.center)));
+      }
+    }
     if (data.cashierName != null && data.cashierName!.trim().isNotEmpty) {
       addChunk(generator.text(
         'Kasir: ${data.cashierName}',
@@ -197,6 +279,16 @@ abstract class ReceiptGenerator {
         styles: const PosStyles(align: PosAlign.right),
       ),
     ]));
+    if (data.customerName != null && data.customerName!.trim().isNotEmpty) {
+      addChunk(generator.row([
+        PosColumn(text: 'Pelanggan', width: 4, styles: const PosStyles()),
+        PosColumn(
+          text: data.customerName!.trim(),
+          width: 8,
+          styles: const PosStyles(align: PosAlign.right, bold: true),
+        ),
+      ]));
+    }
     addChunk(generator.hr(ch: '='));
 
     addChunk(generator.text('ITEM', styles: const PosStyles(bold: true)));
@@ -220,6 +312,12 @@ abstract class ReceiptGenerator {
         PosColumn(text: qtyPriceLine, width: 7, styles: const PosStyles()),
         PosColumn(text: '', width: 5),
       ]));
+      if (item.variantLabel != null && item.variantLabel!.trim().isNotEmpty) {
+        addChunk(generator.text(
+          '   > ${item.variantLabel!.trim()}',
+          styles: const PosStyles(),
+        ));
+      }
       if (item.note != null && item.note!.trim().isNotEmpty) {
         addChunk(generator.text(
           '   Cat: ${item.note!.trim()}',
@@ -318,9 +416,17 @@ abstract class ReceiptGenerator {
       styles: const PosStyles(align: PosAlign.center, bold: true),
     ));
     addChunk(generator.text(
-      '** Simpan struk ini sebagai bukti pembayaran **',
+      data.isPaidReceipt
+          ? '** Simpan struk ini sebagai bukti pembayaran **'
+          : '** PRE-BILL - bukan bukti pembayaran **',
       styles: const PosStyles(align: PosAlign.center),
     ));
+    if (!data.isPaidReceipt) {
+      addChunk(generator.text(
+        'Silakan lakukan pembayaran di kasir',
+        styles: const PosStyles(align: PosAlign.center),
+      ));
+    }
     addChunk(generator.emptyLines(4));
     addChunk(generator.cut());
 
@@ -364,6 +470,11 @@ abstract class ReceiptGenerator {
         }
       }
       buf.writeln(_padRight(qtyPrice, width));
+      if (item.variantLabel != null && item.variantLabel!.trim().isNotEmpty) {
+        for (final n in _wrapItemName('   > ${item.variantLabel!.trim()}', width)) {
+          buf.writeln(_padRight(n, width));
+        }
+      }
       if (item.note != null && item.note!.trim().isNotEmpty) {
         final noteLines = _wrapItemName('   Cat: ${item.note!.trim()}', width);
         for (final n in noteLines) { buf.writeln(_padRight(n, width)); }
@@ -414,7 +525,10 @@ abstract class ReceiptGenerator {
     buf.writeln('');
     buf.writeln(data.footerThankYou.toUpperCase().padLeft((width + data.footerThankYou.length) ~/ 2));
     buf.writeln(
-      '** Simpan struk ini sbg bukti pembayaran **'.padLeft((width + 46) ~/ 2)
+      (data.isPaidReceipt
+              ? '** Simpan struk ini sbg bukti pembayaran **'
+              : '** PRE-BILL - bukan bukti pembayaran **')
+          .padLeft((width + 46) ~/ 2),
     );
     buf.writeln('');
     buf.writeln('');
