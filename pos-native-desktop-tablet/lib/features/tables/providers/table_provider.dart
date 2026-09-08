@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../auth/providers/auth_provider.dart';
@@ -31,11 +33,21 @@ class TableListState {
 class TableListNotifier extends StateNotifier<TableListState> {
   TableListNotifier(this._ref) : super(const TableListState(loading: true)) {
     load();
+    // Polling ringan 15 dtk supaya meja yang jadi terisi / sesi baru dari web
+    // order muncul otomatis tanpa perlu keluar-masuk halaman.
+    _timer = Timer.periodic(const Duration(seconds: 15), (_) => load(silent: true));
   }
   final Ref _ref;
+  Timer? _timer;
 
-  Future<void> load() async {
-    state = state.copyWith(loading: true, error: null);
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> load({bool silent = false}) async {
+    if (!silent) state = state.copyWith(loading: true, error: null);
     try {
       final session = _ref.read(currentSessionProvider);
       final token = session?.token;
@@ -45,6 +57,7 @@ class TableListNotifier extends StateNotifier<TableListState> {
           .list(token: token, branchId: session?.selectedBranchId);
       state = TableListState(tables: tables, loading: false);
     } catch (e) {
+      if (silent && state.tables.isNotEmpty) return;
       state = state.copyWith(loading: false, error: e.toString().replaceAll('Exception: ', ''));
     }
   }

@@ -75,6 +75,13 @@ class TableManagementScreen extends ConsumerWidget {
                               ],
                             ),
                           ),
+                          GoldenityIconAction(
+                            icon: Icons.refresh_rounded,
+                            tooltip: 'Muat ulang',
+                            loading: state.loading && state.tables.isNotEmpty,
+                            onTap: () => notifier.load(),
+                          ),
+                          const SizedBox(width: 8),
                           GoldenityAddButton(
                             label: 'Tambah Meja',
                             onTap: () => _showAddTable(context, ref),
