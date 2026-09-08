@@ -850,6 +850,8 @@ class HardwareConnectionService {
               vendorId: config.vendorId,
             ),
           ).timeout(const Duration(seconds: 5));
+          debugPrint(
+              '[hw usb] connect(name="${config.deviceName}" vid="${config.vendorId}" pid="${config.productId}") -> $connected');
           if (!connected) {
             throw Exception(
               'Gagal terhubung ke printer USB. Pada Windows, gunakan nama printer USB yang terdeteksi (bukan COM port).',
@@ -887,6 +889,7 @@ class HardwareConnectionService {
 
         if (payload.length <= chunkSize) {
           sent = await _printerManager.send(type: printerType, bytes: payload);
+          debugPrint('[hw ${config.connectionType.name}] send ${payload.length}B (single) -> $sent');
           if (!sent) {
             throw Exception('Data print tidak terkirim ke perangkat.');
           }
@@ -899,6 +902,7 @@ class HardwareConnectionService {
               : payload.length;
           final chunk = payload.sublist(offset, end);
           sent = await _printerManager.send(type: printerType, bytes: chunk);
+          debugPrint('[hw ${config.connectionType.name}] send chunk ${offset ~/ chunkSize + 1} ${chunk.length}B -> $sent');
           if (!sent) {
             throw Exception(
               'Data print tidak terkirim ke perangkat (chunk ${offset ~/ chunkSize + 1}).',
@@ -947,6 +951,8 @@ class HardwareConnectionService {
         );
       }
 
+      debugPrint('[hw ${config.connectionType.name}] dispatch ${bytes.length}B '
+          'img=$containsImageCommand winUsb=$isWindowsUsb');
       if (containsImageCommand) {
         sent = await _printerManager.send(type: printerType, bytes: bytes);
         if (!sent) {
@@ -954,10 +960,21 @@ class HardwareConnectionService {
         }
         await Future<void>.delayed(const Duration(milliseconds: 700));
       } else if (isWindowsUsb) {
-        await sendWindowsUsbReceiptWithTailFlush(bytes);
+        // Windows USB = RAW job lewat spooler. Kirim SATU dokumen utuh —
+        // `EndDocPrinter` yang jamin flush. Memecah jadi banyak chunk =
+        // banyak job kecil → printer thermal cetak terpotong-potong.
+        sent = await _printerManager.send(type: printerType, bytes: bytes);
+        debugPrint('[hw usb] send ${bytes.length}B (whole win-usb) -> $sent');
+        if (!sent) {
+          // fallback: sebagian printer USB Windows rewel utk payload besar —
+          // coba lagi dgn head/tail split.
+          debugPrint('[hw usb] whole gagal, fallback head/tail split');
+          await sendWindowsUsbReceiptWithTailFlush(bytes);
+        }
       } else if (bytes.length <=
           (config.connectionType == ConnectionType.usb ? 512 : 1024)) {
         sent = await _printerManager.send(type: printerType, bytes: bytes);
+        debugPrint('[hw ${config.connectionType.name}] send ${bytes.length}B (whole) -> $sent');
         if (!sent) {
           throw Exception('Data print tidak terkirim ke perangkat.');
         }

@@ -1,6 +1,6 @@
 import 'dart:developer' as dev;
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:esc_pos_utils/esc_pos_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -79,6 +79,9 @@ class WebOrderPrintService {
       return WebOrderPrintResult.fail('gagal ambil config printer: $e');
     }
 
+    debugPrint('[web-order print] Q-${order.queueNumber} branch=$branchId '
+        'profiles=${profiles.map((p) => '${p.slot.name}:${p.connectionType.name}:${p.address}:${p.port}:${p.paperWidth}mm').toList()}');
+
     final cashier = _pick(profiles, const [PrinterSlotDto.cashier, PrinterSlotDto.defaultPrinter]);
     final kitchen = _pick(profiles, const [PrinterSlotDto.kitchen, PrinterSlotDto.defaultPrinter]);
 
@@ -116,6 +119,7 @@ class WebOrderPrintService {
 
     final msg = results.join(' - ');
     dev.log('[web-order print] Q-${order.queueNumber} -> $msg', name: 'weborder.print');
+    debugPrint('[web-order print] Q-${order.queueNumber} -> $msg');
     return WebOrderPrintResult(anyOk: anyOk, message: msg);
   }
 

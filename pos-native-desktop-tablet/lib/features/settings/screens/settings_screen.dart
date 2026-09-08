@@ -614,9 +614,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       } else if (d.connectionType == ConnectionType.usb) {
         _printerConnTypes[slot] = PrinterConnectionTypeDto.usb;
       }
-      _printerAddressCtrls[slot]?.text =
-          d.address.isNotEmpty ? d.address : d.name;
+      _printerAddressCtrls[slot]?.text = _encodeDeviceAddress(d);
     });
+  }
+
+  /// USB butuh vendorId/productId (Android) SELAIN nama (Windows). Simpan
+  /// ketiganya sbagai `nama|vid|pid` supaya `_convertPrinterProfileToHwConfig`
+  /// bisa isi lengkap. Bluetooth/lainnya tetap pakai address apa adanya.
+  String _encodeDeviceAddress(HardwareDeviceInfo d) {
+    if (d.connectionType == ConnectionType.usb) {
+      final vid = (d.vendorId ?? '').trim();
+      final pid = (d.productId ?? '').trim();
+      final name = d.name.trim().isNotEmpty
+          ? d.name.trim()
+          : d.address.trim();
+      if (vid.isNotEmpty && pid.isNotEmpty) {
+        return '$name|$vid|$pid';
+      }
+      return name.isNotEmpty ? name : d.address.trim();
+    }
+    return d.address.isNotEmpty ? d.address : d.name;
   }
 
   @override

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/web_order_notification_service.dart';
@@ -140,14 +141,22 @@ class WebOrderListNotifier extends StateNotifier<WebOrderListState> {
 
   Future<void> _printAccepted(WebOrder o, AuthSession session) async {
     try {
-      await WebOrderPrintService.instance.printAccepted(order: o, session: session);
-    } catch (_) {}
+      final r = await WebOrderPrintService.instance
+          .printAccepted(order: o, session: session);
+      debugPrint('[web-order print] terima Q-${o.queueNumber}: ${r.message}');
+    } catch (e, st) {
+      debugPrint('[web-order print] terima Q-${o.queueNumber} ERROR: $e\n$st');
+    }
   }
 
   Future<void> _printPaid(WebOrder o, AuthSession session) async {
     try {
-      await WebOrderPrintService.instance.printPaid(order: o, session: session);
-    } catch (_) {}
+      final r = await WebOrderPrintService.instance
+          .printPaid(order: o, session: session);
+      debugPrint('[web-order print] lunas Q-${o.queueNumber}: ${r.message}');
+    } catch (e, st) {
+      debugPrint('[web-order print] lunas Q-${o.queueNumber} ERROR: $e\n$st');
+    }
   }
 
   Future<void> accept(String id) async {
