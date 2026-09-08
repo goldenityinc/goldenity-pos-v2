@@ -2,6 +2,8 @@
 // lint di call-site jadi noise.
 // ignore_for_file: use_build_context_synchronously
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -577,8 +579,25 @@ class _OccupiedBody extends ConsumerStatefulWidget {
 class _OccupiedBodyState extends ConsumerState<_OccupiedBody> {
   final Set<String> _selected = {};
   bool _closing = false;
+  Timer? _poll;
 
   NumberFormat get _c => widget.currency;
+
+  @override
+  void initState() {
+    super.initState();
+    // Selama drawer terbuka, segarkan detail sesi tiap 12 dtk supaya order baru
+    // yang masuk dari web muncul tanpa perlu tutup-buka drawer.
+    _poll = Timer.periodic(const Duration(seconds: 12), (_) {
+      if (mounted) ref.invalidate(tableSessionDetailProvider(widget.tableId));
+    });
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    super.dispose();
+  }
 
   void _toggle(String id) => setState(() {
         if (!_selected.remove(id)) _selected.add(id);
