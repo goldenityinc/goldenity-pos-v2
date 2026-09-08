@@ -378,14 +378,26 @@ Future<T?> showGoldenityDetailDrawer<T>({
                       const Divider(height: 1, color: GoldenityColors.border),
                       Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            for (int i = 0; i < actions.length; i++) ...[
-                              if (i > 0) const SizedBox(width: 10),
-                              Expanded(child: actions[i]),
-                            ],
-                          ],
-                        ),
+                        // >2 aksi → tumpuk vertikal (full-width) spy label panjang
+                        // ("Buka Sesi Baru", "Generate QR Meja") tidak overflow.
+                        child: actions.length > 2
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  for (int i = 0; i < actions.length; i++) ...[
+                                    if (i > 0) const SizedBox(height: 8),
+                                    SizedBox(width: double.infinity, child: actions[i]),
+                                  ],
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  for (int i = 0; i < actions.length; i++) ...[
+                                    if (i > 0) const SizedBox(width: 10),
+                                    Expanded(child: actions[i]),
+                                  ],
+                                ],
+                              ),
                       ),
                     ],
                   ],

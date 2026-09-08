@@ -139,8 +139,12 @@ class GoldenityOutlineButton extends StatelessWidget {
                 Icon(icon, size: 15, color: fg),
                 const SizedBox(width: 6),
               ],
-              Text(label,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg)),
+              Flexible(
+                child: Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg)),
+              ),
             ],
           ),
         ),
@@ -194,9 +198,13 @@ class GoldenityFillButton extends StatelessWidget {
                       Icon(icon, size: 15, color: Colors.white),
                       const SizedBox(width: 6),
                     ],
-                    Text(label,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                    Flexible(
+                      child: Text(label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white)),
+                    ),
                   ],
                 ),
         ),
