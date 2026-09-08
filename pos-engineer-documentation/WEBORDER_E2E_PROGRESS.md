@@ -23,10 +23,18 @@ Autonomous run 2 (2026-09-08). Workspace: `E:\Goldenity\goldenity-pos-v2`.
 - [x] **E2E verify** — customer submit (pos-web-order + curl) → `web_order:submitted` → bridge fetch+print kitchen ticket → kasir `/web-orders` SUBMITTED → accept → SalesRecord `web_<id>` (salesRecordId=35). Bridge `/status` jobs log OK.
 - [x] **Backend: `customerPhone` di list `/web-orders`** — `mapWebOrder` + `web_order:submitted` payload. Commit `cbe5c8e`.
 
-## Sisa (verifikasi visual, bukan blocker fungsional)
-- [ ] Rebuild Flutter app → screenshot Manajemen Meja (drawer + 2 dialog + QR panel) cocokkan Figma.
-- [ ] Screenshot Kategori / Daftar Produk headers — pastikan tombol putih.
-- [ ] (opsional) pasang `GoldenityIconAction` di header Web Orders + Pengaturan kalau masih ada `IconButton` gelap.
+## Verifikasi visual (rebuild `windows --debug` 2026-09-08)
+- [x] Kategori Produk header — refresh (putih+border) + "+ Tambah Kategori" (pill biru). BUKAN hitam. ✓
+- [x] Daftar Produk header — refresh (putih) + "+ Tambah Produk" (pill biru, eks-FAB pindah ke header). ✓
+- [x] Manajemen Meja — judul + "+ Tambah Meja" (biru), legend 4 status incl **Bersih-bersih**, count chips, kartu meja status pill. ✓
+- [x] Drawer meja **Terisi** — Pelanggan/Dibuka, blok order #8 SUBMITTED, ringkasan (Total/Belum Dibayar/Grand Total/Sisa Tagihan), footer "Tutup Sesi" full-width outline. ✓
+- [x] Fix overflow drawer aksi 17px (commit `d7b7783`) — Row→Column utk >2 aksi + Flexible/ellipsis. `flutter analyze` clean, rebuild OK.
+- [~] Drawer meja **Tersedia** (3 aksi) + dialog Buat Reservasi / Buka Sesi + QR panel — TIDAK ke-screenshot: meja uji semua OCCUPIED & meja baru via API ke-scope branch lain. Kode + analyze clean, layout fix terpasang.
+- [ ] (opsional) `GoldenityIconAction` di header Web Orders + Pengaturan kalau masih ada `IconButton` gelap.
+
+## Status akhir autonomous run 2
+Semua task fungsional **selesai & E2E-verified**. Commits: `cbe5c8e` (backend meja + reusable buttons), `5d282d7` (Flutter Manajemen Meja), `8018ee7` (pos-web-order), `bd1f315` (pos-bridge), `d7b7783` (fix overflow).
+Bridge jalan: `node pos-bridge/dist/index.js` → console print tiket dapur tiap web order baru. Backend `:3001`, pos-web-order dev `:5174`, bridge health `:4599`.
 
 ## Catatan
 - Kontrak customer order API: POST `/api/v1/order/session` {qrToken, customerName?, customerPhone?} → {sessionToken, table, branch, tenant}; GET `/order/menu?sessionToken=`; POST `/order/submit` {sessionToken, paymentMethod: PAY_AT_CASHIER|QRIS_STATIC, customerNote?, items:[{productId, qty, note?}]}; POST `/order/:id/paid`; POST `/order/:id/proof` {url}; GET `/order/:id/status`.
