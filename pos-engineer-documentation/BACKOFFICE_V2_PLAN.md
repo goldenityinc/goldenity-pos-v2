@@ -30,67 +30,81 @@
 - [x] `BACKOFFICE_V2_PLAN.md` (dokumen ini)
 
 ### Tahap 1 — `pos-backend` skema & migrasi
-- [ ] Enum: `BusinessCategory`, `SubscriptionTier`, `SubscriptionStatus`, `SubscriptionEventType`
-- [ ] `Tenant`: + `businessCategory` (default `RETAIL_FNB`), relasi `subscription`, `subscriptionEvents`
-- [ ] `User`: + `name String?`, `email String?`
-- [ ] `CustomRole`: + `description String?`, `isDefault Boolean`, `createdAt/updatedAt`
-- [ ] `Subscription` (baru), `SubscriptionEvent` (baru)
-- [ ] Migrasi via `prisma migrate dev` (lokal DB `goldenity_pos_v2`) — kalau P3005, `prisma db push` + tandai
-- [ ] Skrip migrasi data `permissions` role lama → matriks (kalau ada baris `CustomRole`)
-- [ ] Seed: `Subscription` demo utk tenant `demo-fnb` (tier PROFESSIONAL, endDate +30 hari), 1 tenant near-due utk uji banner
+- [x] Enum: `BusinessCategory`, `SubscriptionTier`, `SubscriptionStatus`, `SubscriptionEventType`
+- [x] `Tenant`: + `businessCategory` (default `RETAIL_FNB`), relasi `subscription`, `subscriptionEvents`
+- [x] `User`: + `name String?`, `email String?`
+- [x] `CustomRole`: + `description String?`, `isDefault Boolean`, `createdAt/updatedAt`
+- [x] `Subscription` (baru), `SubscriptionEvent` (baru)
+- [x] Migrasi via `prisma migrate dev` (lokal DB `goldenity_pos_v2`) — kalau P3005, `prisma db push` + tandai
+- [x] Skrip migrasi data `permissions` role lama → matriks (kalau ada baris `CustomRole`)
+- [x] Seed: `Subscription` demo utk tenant `demo-fnb` (tier PROFESSIONAL, endDate +30 hari), 1 tenant near-due utk uji banner
 
 ### Tahap 2 — `pos-backend` modul `subscription`
-- [ ] `src/modules/subscription/subscription.service.ts` — `getForTenant`, `upsert` (SUPER_ADMIN), `listEvents`, `ackReminder`, `computeView()`
-- [ ] `subscription.routes.ts` + mount di `index.ts`
-- [ ] Helper `SubscriptionGuard` — dipakai `auth/login` & `auth/me`
+- [x] `src/modules/subscription/subscription.service.ts` — `getForTenant`, `upsert` (SUPER_ADMIN), `listEvents`, `ackReminder`, `computeView()`
+- [x] `subscription.routes.ts` + mount di `index.ts`
+- [x] Helper `SubscriptionGuard` — dipakai `auth/login` & `auth/me`
 
 ### Tahap 3 — `pos-backend` `staff` RBAC matriks + `auth/me`
-- [ ] `PERMISSION_CATALOG` → bentuk `{ key,label,group,crud }`
-- [ ] `GET /staff/permission-catalog`
-- [ ] Zod `RoleSchema` → `permissions: Record<string,{c,r,u,d}>`
-- [ ] `staff` create/update user: tambah `name`, `email`
-- [ ] Tier-gate custom role (`FORBIDDEN_TIER`)
-- [ ] `auth/me` → tambah `tenant.businessCategory`, `subscription` ringkas, `permissions` efektif, `capabilities`
-- [ ] `auth/change-password` (baru)
+- [x] `PERMISSION_CATALOG` → bentuk `{ key,label,group,crud }`
+- [x] `GET /staff/permission-catalog`
+- [x] Zod `RoleSchema` → `permissions: Record<string,{c,r,u,d}>`
+- [x] `staff` create/update user: tambah `name`, `email`
+- [x] Tier-gate custom role (`FORBIDDEN_TIER`)
+- [x] `auth/me` → tambah `tenant.businessCategory`, `subscription` ringkas, `permissions` efektif, `capabilities`
+- [x] `auth/change-password` (baru)
 
 ### Tahap 4 — `pos-web-backoffice` scaffold + design system
-- [ ] `package.json`, `vite.config.ts`, `tailwind.config.js`, `tsconfig*`, `index.html`, `postcss.config.js`, `.env.example`, `.gitignore`
-- [ ] `src/lib/api.ts` (fetch wrapper + token), `src/lib/auth.ts` (zustand), `src/lib/format.ts`
-- [ ] `src/theme.css` (token CSS), Tailwind extend token
-- [ ] Komponen: `Shell` (BO topbar gelap + sidebar navy 200px), `PageHeader`, `DataTable`, `MetricCard`, `Modal`, `Button`, `Field` (Input/Select/Textarea), `Badge`, `EmptyState`, `Toast`, `Spinner`, `ConfirmDialog`, `Tabs`
-- [ ] Router + `RequireAuth` + `RequireCapability`
+- [x] `package.json`, `vite.config.ts`, `tailwind.config.js`, `tsconfig*`, `index.html`, `postcss.config.js`, `.env.example`, `.gitignore`
+- [x] `src/lib/api.ts` (fetch wrapper + token), `src/lib/auth.ts` (zustand), `src/lib/format.ts`
+- [x] `src/theme.css` (token CSS), Tailwind extend token
+- [x] Komponen: `Shell` (BO topbar gelap + sidebar navy 200px), `PageHeader`, `DataTable`, `MetricCard`, `Modal`, `Button`, `Field` (Input/Select/Textarea), `Badge`, `EmptyState`, `Toast`, `Spinner`, `ConfirmDialog`, `Tabs`
+- [x] Router + `RequireAuth` + `RequireCapability`
 
 ### Tahap 5 — `pos-web-backoffice` halaman
-- [ ] `LoginPage` — slug + username + password; tangani `SUBSCRIPTION_SUSPENDED`
-- [ ] `DashboardPage` — MetricCard row + 2 chart (SVG sederhana / atau tanpa lib dulu) + produk terlaris
-- [ ] `InventoryPage` — DataTable produk (filter cabang, search, status), modal create/edit + Variant Group builder, arsip
-- [ ] `CategoriesPage` — grid kategori + modal
-- [ ] `UsersPage` — DataTable karyawan, modal (nama, username, password, role, cabang), nonaktifkan
-- [ ] `RolesPage` — list role + matriks RBAC `{c,r,u,d}` per modul, buat custom role (gated tier)
-- [ ] `SubscriptionPage` — kartu tier, ring sisa hari, tanggal mulai/berakhir, status badge, banner near-due, tombol "Perpanjang (WA)" + "Nanti", riwayat event
-- [ ] `SettingsPage` — Info Toko (read businessCategory sbg badge mode bisnis) + Daftar Cabang (CRUD)
-- [ ] `SubscriptionBanner` global (muncul di semua halaman kalau near-due/overdue)
+- [x] `LoginPage` — slug + username + password; tangani `SUBSCRIPTION_SUSPENDED`
+- [x] `DashboardPage` — MetricCard row + 2 chart (SVG sederhana / atau tanpa lib dulu) + produk terlaris
+- [x] `InventoryPage` — DataTable produk (filter cabang, search, status), modal create/edit + Variant Group builder, arsip
+- [x] `CategoriesPage` — grid kategori + modal
+- [x] `UsersPage` — DataTable karyawan, modal (nama, username, password, role, cabang), nonaktifkan
+- [x] `RolesPage` — list role + matriks RBAC `{c,r,u,d}` per modul, buat custom role (gated tier)
+- [x] `SubscriptionPage` — kartu tier, ring sisa hari, tanggal mulai/berakhir, status badge, banner near-due, tombol "Perpanjang (WA)" + "Nanti", riwayat event
+- [x] `SettingsPage` — Info Toko (read businessCategory sbg badge mode bisnis) + Daftar Cabang (CRUD)
+- [x] `SubscriptionBanner` global (muncul di semua halaman kalau near-due/overdue)
 
 ### Tahap 6 — Admin Core + Super Admin penyelarasan
-- [ ] Admin Core `appInstanceService`: hook push ke `pos-backend PUT /subscription` (best-effort, log kalau `bridgeApiUrl` kosong)
-- [ ] Admin Core: `GET /api/app-instances/:id/subscription-view`
-- [ ] Super Admin `AppInstancesPage`: kolom "Berakhir" + badge "≤7 hari" + tombol "Perpanjang/Hubungi"
-- [ ] Super Admin `TenantsPage`: select `businessCategory`
-- [ ] Super Admin `RolesPage`: konfirmasi matriks CRUD + label ID
-- [ ] Perbaiki bug lain yang ketemu saat baca kode (catat di §5)
+- [x] Admin Core `appInstanceController`: hook `syncPosSubscription` push ke `pos-backend PUT /subscription/:tenantId` (best-effort, header `x-core-sync-token`, skip kalau env kosong)
+- [x] Admin Core: `attachModuleKeys` menyertakan `subscriptionView` (daysRemaining/isNearDue/graceUntil/effectiveStatus) di setiap AppInstance list/detail — dipakai FE tanpa endpoint baru
+- [~] Super Admin `AppInstancesPage`: sisa hari + endDate + seksi "expired" **SUDAH ADA** sebelumnya (`formatRemaining`/`formatEndDate`/`isSubscriptionExpired`); badge "≤7 hari" khusus + tombol WA belum ditambah (data `subscriptionView` sudah tersedia untuk itu)
+- [x] Super Admin `TenantsPage`: select `businessCategory` (Create + Edit)
+- [x] Super Admin `RolesPage`: dikonfirmasi sudah render matriks C/R/U/D — tidak perlu diubah
+- [x] Perbaiki bug lain yang ketemu saat baca kode (catat di §5) — `clientPaymentsApi.ts` dead code + `computeSubscriptionView` honor explicit SUSPENDED
 
 ### Tahap 7 — Verifikasi (jangan push)
-- [ ] `pos-backend`: `npx prisma validate`, `npx tsc --noEmit`, boot `npm run dev` cek route mount
-- [ ] `pos-web-backoffice`: `npm run build` (tsc -b + vite build), `npm run lint`
-- [ ] `goldenity-admin-core-backend`: `npx tsc --noEmit`
-- [ ] `goldenity-super-admin`: `npm run build`
-- [ ] `git status` semua repo — pastikan hanya file baru/terkait, tidak ada file tracked yang konflik. **TIDAK `git push`.**
-- [ ] Commit lokal per repo dgn pesan jelas (branch `staging` utk pos-v2)
+- [x] `pos-backend`: `npx prisma validate`, `npx tsc --noEmit`, boot `npm run dev` cek route mount
+- [x] `pos-web-backoffice`: `npm run build` (tsc -b + vite build), `npm run lint`
+- [x] `goldenity-admin-core-backend`: `npx tsc --noEmit`
+- [x] `goldenity-super-admin`: `npm run build`
+- [x] `git status` semua repo — pastikan hanya file baru/terkait, tidak ada file tracked yang konflik. **TIDAK `git push`.**
+- [x] Commit lokal per repo dgn pesan jelas (branch `staging` utk pos-v2)
 
 ---
 
-## §5 — Temuan perbaikan Admin Core / Super Admin
-_(diisi saat implementasi Tahap 6)_
+## §5 — Temuan perbaikan Admin Core / Super Admin (Tahap 6 — SELESAI)
+
+Status kode saat distudi ternyata **sudah cukup matang**; perbaikan yang dilakukan minimal & aditif:
+
+| Item | Temuan | Aksi |
+|---|---|---|
+| Tier / endDate / sisa hari di Super Admin | **Sudah ada** di `AppInstancesPage` (`instance.tier`, `formatRemaining`, `formatEndDate`, `isSubscriptionExpired`, seksi "expired"). | Tidak diubah — cukup. |
+| Computed subscription-view di API | `AppInstance` list tidak mengembalikan `daysRemaining`/`isNearDue`/`graceUntil`. | `appInstanceService.attachModuleKeys` sekarang menyertakan `subscriptionView` (fungsi `computeSubscriptionView(endDate, graceDays=7)` — di-export). |
+| Push langganan ke POS V2 | Tidak ada. | `appInstanceController.syncPosSubscription(appInstance)` — best-effort `PUT ${POS_BACKEND_SYNC_URL}/api/v1/subscription/:tenantId` dengan header `x-core-sync-token` (env `CORE_SYNC_TOKEN`). Dipanggil di `create` + `update`, hanya untuk `solution.code === 'POS'`, di-`catch`, tak pernah menggagalkan request. Env kosong → skip diam-diam. |
+| `businessCategory` di Super Admin `TenantsPage` | API layer (`tenantApi.ts`) **sudah** dukung `businessCategory` di Create/Update/Tenant, TAPI **form UI tidak punya select**-nya. | Tambah `businessCategory` ke `TenantFormState`/`initialForm`, select di form Create **dan** Edit (RETAIL_FNB / SERVICES_AUTOMOTIVE / GENERAL), diisi dari `tenant.businessCategory` saat `openEdit`, dikirim di payload. |
+| `RolesPage` (Super Admin) | 352 baris, sudah render matriks C/R/U/D. Tidak ada isu. | Tidak diubah. |
+| Build `goldenity-super-admin` gagal | Error TS pre-existing (**bukan dari perubahan ini**): `clientPaymentsApi.ts:94 'extractListItems' declared but never read` (fungsi dead-copy; versi identik yang dipakai ada di `expenseApi.ts`). | Hapus fungsi mati di `clientPaymentsApi.ts` → `tsc -b && vite build` bersih. |
+
+**Fix logika pos-backend** (dari uji core-sync): `computeSubscriptionView` semula selalu menurunkan `SUSPENDED`→`GRACE` kalau `now < graceUntil`. Sekarang **status eksplisit `SUSPENDED`/`EXPIRED` dari Admin Core selalu menang**; hanya `ACTIVE`/`GRACE` yang dihitung dari tanggal. Diverifikasi: core-sync PUT `status:SUSPENDED` → `GET /subscription` `status:SUSPENDED` → `POST /auth/login` non-SUPER_ADMIN → `403 SUBSCRIPTION_SUSPENDED`.
+
+Env baru: `pos-backend` `CORE_SYNC_TOKEN`; `admin-core` `POS_BACKEND_SYNC_URL` + `CORE_SYNC_TOKEN` (keduanya di `.env.example` masing-masing).
 
 ---
 

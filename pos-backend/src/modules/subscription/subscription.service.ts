@@ -92,8 +92,11 @@ export function computeSubscriptionView(
   const daysRemaining = Math.ceil((end - now) / DAY_MS);
   const isOverdue = now > end;
 
+  // Status eksplisit dari Admin Core (SUSPENDED / EXPIRED) selalu menang;
+  // GRACE/ACTIVE dihitung dari tanggal.
   let status: SubscriptionStatus;
   if (sub.status === 'EXPIRED') status = 'EXPIRED';
+  else if (sub.status === 'SUSPENDED') status = 'SUSPENDED';
   else if (now > graceUntil) status = 'SUSPENDED';
   else if (now > end) status = 'GRACE';
   else status = 'ACTIVE';
