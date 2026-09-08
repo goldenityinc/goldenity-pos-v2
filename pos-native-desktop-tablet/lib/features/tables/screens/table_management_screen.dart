@@ -175,16 +175,10 @@ class TableManagementScreen extends ConsumerWidget {
     Widget body;
 
     if (status == 'OCCUPIED') {
-      actions = [
-        GoldenityOutlineButton(
-          label: 'Tutup Sesi',
-          icon: Icons.event_available_rounded,
-          color: GoldenityColors.error,
-          borderColor: const Color(0xFFFECACA),
-          onTap: () => _run(context, () => n.closeSession(table.id), 'Sesi meja ditutup'),
-        ),
-      ];
-      body = _OccupiedBody(tableId: table.id, currency: _currency);
+      // Semua aksi (bayar per-order / bayar semua / tutup sesi) dirender di
+      // dalam body karena bergantung pada data sesi yang dimuat async.
+      actions = const [];
+      body = _OccupiedBody(tableId: table.id, tableCode: table.code, currency: _currency);
     } else if (status == 'RESERVED') {
       final r = table.reservation;
       actions = [
@@ -559,14 +553,92 @@ class TableManagementScreen extends ConsumerWidget {
   }
 }
 
-class _OccupiedBody extends ConsumerWidget {
-  const _OccupiedBody({required this.tableId, required this.currency});
+class _OccupiedBody extends ConsumerStatefulWidget {
+  const _OccupiedBody({
+    required this.tableId,
+    required this.tableCode,
+    required this.currency,
+  });
   final String tableId;
+  final String tableCode;
   final NumberFormat currency;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final detail = ref.watch(tableSessionDetailProvider(tableId));
+  ConsumerState<_OccupiedBody> createState() => _OccupiedBodyState();
+}
+
+class _OccupiedBodyState extends ConsumerState<_OccupiedBody> {
+  final Set<String> _selected = {};
+  bool _closing = false;
+
+  NumberFormat get _c => widget.currency;
+
+  void _toggle(String id) => setState(() {
+        if (!_selected.remove(id)) _selected.add(id);
+      });
+
+  Future<void> _openPayment(List<WebOrderInSession> orders) async {
+    if (orders.isEmpty) return;
+    final res = await showGeneralDialog<SettleResult>(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: 'Pembayaran',
+      barrierColor: const Color(0x73000000),
+      transitionDuration: const Duration(milliseconds: 160),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (ctx, a1, __, ___) {
+        final curved = CurvedAnimation(parent: a1, curve: Curves.easeOutCubic);
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.96, end: 1).animate(curved),
+            child: _TablePaymentDialog(
+              tableId: widget.tableId,
+              tableCode: widget.tableCode,
+              orders: orders,
+              currency: _c,
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || res == null) return;
+    setState(() => _selected.clear());
+    final msg = StringBuffer(res.message);
+    if (res.cashChange != null && res.cashChange! > 0) {
+      msg.write(' · Kembalian ${_c.format(res.cashChange)}');
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(backgroundColor: GoldenityColors.success, content: Text(msg.toString())),
+    );
+  }
+
+  Future<void> _closeSession() async {
+    setState(() => _closing = true);
+    try {
+      await ref.read(tableListProvider.notifier).closeSession(widget.tableId);
+      if (!mounted) return;
+      Navigator.of(context).maybePop();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          backgroundColor: GoldenityColors.success, content: Text('Sesi meja ditutup')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor: GoldenityColors.error,
+          content: Text(e.toString().replaceAll('Exception: ', ''))));
+    } finally {
+      if (mounted) setState(() => _closing = false);
+    }
+  }
+
+  static String _fmtDur(Duration d) {
+    if (d.inHours > 0) return '${d.inHours}j ${d.inMinutes % 60}m';
+    return '${d.inMinutes}m';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = ref.watch(tableSessionDetailProvider(widget.tableId));
     return detail.when(
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 40),
@@ -582,29 +654,148 @@ class _OccupiedBody extends ConsumerWidget {
                 style: TextStyle(color: GoldenityColors.muted, fontSize: 13)),
           );
         }
+        final session = d.session!;
+        final orders = d.orders;
+        final settleable = orders.where((o) => o.settleable).toList();
+        _selected.removeWhere((id) => !settleable.any((o) => o.id == id));
+        final selectedOrders = settleable.where((o) => _selected.contains(o.id)).toList();
+        final selectedTotal = selectedOrders.fold<num>(0, (s, o) => s + o.total);
+        final allSelected = settleable.isNotEmpty && _selected.length == settleable.length;
+        final expiresIn = session.expiresAt?.difference(DateTime.now());
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Pelanggan: ${d.session!.customerName ?? '—'}'
-              '${d.session!.customerPhone != null ? ' · ${d.session!.customerPhone}' : ''}',
+              'Tamu: ${session.customerName?.trim().isNotEmpty == true ? session.customerName : 'Tamu'}'
+              '${session.customerPhone != null ? ' · ${session.customerPhone}' : ''}',
               style: const TextStyle(fontSize: 12, color: GoldenityColors.text2),
             ),
-            if (d.session!.openedAt != null)
-              Text('Dibuka ${DateFormat('d MMM • HH:mm', 'id_ID').format(d.session!.openedAt!)}',
+            if (session.openedAt != null)
+              Text('Dibuka ${DateFormat('d MMM • HH:mm', 'id_ID').format(session.openedAt!.toLocal())}',
                   style: const TextStyle(fontSize: 11, color: GoldenityColors.muted)),
-            const SizedBox(height: 14),
-            for (final o in d.orders) ...[
-              _OrderBlock(order: o, currency: currency),
-              const SizedBox(height: 10),
+            if (expiresIn != null && !expiresIn.isNegative)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text('Sesi berakhir dalam ${_fmtDur(expiresIn)}',
+                    style: const TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w600, color: GoldenityColors.warning)),
+              ),
+            const SizedBox(height: 12),
+            Text(
+              '${d.orderCount} pesanan · ${d.unpaidCount} belum lunas · ${_c.format(d.unpaidTotal)}',
+              style: const TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w700, color: GoldenityColors.text),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                const Text('DAFTAR PESANAN',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.06,
+                        color: GoldenityColors.muted)),
+                const Spacer(),
+                if (settleable.isNotEmpty)
+                  InkWell(
+                    onTap: () => setState(() {
+                      if (allSelected) {
+                        _selected.clear();
+                      } else {
+                        _selected
+                          ..clear()
+                          ..addAll(settleable.map((o) => o.id));
+                      }
+                    }),
+                    child: Text(
+                      allSelected ? 'Batal pilih' : 'Pilih Semua (${settleable.length})',
+                      style: const TextStyle(
+                          fontSize: 11, fontWeight: FontWeight.w700, color: GoldenityColors.primary),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            for (final o in orders) ...[
+              _OrderRow(
+                order: o,
+                currency: _c,
+                selected: _selected.contains(o.id),
+                onToggle: o.settleable ? () => _toggle(o.id) : null,
+              ),
+              const SizedBox(height: 8),
             ],
+            if (selectedOrders.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: GoldenityColors.primaryLight,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                  border: Border.all(color: GoldenityColors.primary),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        Text('${selectedOrders.length} pesanan dipilih',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: GoldenityColors.primary)),
+                        const Spacer(),
+                        Text(_c.format(selectedTotal),
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                fontFamily: GoldenityTypography.fontFamilyMono,
+                                color: GoldenityColors.primary)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    GoldenityFillButton(
+                      label: 'Bayar Sekarang',
+                      icon: Icons.arrow_forward_rounded,
+                      color: GoldenityColors.success,
+                      onTap: () => _openPayment(selectedOrders),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
             const Divider(height: 1, color: GoldenityColors.border),
             const SizedBox(height: 10),
             _row('Total Pesanan', '${d.orderCount} order'),
             _row('Belum Dibayar', '${d.unpaidCount} order'),
-            _row('Grand Total', currency.format(d.grandTotal), bold: true),
-            _row('Sisa Tagihan', currency.format(d.unpaidTotal),
+            _row('Grand Total', _c.format(d.grandTotal), bold: true),
+            _row('Sisa Tagihan', _c.format(d.unpaidTotal),
                 color: d.unpaidTotal > 0 ? GoldenityColors.error : GoldenityColors.success),
+            const SizedBox(height: 14),
+            if (d.unpaidCount > 0 && _selected.isEmpty) ...[
+              GoldenityFillButton(
+                label: 'Bayar Semua Tagihan — ${_c.format(d.unpaidTotal)}',
+                icon: Icons.payments_rounded,
+                onTap: () => _openPayment(settleable),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (d.unpaidCount > 0)
+              GoldenityOutlineButton(
+                label: 'Tutup Sesi Meja',
+                icon: Icons.lock_outline_rounded,
+                onTap: _closing ? null : _closeSession,
+              )
+            else
+              GoldenityFillButton(
+                label: 'Tutup Sesi Meja',
+                icon: Icons.event_available_rounded,
+                color: GoldenityColors.warning,
+                busy: _closing,
+                onTap: _closeSession,
+              ),
           ],
         );
       },
@@ -633,54 +824,119 @@ class _OccupiedBody extends ConsumerWidget {
       );
 }
 
-class _OrderBlock extends StatelessWidget {
-  const _OrderBlock({required this.order, required this.currency});
+class _OrderRow extends StatelessWidget {
+  const _OrderRow({
+    required this.order,
+    required this.currency,
+    required this.selected,
+    this.onToggle,
+  });
   final WebOrderInSession order;
   final NumberFormat currency;
+  final bool selected;
+  final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context) {
-    final paid = order.paymentStatus == 'PAID';
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: GoldenityColors.surface2,
+    final paid = order.isPaid;
+    final cancelled = order.isCancelled;
+    final time =
+        order.createdAt != null ? DateFormat('HH:mm').format(order.createdAt!.toLocal()) : '';
+    final subColor = paid
+        ? GoldenityColors.success
+        : order.isPendingVerification
+            ? GoldenityColors.warning
+            : GoldenityColors.muted;
+    return Opacity(
+      opacity: cancelled ? 0.55 : 1,
+      child: Material(
+        color: selected ? GoldenityColors.primaryLight : GoldenityColors.surface,
         borderRadius: BorderRadius.circular(GoldenityRadius.md),
-        border: Border.all(color: GoldenityColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Text('#${order.queueNumber}',
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800)),
-              const SizedBox(width: 8),
-              _tag(order.status, GoldenityColors.primaryLight, GoldenityColors.primary),
-              const Spacer(),
-              _tag(paid ? 'LUNAS' : 'BELUM',
-                  paid ? GoldenityColors.successLight : GoldenityColors.warningLight,
-                  paid ? GoldenityColors.success : GoldenityColors.warning),
-            ],
-          ),
-          const SizedBox(height: 6),
-          for (final it in order.items)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 1),
-              child: Text('${it.qty}× ${it.productName}',
-                  style: const TextStyle(fontSize: 11.5, color: GoldenityColors.text2)),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(GoldenityRadius.md),
+          onTap: onToggle,
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(GoldenityRadius.md),
+              border: Border.all(
+                color: selected ? GoldenityColors.primary : GoldenityColors.border,
+                width: selected ? 1.4 : 1,
+              ),
             ),
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(currency.format(order.total),
-                style: const TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    fontFamily: GoldenityTypography.fontFamilyMono)),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _box(paid: paid, selected: selected, selectable: onToggle != null),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          Text('Q-${order.queueNumber}',
+                              style: const TextStyle(
+                                  fontSize: 12.5, fontWeight: FontWeight.w800)),
+                          const SizedBox(width: 6),
+                          _tag(order.orderStatusLabel, GoldenityColors.primaryLight,
+                              GoldenityColors.primary),
+                          const Spacer(),
+                          Text(currency.format(order.total),
+                              style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: GoldenityTypography.fontFamilyMono)),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '${order.payMethodLabel}${time.isNotEmpty ? ' · $time' : ''} · ${order.payStatusLabel}',
+                        style: TextStyle(
+                            fontSize: 10, fontWeight: FontWeight.w600, color: subColor),
+                      ),
+                      const SizedBox(height: 5),
+                      for (final it in order.items)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 1),
+                          child: Text('${it.qty}× ${it.productName}',
+                              style: const TextStyle(
+                                  fontSize: 11, color: GoldenityColors.text2)),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _box({required bool paid, required bool selected, required bool selectable}) {
+    if (paid) {
+      return const Icon(Icons.check_circle_rounded, size: 20, color: GoldenityColors.success);
+    }
+    if (!selectable) {
+      return const Icon(Icons.remove_circle_outline_rounded,
+          size: 20, color: GoldenityColors.textXMuted);
+    }
+    return Container(
+      width: 20,
+      height: 20,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: selected ? GoldenityColors.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: selected ? GoldenityColors.primary : GoldenityColors.border2,
+          width: 1.6,
+        ),
+      ),
+      child: selected
+          ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+          : null,
     );
   }
 
@@ -688,6 +944,375 @@ class _OrderBlock extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(GoldenityRadius.xs)),
         child: Text(t, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: fg)),
+      );
+}
+
+/// Modal pembayaran meja — selesaikan 1..N web order sekaligus (split bill).
+class _TablePaymentDialog extends ConsumerStatefulWidget {
+  const _TablePaymentDialog({
+    required this.tableId,
+    required this.tableCode,
+    required this.orders,
+    required this.currency,
+  });
+  final String tableId;
+  final String tableCode;
+  final List<WebOrderInSession> orders;
+  final NumberFormat currency;
+
+  @override
+  ConsumerState<_TablePaymentDialog> createState() => _TablePaymentDialogState();
+}
+
+class _TablePaymentDialogState extends ConsumerState<_TablePaymentDialog> {
+  String _method = 'CASH';
+  final _cashCtrl = TextEditingController();
+  final _refCtrl = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  NumberFormat get _c => widget.currency;
+  num get _total => widget.orders.fold<num>(0, (s, o) => s + o.total);
+  num get _cash => num.tryParse(_cashCtrl.text.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+  num get _change => _cash - _total;
+  bool get _cashOk => _method != 'CASH' || _cash >= _total;
+
+  @override
+  void dispose() {
+    _cashCtrl.dispose();
+    _refCtrl.dispose();
+    super.dispose();
+  }
+
+  List<num> get _quickAmounts {
+    final t = _total;
+    num ceilTo(num step) => (t % step == 0) ? t : ((t ~/ step) + 1) * step;
+    final set = <num>{t, ceilTo(50000), ceilTo(100000), ceilTo(100000) + 100000};
+    final list = set.where((v) => v >= t).toList()..sort();
+    return list;
+  }
+
+  Future<void> _confirm() async {
+    if (!_cashOk) {
+      setState(() => _error = 'Nominal tunai kurang dari total tagihan.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final res = await ref.read(tableListProvider.notifier).settleOrders(
+            widget.tableId,
+            orderIds: widget.orders.map((o) => o.id).toList(),
+            paymentMethod: _method,
+            cashReceived: _method == 'CASH' ? _cash : null,
+            paymentReferenceNumber: _method == 'CASH' ? null : _refCtrl.text.trim(),
+          );
+      if (mounted) Navigator.of(context).pop(res);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString().replaceAll('Exception: ', '');
+          _busy = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          width: 420,
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.86),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: GoldenityColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: const [
+              BoxShadow(color: Color(0x33000000), blurRadius: 60, offset: Offset(0, 20)),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Pembayaran — ${widget.orders.length} Pesanan',
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w800, color: GoldenityColors.text)),
+                        const SizedBox(height: 2),
+                        Text('Meja ${widget.tableCode}',
+                            style: const TextStyle(fontSize: 12, color: GoldenityColors.muted)),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _busy ? null : () => Navigator.of(context).maybePop(),
+                    child: const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: Icon(Icons.close_rounded, size: 18, color: GoldenityColors.muted),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final o in widget.orders)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: GoldenityColors.surface2,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: GoldenityColors.border),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text('Q-${o.queueNumber}',
+                                        style: const TextStyle(
+                                            fontSize: 12, fontWeight: FontWeight.w800)),
+                                    const Spacer(),
+                                    Text(_c.format(o.total),
+                                        style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w800,
+                                            fontFamily: GoldenityTypography.fontFamilyMono)),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                for (final it in o.items)
+                                  Text('${it.qty}× ${it.productName}',
+                                      style: const TextStyle(
+                                          fontSize: 11, color: GoldenityColors.text2)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: GoldenityColors.primaryLight,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Text('Total Tagihan',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: GoldenityColors.primary)),
+                            const Spacer(),
+                            Text(_c.format(_total),
+                                style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w800,
+                                    fontFamily: GoldenityTypography.fontFamilyMono,
+                                    color: GoldenityColors.primary)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      const Text('Metode Pembayaran',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: GoldenityColors.text2)),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          _methodBtn('CASH', 'Tunai', Icons.payments_rounded),
+                          const SizedBox(width: 8),
+                          _methodBtn('QRIS', 'QRIS', Icons.qr_code_2_rounded),
+                          const SizedBox(width: 8),
+                          _methodBtn('CREDIT_CARD', 'Kartu', Icons.credit_card_rounded),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      if (_method == 'CASH') ...[
+                        const Text('Nominal Diterima',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: GoldenityColors.text2)),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _cashCtrl,
+                          keyboardType: TextInputType.number,
+                          autofocus: true,
+                          onChanged: (_) => setState(() {}),
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              fontFamily: GoldenityTypography.fontFamilyMono),
+                          decoration: InputDecoration(
+                            prefixText: 'Rp ',
+                            isDense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(color: GoldenityColors.border),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (final a in _quickAmounts)
+                              _chip(a == _total ? 'Uang pas' : _c.format(a), () {
+                                _cashCtrl.text = a.toStringAsFixed(0);
+                                setState(() {});
+                              }),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(_change >= 0 ? 'Kembalian' : 'Kurang',
+                                style: const TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: GoldenityColors.text2)),
+                            Text(_c.format(_change.abs()),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  fontFamily: GoldenityTypography.fontFamilyMono,
+                                  color: _change >= 0
+                                      ? GoldenityColors.success
+                                      : GoldenityColors.error,
+                                )),
+                          ],
+                        ),
+                      ] else ...[
+                        const Text('No. Referensi (opsional)',
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: GoldenityColors.text2)),
+                        const SizedBox(height: 6),
+                        TextField(
+                          controller: _refCtrl,
+                          decoration: InputDecoration(
+                            hintText: 'mis. kode approval / ID transaksi',
+                            isDense: true,
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
+                      if (_error != null) ...[
+                        const SizedBox(height: 10),
+                        Text(_error!,
+                            style: const TextStyle(
+                                fontSize: 12, color: GoldenityColors.error)),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: GoldenityOutlineButton(
+                      label: 'Batal',
+                      onTap: _busy ? null : () => Navigator.of(context).maybePop(),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: GoldenityFillButton(
+                      label: 'Konfirmasi Pembayaran ${_c.format(_total)}',
+                      icon: Icons.check_rounded,
+                      busy: _busy,
+                      onTap: _cashOk ? _confirm : null,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _methodBtn(String value, String label, IconData icon) {
+    final active = _method == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() {
+          _method = value;
+          _error = null;
+        }),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? GoldenityColors.primaryLight : GoldenityColors.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: active ? GoldenityColors.primary : GoldenityColors.border,
+              width: active ? 1.4 : 1,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, size: 18, color: active ? GoldenityColors.primary : GoldenityColors.muted),
+              const SizedBox(height: 3),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: active ? GoldenityColors.primary : GoldenityColors.text2)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(String label, VoidCallback onTap) => GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: GoldenityColors.surface2,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: GoldenityColors.border),
+          ),
+          child: Text(label,
+              style: const TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w600, color: GoldenityColors.text2)),
+        ),
       );
 }
 

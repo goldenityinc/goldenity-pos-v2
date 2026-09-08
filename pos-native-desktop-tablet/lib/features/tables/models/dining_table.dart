@@ -241,3 +241,78 @@ class WebOrderLineItem {
         note: j['note'] as String?,
       );
 }
+
+extension WebOrderInSessionX on WebOrderInSession {
+  bool get isPaid => paymentStatus == 'PAID';
+  bool get isCancelled => status == 'CANCELLED';
+  bool get isPendingVerification => paymentStatus == 'PENDING_VERIFICATION';
+
+  /// Bisa diselesaikan pembayarannya dari halaman meja.
+  bool get settleable => !isPaid && !isCancelled;
+
+  /// "QRIS" / "Kasir" — sesuai metode pembayaran yang dipilih customer.
+  String get payMethodLabel => paymentMethod == 'QRIS_STATIC' ? 'QRIS' : 'Kasir';
+
+  String get payStatusLabel {
+    switch (paymentStatus) {
+      case 'PAID':
+        return 'LUNAS';
+      case 'PENDING_VERIFICATION':
+        return 'MENUNGGU VERIFIKASI';
+      default:
+        return 'BELUM BAYAR';
+    }
+  }
+
+  String get orderStatusLabel {
+    switch (status) {
+      case 'SUBMITTED':
+        return 'Baru';
+      case 'ACCEPTED':
+        return 'Diterima';
+      case 'PREPARING':
+        return 'Disiapkan';
+      case 'READY':
+        return 'Siap';
+      case 'SERVED':
+        return 'Diantar';
+      case 'COMPLETED':
+        return 'Selesai';
+      case 'CANCELLED':
+        return 'Batal';
+      default:
+        return status;
+    }
+  }
+}
+
+/// Hasil `POST /tables/:id/settle-orders`.
+class SettleResult {
+  final int settledCount;
+  final num totalDue;
+  final num? cashReceived;
+  final num? cashChange;
+  final String paymentMethod;
+  final bool allPaid;
+  final String message;
+
+  const SettleResult({
+    this.settledCount = 0,
+    this.totalDue = 0,
+    this.cashReceived,
+    this.cashChange,
+    this.paymentMethod = 'CASH',
+    this.allPaid = false,
+    this.message = '',
+  });
+
+  factory SettleResult.fromJson(Map<String, dynamic> j) => SettleResult(
+        settledCount: (j['settledCount'] as num?)?.toInt() ?? 0,
+        totalDue: _num(j['totalDue']),
+        cashReceived: j['cashReceived'] == null ? null : _num(j['cashReceived']),
+        cashChange: j['cashChange'] == null ? null : _num(j['cashChange']),
+        paymentMethod: j['paymentMethod']?.toString() ?? 'CASH',
+        allPaid: j['allPaid'] == true,
+        message: j['message']?.toString() ?? '',
+      );
+}

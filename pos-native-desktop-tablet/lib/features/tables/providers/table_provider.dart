@@ -117,6 +117,28 @@ class TableListNotifier extends StateNotifier<TableListState> {
     await _ref.read(tableApiServiceProvider).checkinReservation(token: t, tableId: id);
     await load();
   }
+
+  /// Selesaikan pembayaran 1..N web order dari halaman meja (split bill).
+  Future<SettleResult> settleOrders(
+    String tableId, {
+    required List<String> orderIds,
+    required String paymentMethod,
+    num? cashReceived,
+    String? paymentReferenceNumber,
+  }) async {
+    final t = _ref.read(currentSessionProvider)!.token;
+    final res = await _ref.read(tableApiServiceProvider).settleOrders(
+          token: t,
+          tableId: tableId,
+          orderIds: orderIds,
+          paymentMethod: paymentMethod,
+          cashReceived: cashReceived,
+          paymentReferenceNumber: paymentReferenceNumber,
+        );
+    _ref.invalidate(tableSessionDetailProvider(tableId));
+    await load();
+    return res;
+  }
 }
 
 final tableListProvider =

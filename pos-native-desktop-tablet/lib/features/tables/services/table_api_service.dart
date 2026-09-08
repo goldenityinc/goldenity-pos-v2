@@ -98,6 +98,30 @@ class TableApiService {
     _ok(r);
   }
 
+  /// Selesaikan pembayaran 1..N web order dari halaman meja (split bill).
+  /// [paymentMethod] = CASH | QRIS | CREDIT_CARD.
+  Future<SettleResult> settleOrders({
+    required String token,
+    required String tableId,
+    required List<String> orderIds,
+    required String paymentMethod,
+    num? cashReceived,
+    String? paymentReferenceNumber,
+  }) async {
+    final r = await _client
+        .post(Uri.parse('${ApiConstants.tableByIdEndpoint(tableId)}/settle-orders'),
+            headers: _h(token),
+            body: jsonEncode({
+              'orderIds': orderIds,
+              'paymentMethod': paymentMethod,
+              if (cashReceived != null) 'cashReceived': cashReceived,
+              if (paymentReferenceNumber != null && paymentReferenceNumber.isNotEmpty)
+                'paymentReferenceNumber': paymentReferenceNumber,
+            }))
+        .timeout(ApiConstants.defaultReceiveTimeout);
+    return SettleResult.fromJson(_ok(r));
+  }
+
   Future<void> openSession({
     required String token,
     required String tableId,
