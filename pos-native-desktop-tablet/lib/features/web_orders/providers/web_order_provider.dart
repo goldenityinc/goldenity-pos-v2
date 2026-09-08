@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/services/web_order_notification_service.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/web_order.dart';
 import '../services/web_order_api_service.dart';
@@ -36,6 +37,10 @@ class WebOrderListNotifier extends StateNotifier<WebOrderListState> {
   final Ref _ref;
   Timer? _timer;
 
+  /// ID order yang sudah pernah kita lihat — untuk deteksi "pesanan baru".
+  final Set<String> _seenIds = {};
+  bool _primed = false;
+
   @override
   void dispose() {
     _timer?.cancel();
@@ -51,12 +56,44 @@ class WebOrderListNotifier extends StateNotifier<WebOrderListState> {
       final orders = await _ref
           .read(webOrderApiServiceProvider)
           .list(token: token, branchId: session?.selectedBranchId);
+      _notifyNewOrders(orders);
       state = WebOrderListState(orders: orders, loading: false);
     } catch (e) {
       if (silent && state.orders.isNotEmpty) return;
       state = state.copyWith(
           loading: false, error: e.toString().replaceAll('Exception: ', ''));
     }
+  }
+
+  /// Toast desktop untuk order yang baru muncul (tetap jalan walau POS minimize).
+  /// Load pertama hanya "prime" daftar — tidak memberi notifikasi backlog.
+  void _notifyNewOrders(List<WebOrder> orders) {
+    if (!_primed) {
+      _seenIds
+        ..clear()
+        ..addAll(orders.map((o) => o.id));
+      _primed = true;
+      return;
+    }
+    final now = DateTime.now();
+    for (final o in orders) {
+      if (_seenIds.contains(o.id)) continue;
+      _seenIds.add(o.id);
+      // Abaikan yang sudah selesai / batal, dan yang createdAt-nya lama
+      // (mis. muncul karena filter berubah, bukan benar-benar baru).
+      if (o.isDone) continue;
+      final age = o.createdAt == null ? Duration.zero : now.difference(o.createdAt!);
+      if (age > const Duration(minutes: 3)) continue;
+      WebOrderNotificationService.instance.newOrder(
+        queueNumber: o.queueNumber,
+        tableCode: o.tableCode,
+        itemCount: o.items.fold<int>(0, (s, it) => s + it.qty),
+        autoAccepted: o.status != 'SUBMITTED',
+      );
+    }
+    // Buang id yang sudah tidak ada di list biar Set tidak membengkak.
+    final current = orders.map((o) => o.id).toSet();
+    _seenIds.removeWhere((id) => !current.contains(id));
   }
 
   Future<void> accept(String id) async {

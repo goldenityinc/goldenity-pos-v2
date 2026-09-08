@@ -46,6 +46,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   bool _taxEnabled = true;
   num _taxRatePercentage = 11;
   bool _pricesIncludeTax = false;
+  // Terima + cetak web order otomatis (toggle di tab "Printer per Cabang").
+  bool _webOrderAutoAccept = false;
+  bool _savingAutoAccept = false;
   final GlobalKey<FormState> _storeFormKey = GlobalKey<FormState>();
 
   List<BranchWithPrintersProfile> _branches = [];
@@ -149,6 +152,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           _taxEnabled = store.taxEnabled;
           _taxRatePercentage = store.taxRatePercentage;
           _pricesIncludeTax = store.pricesIncludeTax;
+          _webOrderAutoAccept = store.webOrderAutoAccept;
         });
       }
     } catch (e) {
@@ -191,6 +195,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         'taxEnabled': _taxEnabled,
         'taxRatePercentage': _taxRatePercentage.toInt(),
         'pricesIncludeTax': _pricesIncludeTax,
+        'webOrderAutoAccept': _webOrderAutoAccept,
       };
       await settingsApi.updateStore(authToken: token, data: payload);
       final cartNotifier = ref.read(cartNotifierProvider.notifier);
@@ -1506,6 +1511,214 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     return '${d.inDays} hari lalu';
   }
 
+  /// Toggle "Penerimaan Web Order Otomatis" — simpan langsung ke /settings/store.
+  Future<void> _toggleWebOrderAutoAccept(bool value) async {
+    final prev = _webOrderAutoAccept;
+    setState(() {
+      _webOrderAutoAccept = value;
+      _savingAutoAccept = true;
+    });
+    try {
+      final token = ref.read(authNotifierProvider.notifier).session?.token;
+      if (token == null) throw Exception('Sesi tidak ditemukan');
+      await ref.read(settingsApiServiceProvider).updateStore(
+            authToken: token,
+            data: {'webOrderAutoAccept': value},
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor: GoldenityColors.success,
+          content: Text(value
+              ? 'Mode otomatis aktif — web order langsung diterima & dicetak.'
+              : 'Mode manual — kasir menerima & mencetak dari Web Orders.'),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _webOrderAutoAccept = prev);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor: GoldenityColors.error,
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _savingAutoAccept = false);
+    }
+  }
+
+  Widget _buildWebOrderAutoCard(TextTheme textTheme) {
+    final on = _webOrderAutoAccept;
+    const green = GoldenityColors.success;
+    return Container(
+      decoration: BoxDecoration(
+        color: on ? const Color(0xFFF0FDF4) : Colors.white,
+        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        border: Border.all(color: on ? const Color(0xFFBBF7D0) : GoldenityColors.border),
+      ),
+      padding: const EdgeInsets.all(GoldenitySpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: on ? green.withValues(alpha: 0.12) : GoldenityColors.primaryLight,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.delivery_dining_rounded,
+                    size: 20, color: on ? green : GoldenityColors.primary),
+              ),
+              const SizedBox(width: GoldenitySpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Penerimaan Web Order Otomatis',
+                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text('Berlaku untuk semua pesanan masuk via QR / Mobile Web',
+                        style: textTheme.bodySmall?.copyWith(color: GoldenityColors.muted)),
+                  ],
+                ),
+              ),
+              _savingAutoAccept
+                  ? const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: SizedBox(
+                          width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                    )
+                  : Switch(
+                      value: on,
+                      activeThumbColor: green,
+                      onChanged: _loading ? null : _toggleWebOrderAutoAccept,
+                    ),
+            ],
+          ),
+          const SizedBox(height: GoldenitySpacing.md),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(GoldenitySpacing.md),
+            decoration: BoxDecoration(
+              color: on ? green.withValues(alpha: 0.08) : GoldenityColors.surface2,
+              borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(on ? Icons.circle : Icons.circle_outlined,
+                        size: 10, color: on ? green : GoldenityColors.muted),
+                    const SizedBox(width: 6),
+                    Text(on ? 'Mode Otomatis — Aktif' : 'Mode Manual — Aktif',
+                        style: textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: on ? green : GoldenityColors.text2)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  on
+                      ? 'Setiap web order yang masuk langsung diterima, antrian dibuat, '
+                          'dan printer diperintahkan mencetak otomatis.'
+                      : 'Web order masuk sebagai "menunggu konfirmasi". Kasir menerima '
+                          'manual di halaman Web Orders — struk & nota dapur baru dicetak setelah diterima.',
+                  style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2, height: 1.4),
+                ),
+              ],
+            ),
+          ),
+          if (on) ...[
+            const SizedBox(height: GoldenitySpacing.md),
+            Text('YANG DICETAK OTOMATIS SAAT PESANAN MASUK',
+                style: textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.4,
+                    color: GoldenityColors.muted)),
+            const SizedBox(height: GoldenitySpacing.sm),
+            LayoutBuilder(builder: (context, c) {
+              final twoCol = c.maxWidth > 560;
+              final children = [
+                _autoPrintChip(textTheme, Icons.receipt_long_rounded, 'Struk Kasir',
+                    'Nomor order, item, total, metode bayar, info meja'),
+                _autoPrintChip(textTheme, Icons.soup_kitchen_rounded, 'Nota Dapur',
+                    'Item + varian + catatan khusus, nomor meja'),
+              ];
+              return twoCol
+                  ? Row(children: [
+                      Expanded(child: children[0]),
+                      const SizedBox(width: GoldenitySpacing.md),
+                      Expanded(child: children[1]),
+                    ])
+                  : Column(children: [
+                      children[0],
+                      const SizedBox(height: GoldenitySpacing.sm),
+                      children[1],
+                    ]);
+            }),
+            const SizedBox(height: GoldenitySpacing.md),
+            Container(
+              padding: const EdgeInsets.all(GoldenitySpacing.sm),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEFCE8),
+                borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                border: Border.all(color: const Color(0xFFFDE68A)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.schedule_rounded, size: 14, color: Color(0xFF854D0E)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Cetak dimulai 3–5 detik setelah pesanan dikonfirmasi oleh pelanggan.',
+                      style: textTheme.bodySmall?.copyWith(color: const Color(0xFF854D0E)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _autoPrintChip(TextTheme textTheme, IconData icon, String title, String sub) {
+    return Container(
+      padding: const EdgeInsets.all(GoldenitySpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+        border: Border.all(color: GoldenityColors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: GoldenityColors.primary),
+          const SizedBox(width: GoldenitySpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(sub,
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: GoldenityColors.muted, fontSize: 11, height: 1.3)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPrintersTab(
       BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
     _ensurePrinterControllers();
@@ -1514,6 +1727,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     return ListView(
       padding: const EdgeInsets.all(GoldenitySpacing.lg),
       children: [
+        _buildWebOrderAutoCard(textTheme),
+        const SizedBox(height: GoldenitySpacing.lg),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,

@@ -13,6 +13,7 @@ class StoreSettingsProfile {
   final bool taxEnabled;
   final num taxRatePercentage;
   final bool pricesIncludeTax;
+  final bool webOrderAutoAccept;
   final dynamic taxSettings;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -32,6 +33,7 @@ class StoreSettingsProfile {
     this.taxEnabled = true,
     this.taxRatePercentage = 11,
     this.pricesIncludeTax = false,
+    this.webOrderAutoAccept = false,
     this.taxSettings,
     required this.createdAt,
     required this.updatedAt,
@@ -56,6 +58,7 @@ class StoreSettingsProfile {
       taxEnabled: (json['taxEnabled'] as bool?) ?? true,
       taxRatePercentage: (json['taxRatePercentage'] as num?) ?? 11,
       pricesIncludeTax: (json['pricesIncludeTax'] as bool?) ?? false,
+      webOrderAutoAccept: (json['webOrderAutoAccept'] as bool?) ?? false,
       taxSettings: json['taxSettings'],
       createdAt: createdAtRaw != null
           ? DateTime.tryParse(createdAtRaw.toString()) ?? DateTime.now()
@@ -81,6 +84,7 @@ class StoreSettingsProfile {
         'taxEnabled': taxEnabled,
         'taxRatePercentage': taxRatePercentage,
         'pricesIncludeTax': pricesIncludeTax,
+        'webOrderAutoAccept': webOrderAutoAccept,
         if (taxSettings != null) 'taxSettings': taxSettings,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),

@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/config/storage_keys.dart';
+import 'core/services/web_order_notification_service.dart';
 import 'core/design/goldenity_colors.dart';
 import 'core/design/goldenity_radius.dart';
 import 'core/design/goldenity_spacing.dart';
@@ -28,6 +29,8 @@ Future<void> main() async {
   final SharedPreferences sp = await SharedPreferences.getInstance();
   final hiveRepo = await InventoryHiveRepository.open();
   final salesOfflineQueue = await SalesOfflineQueue.open();
+  // Notifikasi desktop untuk web order baru (jalan walau POS minimize).
+  await WebOrderNotificationService.instance.setup();
   const bool kDebugForceClearSessionBeforeAppStart = false;
   // ignore: dead_code
   if (kDebugForceClearSessionBeforeAppStart) {
