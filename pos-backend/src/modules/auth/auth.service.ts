@@ -4,6 +4,14 @@ import { prisma } from '../../config/database';
 import { signAuthToken, getJwtConfig } from '../../config/jwt';
 import { ok, fail, type ApiResponse, UserRole as TypesUserRole } from '../../config/types';
 import type { UserRole as PrismaUserRole } from '@prisma/client';
+import { getSubscriptionViewByTenant } from '../subscription/subscription.service';
+import { resolveEffectivePermissions, capabilitiesFromMatrix } from '../staff/staff.service';
+
+const BCRYPT_ROUNDS = 10;
+const ROLE_LABEL: Record<string, string> = {
+  SUPER_ADMIN: 'Super Admin', TENANT_ADMIN: 'Admin Toko', CASHIER: 'Kasir',
+  CRM_STAFF: 'Staf CRM', WORKSHOP_ADMIN: 'Admin Bengkel', ACCOUNTANT: 'Akuntan',
+};
 
 export const LoginRequestSchema = z.object({
   tenantSlug: z.string({ required_error: 'tenantSlug wajib diisi', invalid_type_error: 'tenantSlug wajib diisi' }).min(1, 'tenantSlug wajib diisi'),
@@ -12,6 +20,11 @@ export const LoginRequestSchema = z.object({
 });
 
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
+
+export const PasswordChangeSchema = z.object({
+  currentPassword: z.string().min(1, 'Password lama wajib diisi'),
+  newPassword: z.string().min(6, 'Password baru minimal 6 karakter').max(100),
+});
 
 export interface LoginSuccessData {
   token: string;
@@ -112,6 +125,17 @@ export class AuthService {
       return fail(GENERIC_INVALID_CREDENTIALS);
     }
 
+    // Fase 3 — tolak login kalau langganan tenant SUSPENDED/EXPIRED.
+    if (user.role !== 'SUPER_ADMIN') {
+      const sub = await getSubscriptionViewByTenant(tenant.id);
+      if (!sub.canOperatePos) {
+        return fail(
+          'Langganan tenant tidak aktif. Hubungi tim Goldenity untuk mengaktifkan kembali.',
+          'SUBSCRIPTION_SUSPENDED',
+        );
+      }
+    }
+
     const payload = {
       userId: user.id,
       tenantId: user.tenantId,
@@ -151,6 +175,80 @@ export class AuthService {
       branch: defaultBranch,
       branches: branchesResp,
     });
+  }
+
+  /** Profil lengkap user aktif — dipakai Back Office & POS utk gate UI. */
+  static async getMe(userId: string): Promise<ApiResponse<any>> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true, name: true, email: true, username: true, role: true,
+        tenantId: true, branchId: true, customRoleId: true, isActive: true,
+        branch: { select: { id: true, name: true } },
+        customRole: { select: { id: true, name: true } },
+        tenant: {
+          select: {
+            id: true, slug: true, name: true, businessCategory: true,
+            logoUrl: true, isActive: true,
+          },
+        },
+      },
+    });
+    if (!user || !user.isActive) return fail('Akun tidak ditemukan / nonaktif.', 'NOT_FOUND');
+
+    const [sub, perm] = await Promise.all([
+      getSubscriptionViewByTenant(user.tenantId),
+      resolveEffectivePermissions({ role: user.role, customRoleId: user.customRoleId, tenantId: user.tenantId }),
+    ]);
+
+    return ok({
+      user: {
+        id: user.id,
+        name: user.name ?? null,
+        displayName: user.name ?? user.username,
+        email: user.email ?? null,
+        username: user.username,
+        role: user.role,
+        roleLabel: ROLE_LABEL[user.role] ?? user.role,
+        branchId: user.branchId,
+        branchName: user.branch?.name ?? null,
+        customRoleId: user.customRoleId ?? null,
+        customRoleName: user.customRole?.name ?? null,
+      },
+      tenant: {
+        id: user.tenant.id,
+        slug: user.tenant.slug,
+        name: user.tenant.name,
+        logoUrl: user.tenant.logoUrl ?? null,
+        businessCategory: user.tenant.businessCategory,
+      },
+      subscription: {
+        tier: sub.tier,
+        tierLabel: sub.tierLabel,
+        status: sub.status,
+        endDate: sub.endDate,
+        daysRemaining: sub.daysRemaining,
+        isNearDue: sub.isNearDue,
+        isOverdue: sub.isOverdue,
+        canOperatePos: sub.canOperatePos,
+        features: sub.features,
+      },
+      permissions: perm.permissions,
+      permissionSource: perm.source,
+      capabilities: capabilitiesFromMatrix(perm.permissions),
+    });
+  }
+
+  static async changePassword(userId: string, raw: unknown): Promise<ApiResponse<any>> {
+    const parsed = PasswordChangeSchema.safeParse(raw);
+    if (!parsed.success) return fail(`Payload: ${parsed.error.issues[0]?.message}`);
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, passwordHash: true } });
+    if (!user) return fail('Akun tidak ditemukan.', 'NOT_FOUND');
+    const okOld = await AuthService.comparePassword(parsed.data.currentPassword, user.passwordHash);
+    if (!okOld) return fail('Password lama salah.', 'WRONG_PASSWORD');
+    const passwordHash = await bcrypt.hash(parsed.data.newPassword, BCRYPT_ROUNDS);
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    return ok({ changed: true });
   }
 
   private static async comparePassword(plain: string, passwordHash: string): Promise<boolean> {

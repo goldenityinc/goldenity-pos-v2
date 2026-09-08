@@ -23,18 +23,33 @@ authRoutes.post(
 authRoutes.get(
   '/me',
   authenticateJWT,
-  (req: Request, res: Response): void => {
+  async (req: Request, res: Response): Promise<void> => {
     const user = req.user as JwtAuthPayload;
+    const result = await AuthService.getMe(user.userId);
+    if (!result.success) {
+      res.status(result.code === 'NOT_FOUND' ? 404 : 500).json(result);
+      return;
+    }
     res.status(200).json(ok({
-      user: {
-        userId: user.userId,
-        tenantId: user.tenantId,
-        branchId: user.branchId,
-        role: user.role,
-        customRoleId: user.customRoleId ?? null,
-      },
+      ...result.data,
       defaultBranchScope: resolveEffectiveBranchFilter(user, {}),
     }));
+  },
+);
+
+authRoutes.post(
+  '/change-password',
+  authenticateJWT,
+  async (req: Request, res: Response): Promise<void> => {
+    const user = req.user as JwtAuthPayload;
+    const result = await AuthService.changePassword(user.userId, req.body);
+    let httpStatus = 200;
+    if (!result.success) {
+      httpStatus = result.code === 'WRONG_PASSWORD' ? 400
+        : result.code === 'NOT_FOUND' ? 404
+        : (result.error ?? '').startsWith('Payload') ? 400 : 500;
+    }
+    res.status(httpStatus).json(result);
   },
 );
 
@@ -43,7 +58,7 @@ function extractStatusFromError(error: string | undefined, fallback: number): nu
   const prefixes: Array<[number, string[]]> = [
     [400, ['Payload', 'tenantSlug', 'username', 'password']],
     [401, ['Kredensial', 'Akun']],
-    [403, ['Tenant sudah', 'dinonaktifkan']],
+    [403, ['Tenant sudah', 'dinonaktifkan', 'Langganan tenant tidak aktif']],
     [404, ['Tenant tidak']],
   ];
   for (const [status, keys] of prefixes) {

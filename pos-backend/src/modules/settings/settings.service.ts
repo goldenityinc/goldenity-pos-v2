@@ -58,6 +58,7 @@ interface StoreData {
   pricesIncludeTax: boolean;
   webOrderAutoAccept: boolean;
   taxSettings: any;
+  businessCategory: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -93,6 +94,7 @@ export class SettingsService {
         pricesIncludeTax: true,
         webOrderAutoAccept: true,
         taxSettings: true,
+        businessCategory: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -119,6 +121,7 @@ export class SettingsService {
       pricesIncludeTax: tenant.pricesIncludeTax === true ? true : false,
       webOrderAutoAccept: tenant.webOrderAutoAccept === true ? true : false,
       taxSettings: tenant.taxSettings,
+      businessCategory: tenant.businessCategory,
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,
     });

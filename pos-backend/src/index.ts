@@ -20,6 +20,7 @@ import { orderRoutes } from './modules/web-order/order.routes';
 import { notificationRoutes } from './modules/notification/notification.routes';
 import { staffRoutes } from './modules/staff/staff.routes';
 import { deviceRoutes } from './modules/device/device.routes';
+import { subscriptionRoutes } from './modules/subscription/subscription.routes';
 
 (BigInt.prototype as any).toJSON = function (this: bigint): string {
   return this.toString();
@@ -94,6 +95,7 @@ app.use('/api/v1/order', orderRoutes);         // CUSTOMER (tanpa JWT, discope s
 app.use('/api/v1/notifications', notificationRoutes); // admin/kasir (JWT)
 app.use('/api/v1/staff', staffRoutes);                // Data Karyawan + Manajemen Role (TENANT_ADMIN)
 app.use('/api/v1/devices', deviceRoutes);             // Multi-device per cabang (register, role CASHIER/CHECKER)
+app.use('/api/v1/subscription', subscriptionRoutes);  // Langganan (read tenant, write Admin Core) — Fase 3
 
 const httpServer = createServer(app);
 initSocket(httpServer);

@@ -10,7 +10,7 @@ function statusFor(r: ApiResponse<any>, okStatus = 200): number {
   if (r.success) return okStatus;
   const e = r.error ?? '';
   if (r.code === 'NOT_FOUND' || e.includes('tidak ditemukan')) return 404;
-  if (r.code === 'FORBIDDEN_ROLE') return 403;
+  if (r.code === 'FORBIDDEN_ROLE' || r.code === 'FORBIDDEN_TIER') return 403;
   if (e.includes('sudah dipakai') || e.includes('sudah ada') || e.includes('bentrok')) return 409;
   if (e.startsWith('Payload') || e.includes('wajib') || e.includes('minimal') || e.includes('Tidak bisa') || e.includes('masih dipakai')) return 400;
   return 500;
@@ -18,6 +18,9 @@ function statusFor(r: ApiResponse<any>, okStatus = 200): number {
 const send = (res: Response, r: ApiResponse<any>, okStatus = 200) =>
   res.status(statusFor(r, okStatus)).json(r);
 const u = (req: Request) => req.user as JwtAuthPayload;
+
+// ── Katalog permission (modul RBAC + label + mask) ──
+staffRoutes.get('/permission-catalog', async (req, res) => send(res, await StaffService.permissionCatalog(u(req))));
 
 // ── Custom roles (WAJIB sebelum /:id supaya "roles" tidak dianggap id) ──
 staffRoutes.get('/roles', async (req, res) => send(res, await StaffService.listRoles(u(req), req.query)));
