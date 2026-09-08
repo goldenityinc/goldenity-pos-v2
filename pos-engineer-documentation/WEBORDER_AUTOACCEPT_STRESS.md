@@ -129,11 +129,38 @@ BENERAN di staging, dan **tidak auto-cleanup** di LOAD_ONLY.
 Kalau `DATABASE_URL` staging bisa diakses (Railway public proxy) → jalankan
 tanpa `LOAD_ONLY` untuk verifikasi + cleanup penuh.
 
+## Round 4 — 7 bug dari simulasi manual user (auto-accept ON, printer USB)
+
+User jalanin sendiri lewat UI Flutter, lapor 7 hal. Semua sudah diperbaiki &
+diverifikasi E2E lewat app yang jalan (bukan test potongan) — commit `7895a5a`.
+
+| # | Laporan | Akar masalah | Perbaikan | Bukti |
+|---|---------|--------------|-----------|-------|
+| 1 | Notif masuk tapi ~10 dtk | poll web order 15 dtk | poll → **6 dtk** (`web_order_provider`) | toast batched muncul di poll pertama |
+| 2 | Bunyi walau minimize ✓ | — | (sudah jalan sejak `9e790fe`) | — |
+| 3 | Struk & nota **tak** auto-print walau semua printer di-set | printing web-order ada di **POS Bridge** — bridge cuma bisa Network, user pakai USB | printing dipindah ke **POS** via `HardwareConnectionService` (USB/BT/Network). `WebOrderPrintService` cetak Struk+Nota saat order → ACCEPTED. Idempotent (SharedPreferences). Bridge print di belakang `BRIDGE_AUTOPRINT` (default OFF) | Q-5269/5270 auto-accept ON → 2 STRUK + 2 NOTA ke fake-printer dalam <10 dtk |
+| 4 | Sidebar web order tak ada tanda order auto-accept; harus jelas mana yang baru | badge cuma hitung `SUBMITTED` | badge (`perluProses`) = `SUBMITTED` + `ACCEPTED`. Kartu `ACCEPTED` → banner hijau "Diterima — siapkan pesanan · struk & nota dapur tercetak". Kartu `SUBMITTED` → banner amber "Pesanan Baru! Segera konfirmasi" | screenshot: badge "2", amber vs hijau bersebelahan |
+| 5 | Setelah bayar, struk tak dicetak | tak ada trigger cetak ulang saat lunas | poller deteksi `paymentStatus` → `PAID` → cetak ulang Struk "*** LUNAS ***" (idempotent, key terpisah) | Q-5269 settle CASH → STRUK LUNAS ke fake-printer |
+| 6 | Halaman bawah Figma hilang (cuma ada "pesanan" di atas) | 1 list flat | tab "Aktif" jadi 2 seksi: **PERLU DIPROSES** (`SUBMITTED`+`ACCEPTED`) & **SEDANG DI DAPUR** (`PREPARING`+`READY`) | screenshot: 2 seksi, order pindah saat "Mulai Masak" |
+| 7 | Transaksi sukses tak masuk Riwayat Penjualan | `SalesRecord` `cashierShiftId: null` + `SalesHistoryScreen` di `IndexedStack` cuma load saat `initState` | `acceptCore` ikat `cashierShiftId` shift OPEN cabang + Riwayat auto-refresh 20 dtk (silent) | 26 → 28 transaksi; #2807/#2808 `shift=b2cac83d`, tampil di UI tanpa reload manual |
+
+### Verifikasi E2E round 4 (app Flutter jalan + fake-printer :9100/:9101)
+1. auto-accept ON, shift kasir OPEN, board bersih.
+2. Customer submit Q-5269 (A-02, Bayar di Kasir) + Q-5270 (F5251, QRIS).
+3. Server auto-accept → POS poll (6 dtk) → **1 toast batched** + **4 tiket** (2 STRUK 48-kol + 2 NOTA 32-kol), tak ada yang terpotong.
+4. POS Web Orders: badge 2, dua kartu banner hijau, seksi PERLU DIPROSES.
+5. "Mulai Masak" Q-5269 → pindah ke SEDANG DI DAPUR (PREPARING), badge turun.
+6. Settle Q-5269 CASH dari meja → POS poll → cetak ulang **STRUK "LUNAS"**.
+7. Riwayat: 28 transaksi, #2807/#2808 SELESAI, auto-refresh (tanpa keluar-masuk).
+8. Toggle OFF → Q-5271 tetap SUBMITTED, kartu amber + tombol Terima; tekan Terima → ACCEPTED + cetak Struk/Nota. Tidak dobel cetak (idempotent) walau poll 6 dtk terus jalan.
+
 ## Commits (branch `staging`)
 `66737ef` backend+bridge auto-accept · `300a273` Flutter toggle+notif ·
 `445dd64` fix deadlock+oversell · `9e790fe` fix notif beruntun ·
 `902f9f7` printer dari Pengaturan + stress test tak sentuh meja asli ·
-`525fc19` stress LOAD_ONLY utk Railway.
+`525fc19` stress LOAD_ONLY utk Railway · `229d8c6` lebar tiket ikut paperWidth ·
+`7895a5a` **round 4**: POS cetak sendiri + badge auto-accept + shift + poll 6 dtk ·
+`33e766d` fake-printer decoder rapi.
 
 ## Cara jalankan stress test lagi (lokal)
 ```bash
