@@ -3,7 +3,7 @@ import { prisma } from '../../config/database';
 import { ok, fail, type ApiResponse, UserRole } from '../../config/types';
 import type { JwtAuthPayload } from '../../config/types';
 import { resolveEffectiveBranchFilter } from '../../utils/rbac';
-import { randomToken } from '../web-order/web-order.shared';
+import { randomToken, WEB_ORDER_SESSION_TTL_HOURS } from '../web-order/web-order.shared';
 
 const WEB_ORDER_BASE_URL =
   process.env.WEB_ORDER_BASE_URL ?? 'https://order.goldenity.app';
@@ -17,7 +17,21 @@ const CreateTableSchema = z.object({
 const UpdateTableSchema = z.object({
   code: z.string().trim().min(1).max(16).optional(),
   capacity: z.union([z.number(), z.string(), z.null()]).pipe(z.coerce.number().int().min(1).max(99).nullable()).optional(),
-  status: z.enum(['AVAILABLE', 'OCCUPIED', 'RESERVED', 'INACTIVE']).optional(),
+  status: z.enum(['AVAILABLE', 'OCCUPIED', 'RESERVED', 'CLEANING', 'INACTIVE']).optional(),
+});
+
+const ReserveSchema = z.object({
+  name: z.string().trim().min(1, 'Nama pemesan wajib').max(80),
+  phone: z.string().trim().min(4, 'No. HP wajib').max(30),
+  reservedAt: z.string().datetime().or(z.string().min(10)), // ISO atau "YYYY-MM-DDTHH:mm"
+  guests: z.union([z.number(), z.string()]).pipe(z.coerce.number().int().min(1).max(99)).default(1),
+  note: z.string().trim().max(300).optional().nullable(),
+});
+
+const OpenSessionSchema = z.object({
+  guestName: z.string().trim().max(80).optional().nullable(),
+  guestPhone: z.string().trim().max(30).optional().nullable(),
+  guests: z.union([z.number(), z.string()]).pipe(z.coerce.number().int().min(1).max(99)).optional(),
 });
 
 const isAdmin = (role: UserRole) =>
@@ -66,12 +80,18 @@ export class TableService {
             },
           },
         },
+        reservations: {
+          where: { status: 'PENDING' },
+          orderBy: { reservedAt: 'asc' },
+          take: 1,
+        },
       },
     });
 
     return ok({
       tables: tables.map((t) => {
         const session = t.sessions[0] ?? null;
+        const reservation = t.reservations[0] ?? null;
         return {
           id: t.id,
           code: t.code,
@@ -87,6 +107,16 @@ export class TableService {
                 expiresAt: session.expiresAt,
                 orderCount: session.webOrders.length,
                 orders: session.webOrders,
+              }
+            : null,
+          reservation: reservation
+            ? {
+                id: reservation.id,
+                name: reservation.name,
+                phone: reservation.phone,
+                reservedAt: reservation.reservedAt,
+                guests: reservation.guests,
+                note: reservation.note,
               }
             : null,
         };
@@ -288,5 +318,114 @@ export class TableService {
       return { closedSessions: closed.count, qrToken: table.qrToken };
     });
     return ok({ ...result, message: `${result.closedSessions} sesi ditutup, meja AVAILABLE, token QR dirotasi.` });
+  }
+
+  private static async findScopedTable(user: JwtAuthPayload, tableId: string) {
+    const table = await prisma.diningTable.findUnique({
+      where: { id: tableId },
+      include: { branch: { select: { tenantId: true } } },
+    });
+    if (!table || (user.role !== UserRole.SUPER_ADMIN && table.branch.tenantId !== user.tenantId)) {
+      return null;
+    }
+    return table;
+  }
+
+  /** Kasir buka sesi meja langsung (walk-in, tanpa scan QR). */
+  static async openSession(user: JwtAuthPayload, tableId: string, raw: unknown): Promise<ApiResponse<any>> {
+    const parsed = OpenSessionSchema.safeParse(raw ?? {});
+    if (!parsed.success) return fail(`Payload: ${parsed.error.issues[0]?.message}`);
+    const table = await TableService.findScopedTable(user, tableId);
+    if (!table) return fail('Meja tidak ditemukan', 'NOT_FOUND');
+    if (table.status === 'INACTIVE') return fail('Meja sedang tidak aktif.');
+
+    const existing = await prisma.tableSession.findFirst({ where: { tableId, status: 'ACTIVE' } });
+    if (existing) return fail('Meja ini sudah punya sesi aktif.');
+
+    const now = new Date();
+    const session = await prisma.$transaction(async (tx) => {
+      const s = await tx.tableSession.create({
+        data: {
+          tableId,
+          sessionToken: randomToken(),
+          customerName: parsed.data.guestName?.trim() || null,
+          customerPhone: parsed.data.guestPhone?.trim() || null,
+          expiresAt: new Date(now.getTime() + WEB_ORDER_SESSION_TTL_HOURS * 3600_000),
+        },
+      });
+      await tx.diningTable.update({ where: { id: tableId }, data: { status: 'OCCUPIED' } });
+      // Reservasi PENDING yang cocok → tandai SEATED.
+      await tx.tableReservation.updateMany({
+        where: { tableId, status: 'PENDING' },
+        data: { status: 'SEATED' },
+      });
+      return s;
+    });
+    return ok({
+      sessionId: session.id,
+      sessionToken: session.sessionToken,
+      openedAt: session.openedAt,
+      message: 'Sesi meja dibuka.',
+    });
+  }
+
+  /** Buat reservasi meja. */
+  static async reserve(user: JwtAuthPayload, tableId: string, raw: unknown): Promise<ApiResponse<any>> {
+    const parsed = ReserveSchema.safeParse(raw);
+    if (!parsed.success) return fail(`Payload: ${parsed.error.issues[0]?.message}`);
+    const table = await TableService.findScopedTable(user, tableId);
+    if (!table) return fail('Meja tidak ditemukan', 'NOT_FOUND');
+    if (table.status === 'OCCUPIED') return fail('Meja sedang terisi, tidak bisa direservasi.');
+    if (table.status === 'INACTIVE') return fail('Meja sedang tidak aktif.');
+
+    const reservedAt = new Date(parsed.data.reservedAt);
+    if (Number.isNaN(reservedAt.getTime())) return fail('Tanggal/jam reservasi tidak valid.');
+
+    const res = await prisma.$transaction(async (tx) => {
+      const r = await tx.tableReservation.create({
+        data: {
+          tableId,
+          name: parsed.data.name.trim(),
+          phone: parsed.data.phone.trim(),
+          reservedAt,
+          guests: parsed.data.guests,
+          note: parsed.data.note?.trim() || null,
+        },
+      });
+      await tx.diningTable.update({ where: { id: tableId }, data: { status: 'RESERVED' } });
+      return r;
+    });
+    return ok({ ...res, message: 'Reservasi dibuat.' });
+  }
+
+  static async cancelReservation(user: JwtAuthPayload, tableId: string): Promise<ApiResponse<any>> {
+    const table = await TableService.findScopedTable(user, tableId);
+    if (!table) return fail('Meja tidak ditemukan', 'NOT_FOUND');
+    await prisma.$transaction(async (tx) => {
+      await tx.tableReservation.updateMany({
+        where: { tableId, status: 'PENDING' },
+        data: { status: 'CANCELLED' },
+      });
+      if (table.status === 'RESERVED') {
+        await tx.diningTable.update({ where: { id: tableId }, data: { status: 'AVAILABLE' } });
+      }
+    });
+    return ok({ message: 'Reservasi dibatalkan, meja kembali AVAILABLE.' });
+  }
+
+  /** Check-in reservasi → buka sesi meja + reservasi SEATED. */
+  static async checkinReservation(user: JwtAuthPayload, tableId: string): Promise<ApiResponse<any>> {
+    const table = await TableService.findScopedTable(user, tableId);
+    if (!table) return fail('Meja tidak ditemukan', 'NOT_FOUND');
+    const reservation = await prisma.tableReservation.findFirst({
+      where: { tableId, status: 'PENDING' },
+      orderBy: { reservedAt: 'asc' },
+    });
+    if (!reservation) return fail('Tidak ada reservasi menunggu di meja ini.', 'NOT_FOUND');
+    return TableService.openSession(user, tableId, {
+      guestName: reservation.name,
+      guestPhone: reservation.phone,
+      guests: reservation.guests,
+    });
   }
 }

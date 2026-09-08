@@ -50,3 +50,19 @@ tableRoutes.post('/:id/rotate-token', async (req: Request, res: Response) => {
 tableRoutes.post('/:id/close-session', async (req: Request, res: Response) => {
   send(res, await TableService.closeSession(req.user as JwtAuthPayload, req.params.id));
 });
+
+tableRoutes.post('/:id/open-session', async (req: Request, res: Response) => {
+  send(res, await TableService.openSession(req.user as JwtAuthPayload, req.params.id, req.body), 201);
+});
+
+tableRoutes.post('/:id/reserve', async (req: Request, res: Response) => {
+  send(res, await TableService.reserve(req.user as JwtAuthPayload, req.params.id, req.body), 201);
+});
+
+tableRoutes.post('/:id/reservation/cancel', async (req: Request, res: Response) => {
+  send(res, await TableService.cancelReservation(req.user as JwtAuthPayload, req.params.id));
+});
+
+tableRoutes.post('/:id/reservation/checkin', async (req: Request, res: Response) => {
+  send(res, await TableService.checkinReservation(req.user as JwtAuthPayload, req.params.id), 201);
+});

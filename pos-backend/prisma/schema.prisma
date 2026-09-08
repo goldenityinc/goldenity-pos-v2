@@ -361,23 +361,47 @@ enum TableStatus {
   AVAILABLE
   OCCUPIED
   RESERVED
+  CLEANING
   INACTIVE
 }
 
+enum TableReservationStatus {
+  PENDING
+  SEATED
+  CANCELLED
+}
+
 model DiningTable {
-  id        String        @id @default(uuid())
-  branchId  String
-  code      String // "A1", "B3" — WAJIB unik per branch
-  qrToken   String        @unique // di-rotate tiap kali status kembali ke AVAILABLE
-  capacity  Int?
-  status    TableStatus   @default(AVAILABLE)
-  branch    Branch        @relation(fields: [branchId], references: [id])
-  sessions  TableSession[]
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id           String             @id @default(uuid())
+  branchId     String
+  code         String // "A1", "B3" — WAJIB unik per branch
+  qrToken      String             @unique // di-rotate tiap kali status kembali ke AVAILABLE
+  capacity     Int?
+  status       TableStatus        @default(AVAILABLE)
+  branch       Branch             @relation(fields: [branchId], references: [id])
+  sessions     TableSession[]
+  reservations TableReservation[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   @@unique([branchId, code])
   @@index([branchId, status])
+}
+
+model TableReservation {
+  id          String                 @id @default(uuid())
+  tableId     String
+  name        String
+  phone       String
+  reservedAt  DateTime // tanggal + jam reservasi
+  guests      Int                    @default(1)
+  note        String?
+  status      TableReservationStatus @default(PENDING)
+  table       DiningTable            @relation(fields: [tableId], references: [id])
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@index([tableId, status])
 }
 
 enum TableSessionStatus {

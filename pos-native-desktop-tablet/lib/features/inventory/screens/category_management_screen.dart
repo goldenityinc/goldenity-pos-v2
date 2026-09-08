@@ -6,6 +6,7 @@ import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_elevation.dart';
 import '../../../shared/widgets/goldenity_modal.dart';
+import '../../../shared/widgets/goldenity_buttons.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../core/models/category_profile.dart';
 import '../providers/product_list_provider.dart';
@@ -272,35 +273,21 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
                   },
           ),
           const SizedBox(width: GoldenitySpacing.sm),
-          IconButton(
-            onPressed: _loading
-                ? null
-                : () async => await ref.read(productListNotifierProvider.notifier).loadCategoriesOnly(includeInactive: _includeInactive),
-            icon: _loading
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: biz.base,
-                    ),
-                  )
-                : const Icon(Icons.refresh_rounded),
+          GoldenityIconAction(
+            icon: Icons.refresh_rounded,
             tooltip: 'Refresh',
+            loading: _loading,
+            onTap: () async => await ref
+                .read(productListNotifierProvider.notifier)
+                .loadCategoriesOnly(includeInactive: _includeInactive),
           ),
+          const SizedBox(width: GoldenitySpacing.sm),
           Padding(
-            padding: const EdgeInsets.only(right: GoldenitySpacing.md, top: GoldenitySpacing.sm, bottom: GoldenitySpacing.sm),
-            child: ElevatedButton.icon(
-              onPressed: _showCreateDialog,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: biz.base,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.md, vertical: GoldenitySpacing.sm),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
-              ),
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: Text('Tambah Kategori', style: textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
+            padding: const EdgeInsets.only(
+                right: GoldenitySpacing.md, top: GoldenitySpacing.sm, bottom: GoldenitySpacing.sm),
+            child: GoldenityAddButton(
+              label: 'Tambah Kategori',
+              onTap: _showCreateDialog,
             ),
           ),
         ],

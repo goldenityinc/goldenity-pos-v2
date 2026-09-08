@@ -70,6 +70,7 @@ function mapWebOrder(row: any) {
       ? { id: row.tableSession.table.id, code: row.tableSession.table.code }
       : null,
     customerName: row.tableSession?.customerName ?? null,
+    customerPhone: row.tableSession?.customerPhone ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     items: (row.items ?? []).map((it: any) => ({

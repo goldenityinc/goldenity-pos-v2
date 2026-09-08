@@ -6,6 +6,7 @@ import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
+import '../../../shared/widgets/goldenity_buttons.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../core/models/product_profile.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -111,21 +112,6 @@ class _ProductManagementListScreenState
 
     return Scaffold(
       backgroundColor: GoldenityColors.bg,
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const ProductBuilderScreen.create()));
-        },
-        backgroundColor: biz.base,
-        foregroundColor: Colors.white,
-        elevation: 6.0,
-        icon: const Icon(Icons.add_rounded, size: 20),
-        label: Text('Tambah Produk',
-            style:
-                textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w800)),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(GoldenityRadius.xl)),
-      ),
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
@@ -137,22 +123,22 @@ class _ProductManagementListScreenState
           dense: true,
         ),
         actions: [
-          IconButton(
-            onPressed:
-                state.status == ProductListStatus.loading ? null : _onRefresh,
-            icon: state.status == ProductListStatus.loading
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: biz.base,
-                    ),
-                  )
-                : const Icon(Icons.refresh_rounded),
+          GoldenityIconAction(
+            icon: Icons.refresh_rounded,
             tooltip: 'Refresh',
+            loading: state.status == ProductListStatus.loading,
+            onTap: _onRefresh,
           ),
-          const SizedBox(width: GoldenitySpacing.md),
+          const SizedBox(width: GoldenitySpacing.sm),
+          Padding(
+            padding: const EdgeInsets.only(
+                right: GoldenitySpacing.md, top: GoldenitySpacing.sm, bottom: GoldenitySpacing.sm),
+            child: GoldenityAddButton(
+              label: 'Tambah Produk',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const ProductBuilderScreen.create())),
+            ),
+          ),
         ],
       ),
       body: state.status == ProductListStatus.loading
