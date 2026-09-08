@@ -347,9 +347,21 @@ export class WebOrderService {
     // Auto-accept jalan setelah emit `submitted` supaya POS sempat memunculkan
     // notifikasi "pesanan masuk" sebelum status berubah jadi ACCEPTED.
     if (willAutoAccept) {
-      await WebOrderService.autoAcceptIfEnabled(created.id);
-      const fresh = await prisma.webOrder.findUnique({ where: { id: created.id }, include: webOrderInclude });
-      return ok({ ...mapWebOrder(fresh ?? created), autoAccepted: fresh?.status === 'ACCEPTED', message: 'Pesanan diterima otomatis.' });
+      const cashierId = await WebOrderService.resolveAutoCashierId(tenantId, branchId);
+      if (cashierId) {
+        try {
+          const acc = await WebOrderService.acceptCore(created, cashierId, 'auto');
+          if (acc.success) {
+            return ok({ ...acc.data, autoAccepted: true, message: 'Pesanan diterima otomatis.' });
+          }
+          console.warn(`[web-order] auto-accept ${created.id}: ${acc.error}`);
+        } catch (e: any) {
+          console.error(`[web-order] auto-accept gagal untuk ${created.id}: ${e?.message ?? e}`);
+        }
+      } else {
+        console.warn(`[web-order] auto-accept dilewati untuk ${created.id}: tidak ada user kasir/admin.`);
+      }
+      // fallback: tetap kembalikan order (statusnya masih SUBMITTED, POS bisa terima manual)
     }
     return ok({ ...mapWebOrder(created), autoAccepted: false, message: 'Pesanan terkirim ke kasir.' });
   }
@@ -463,7 +475,12 @@ export class WebOrderService {
     if (wo.status !== 'SUBMITTED') {
       return fail(`Web order status ${wo.status} — hanya SUBMITTED yang bisa diterima.`);
     }
-    return WebOrderService.acceptCore(wo, user.userId, 'manual');
+    try {
+      return await WebOrderService.acceptCore(wo, user.userId, 'manual');
+    } catch (e: any) {
+      if (e?.code === 'INSUFFICIENT_STOCK') return fail(e.message, 'INSUFFICIENT_STOCK');
+      throw e;
+    }
   }
 
   /**
@@ -478,9 +495,12 @@ export class WebOrderService {
     const referenceId = `web_${wo.id}`;
     const paymentMethod = wo.paymentMethod === 'QRIS_STATIC' ? 'QRIS' : 'CASH';
 
-    const result = await prisma.$transaction(async (tx) => {
+    const txBody = async (tx: Prisma.TransactionClient) => {
       // Idempotent: kalau SalesRecord dgn referenceId ini sudah ada, pakai itu.
       let sale = await tx.salesRecord.findUnique({ where: { referenceId } });
+      // NOTE: urutan update stok DIKUNCI (sort productId) supaya banyak
+      // auto-accept paralel mengunci row produk dalam urutan yang sama →
+      // tidak deadlock (temuan stress test "kafe malam minggu").
       if (!sale) {
         sale = await tx.salesRecord.create({
           data: {
@@ -515,12 +535,30 @@ export class WebOrderService {
         for (const it of wo.items) {
           if (it.productId) qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) ?? 0) + it.qty);
         }
-        for (const [productId, qty] of qtyByProduct) {
-          if (qty > 0) {
-            await tx.product.updateMany({
-              where: { id: productId, tenantId: wo.tenantId, stock: { not: null } },
-              data: { stock: { decrement: qty } },
+        const orderedProducts = [...qtyByProduct.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+        for (const [productId, qty] of orderedProducts) {
+          if (qty <= 0) continue;
+          // Decrement ATOMIK & bersyarat: hanya kalau stok masih cukup. Cegah
+          // oversell saat banyak order paralel (temuan stress test — stok bisa
+          // minus). Kalau gagal → lempar, transaksi rollback, order tetap
+          // SUBMITTED biar kasir menangani manual.
+          const dec = await tx.product.updateMany({
+            where: { id: productId, tenantId: wo.tenantId, stock: { not: null, gte: qty } },
+            data: { stock: { decrement: qty } },
+          });
+          if (dec.count === 0) {
+            // Produk stock-tracked & stok < qty → tolak. (Produk tanpa stok
+            // tracking `stock: null` tidak akan match filter di atas — cek dulu.)
+            const prod = await tx.product.findUnique({
+              where: { id: productId },
+              select: { name: true, stock: true },
             });
+            if (prod && prod.stock != null) {
+              throw Object.assign(
+                new Error(`Stok "${prod.name}" tinggal ${prod.stock}, tidak cukup untuk pesanan ini.`),
+                { code: 'INSUFFICIENT_STOCK' },
+              );
+            }
           }
         }
       }
@@ -545,7 +583,25 @@ export class WebOrderService {
         },
       });
       return { updated, saleId: sale.id.toString() };
-    });
+    };
+
+    // Retry pada deadlock (40P01) / write-conflict (P2034) — bisa muncul saat
+    // banyak order paralel menyentuh row produk yang sama walau urutan sudah dikunci.
+    let result: { updated: any; saleId: string } | undefined;
+    let lastErr: any;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        result = await prisma.$transaction(txBody, { timeout: 20_000, maxWait: 12_000 });
+        break;
+      } catch (e: any) {
+        lastErr = e;
+        const msg = String(e?.message ?? e);
+        const retryable = e?.code === 'P2034' || /deadlock detected|40P01/i.test(msg);
+        if (!retryable || attempt === 4) throw e;
+        await new Promise((r) => setTimeout(r, 40 * attempt + Math.floor(Math.random() * 60)));
+      }
+    }
+    if (!result) throw lastErr ?? new Error('accept transaction gagal');
 
     // Sinyal cetak: struk kasir + nota dapur dicetak oleh bridge saat ACCEPTED
     // (berlaku untuk auto maupun manual).
@@ -578,27 +634,6 @@ export class WebOrderService {
       select: { id: true },
     });
     return anyUser?.id ?? null;
-  }
-
-  /** Kalau tenant mengaktifkan auto-accept, terima order yang baru masuk saat itu juga. */
-  private static async autoAcceptIfEnabled(webOrderId: string): Promise<void> {
-    const wo = await prisma.webOrder.findUnique({ where: { id: webOrderId }, include: webOrderInclude });
-    if (!wo || wo.status !== 'SUBMITTED') return;
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: wo.tenantId },
-      select: { webOrderAutoAccept: true },
-    });
-    if (tenant?.webOrderAutoAccept !== true) return;
-    const cashierId = await WebOrderService.resolveAutoCashierId(wo.tenantId, wo.branchId);
-    if (!cashierId) {
-      console.warn(`[web-order] auto-accept dilewati untuk ${webOrderId}: tidak ada user kasir/admin di tenant.`);
-      return;
-    }
-    try {
-      await WebOrderService.acceptCore(wo, cashierId, 'auto');
-    } catch (e: any) {
-      console.error(`[web-order] auto-accept gagal untuk ${webOrderId}: ${e?.message ?? e}`);
-    }
   }
 
   static async reject(user: JwtAuthPayload, id: string, raw: unknown): Promise<ApiResponse<any>> {
