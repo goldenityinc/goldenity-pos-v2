@@ -11,6 +11,15 @@ function statusFor(result: ApiResponse<any>, okStatus = 200): number {
   const e = result.error ?? '';
   if (result.code === 'NOT_FOUND' || e.includes('tidak ditemukan')) return 404;
   if (result.code === 'FORBIDDEN_ROLE' || e.includes('Butuh TENANT_ADMIN')) return 403;
+  if (result.code === 'UNPAID_ORDERS') return 409;
+  if (
+    result.code === 'CASH_INSUFFICIENT' ||
+    result.code === 'NOTHING_TO_SETTLE' ||
+    result.code === 'NOT_ACCEPTED' ||
+    result.code === 'NO_SESSION'
+  ) {
+    return 400;
+  }
   if (e.includes('sudah ada') || e.includes('bentrok')) return 409;
   if (e.startsWith('Payload') || e.includes('wajib')) return 400;
   return 500;
@@ -49,6 +58,10 @@ tableRoutes.post('/:id/rotate-token', async (req: Request, res: Response) => {
 
 tableRoutes.post('/:id/close-session', async (req: Request, res: Response) => {
   send(res, await TableService.closeSession(req.user as JwtAuthPayload, req.params.id));
+});
+
+tableRoutes.post('/:id/settle-orders', async (req: Request, res: Response) => {
+  send(res, await TableService.settleOrders(req.user as JwtAuthPayload, req.params.id, req.body));
 });
 
 tableRoutes.post('/:id/open-session', async (req: Request, res: Response) => {

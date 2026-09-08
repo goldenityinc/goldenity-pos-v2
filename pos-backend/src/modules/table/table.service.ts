@@ -4,6 +4,8 @@ import { ok, fail, type ApiResponse, UserRole } from '../../config/types';
 import type { JwtAuthPayload } from '../../config/types';
 import { resolveEffectiveBranchFilter } from '../../utils/rbac';
 import { randomToken, WEB_ORDER_SESSION_TTL_HOURS } from '../web-order/web-order.shared';
+import { WebOrderService } from '../web-order/web-order.service';
+import { emitToBranch } from '../../realtime/socket';
 
 const WEB_ORDER_BASE_URL =
   process.env.WEB_ORDER_BASE_URL ?? 'https://order.goldenity.app';
@@ -33,6 +35,22 @@ const OpenSessionSchema = z.object({
   guestPhone: z.string().trim().max(30).optional().nullable(),
   guests: z.union([z.number(), z.string()]).pipe(z.coerce.number().int().min(1).max(99)).optional(),
 });
+
+const SettleOrdersSchema = z
+  .object({
+    orderIds: z.array(z.string().uuid('orderId format UUID tidak valid')).min(1, 'Pilih minimal 1 pesanan'),
+    paymentMethod: z.enum(['CASH', 'QRIS', 'CREDIT_CARD']),
+    cashReceived: z
+      .union([z.number(), z.string()])
+      .pipe(z.coerce.number().min(0, 'cashReceived harus >= 0'))
+      .optional()
+      .nullable(),
+    paymentReferenceNumber: z.string().trim().max(80).optional().nullable(),
+  })
+  .refine((d) => d.paymentMethod !== 'CASH' || (d.cashReceived != null && d.cashReceived >= 0), {
+    message: 'cashReceived wajib diisi untuk pembayaran tunai',
+    path: ['cashReceived'],
+  });
 
 const isAdmin = (role: UserRole) =>
   role === UserRole.TENANT_ADMIN || role === UserRole.SUPER_ADMIN;
@@ -306,6 +324,25 @@ export class TableService {
     if (!existing || (user.role !== UserRole.SUPER_ADMIN && existing.branch.tenantId !== user.tenantId)) {
       return fail('Meja tidak ditemukan', 'NOT_FOUND');
     }
+
+    // Blok tutup sesi selama masih ada pesanan terbuka yang belum dibayar.
+    const unpaid = await prisma.webOrder.findMany({
+      where: {
+        tableSession: { tableId, status: 'ACTIVE' },
+        status: { not: 'CANCELLED' },
+        paymentStatus: { not: 'PAID' },
+      },
+      select: { queueNumber: true, total: true },
+    });
+    if (unpaid.length > 0) {
+      const sisa = unpaid.reduce((s, o) => s + Number(o.total), 0);
+      const antri = unpaid.map((o) => `#${o.queueNumber}`).join(', ');
+      return fail(
+        `Masih ada ${unpaid.length} pesanan belum dibayar (${antri}) senilai Rp ${Math.round(sisa).toLocaleString('id-ID')}. Selesaikan pembayaran dulu sebelum menutup sesi meja.`,
+        'UNPAID_ORDERS',
+      );
+    }
+
     const result = await prisma.$transaction(async (tx) => {
       const closed = await tx.tableSession.updateMany({
         where: { tableId, status: 'ACTIVE' },
@@ -426,6 +463,156 @@ export class TableService {
       guestName: reservation.name,
       guestPhone: reservation.phone,
       guests: reservation.guests,
+    });
+  }
+
+  /**
+   * Selesaikan pembayaran satu / beberapa web order dari halaman meja
+   * (kasus "bayar di kasir" + split bill). SUBMITTED otomatis di-accept dulu
+   * supaya masuk pipeline SalesRecord, lalu ditandai LUNAS.
+   */
+  static async settleOrders(
+    user: JwtAuthPayload,
+    tableId: string,
+    raw: unknown,
+  ): Promise<ApiResponse<any>> {
+    const parsed = SettleOrdersSchema.safeParse(raw);
+    if (!parsed.success) return fail(`Payload: ${parsed.error.issues[0]?.message}`);
+    const { paymentMethod, paymentReferenceNumber } = parsed.data;
+    const cashReceived = parsed.data.cashReceived == null ? null : Number(parsed.data.cashReceived);
+
+    const table = await TableService.findScopedTable(user, tableId);
+    if (!table) return fail('Meja tidak ditemukan', 'NOT_FOUND');
+
+    const session = await prisma.tableSession.findFirst({
+      where: { tableId, status: 'ACTIVE' },
+      orderBy: { openedAt: 'desc' },
+      include: { webOrders: { include: { items: true }, orderBy: { createdAt: 'asc' } } },
+    });
+    if (!session) return fail('Tidak ada sesi meja aktif.', 'NO_SESSION');
+
+    const wanted = new Set(parsed.data.orderIds);
+    const inSession = session.webOrders.filter((o) => wanted.has(o.id));
+    const missing = parsed.data.orderIds.filter((id) => !inSession.some((o) => o.id === id));
+    if (missing.length > 0) {
+      return fail(`Pesanan ${missing.join(', ')} bukan bagian dari sesi meja ini.`, 'NOT_FOUND');
+    }
+
+    const payable = inSession.filter(
+      (o) => o.status !== 'CANCELLED' && o.paymentStatus !== 'PAID',
+    );
+    if (payable.length === 0) {
+      return fail('Semua pesanan yang dipilih sudah lunas / dibatalkan.', 'NOTHING_TO_SETTLE');
+    }
+
+    // SUBMITTED → accept dulu (buat SalesRecord + kurangi stok). Idempotent.
+    for (const o of payable) {
+      if (o.status === 'SUBMITTED') {
+        const acc = await WebOrderService.accept(user, o.id);
+        if (!acc.success) {
+          return fail(`Gagal terima pesanan #${o.queueNumber}: ${acc.error}`, acc.code);
+        }
+      }
+    }
+
+    // Muat ulang setelah accept — butuh salesRecordId terisi.
+    const fresh = await prisma.webOrder.findMany({
+      where: { id: { in: payable.map((o) => o.id) } },
+      select: { id: true, queueNumber: true, total: true, salesRecordId: true, paymentStatus: true, branchId: true, tenantId: true, status: true },
+    });
+    const stillPayable = fresh.filter((o) => o.status !== 'CANCELLED' && o.paymentStatus !== 'PAID');
+    if (stillPayable.length === 0) {
+      return fail('Semua pesanan yang dipilih sudah lunas.', 'NOTHING_TO_SETTLE');
+    }
+    const noSale = stillPayable.filter((o) => o.salesRecordId == null);
+    if (noSale.length > 0) {
+      return fail(
+        `Pesanan #${noSale.map((o) => o.queueNumber).join(', #')} belum punya catatan penjualan — terima dulu di halaman Web Orders.`,
+        'NOT_ACCEPTED',
+      );
+    }
+
+    const totalDue = stillPayable.reduce((s, o) => s + Number(o.total), 0);
+    if (paymentMethod === 'CASH' && cashReceived != null && cashReceived + 0.01 < totalDue) {
+      return fail(
+        `Nominal tunai Rp ${Math.round(cashReceived).toLocaleString('id-ID')} kurang dari total tagihan Rp ${Math.round(totalDue).toLocaleString('id-ID')}. Kurang Rp ${Math.round(totalDue - cashReceived).toLocaleString('id-ID')}.`,
+        'CASH_INSUFFICIENT',
+      );
+    }
+    const cashChange =
+      paymentMethod === 'CASH' && cashReceived != null ? Math.max(0, cashReceived - totalDue) : null;
+
+    const openShift = await prisma.cashierShift.findFirst({
+      where: { cashierId: user.userId, branchId: table.branchId, status: 'OPEN' },
+      select: { id: true },
+    });
+
+    await prisma.$transaction(async (tx) => {
+      for (const o of stillPayable) {
+        await tx.salesRecord.update({
+          where: { id: o.salesRecordId! },
+          data: {
+            paymentMethod: paymentMethod as any,
+            paymentReferenceNumber:
+              paymentMethod === 'CASH'
+                ? null
+                : paymentReferenceNumber?.trim() || `WEB-Q${o.queueNumber}`,
+            cashReceived: paymentMethod === 'CASH' ? (o.total as any) : null,
+            cashChange: paymentMethod === 'CASH' ? (0 as any) : null,
+            ...(openShift ? { cashierShiftId: openShift.id } : {}),
+          },
+        });
+        await tx.webOrder.update({
+          where: { id: o.id },
+          data: { paymentStatus: 'PAID' },
+        });
+        await tx.notificationEvent.create({
+          data: {
+            tenantId: o.tenantId,
+            branchId: o.branchId,
+            webOrderId: o.id,
+            type: 'ORDER_STATUS_CHANGED',
+            channel: 'POLL',
+            payload: {
+              webOrderId: o.id,
+              status: o.status,
+              queueNumber: o.queueNumber,
+              paymentStatus: 'PAID',
+            } as any,
+          },
+        });
+      }
+    });
+
+    for (const o of stillPayable) {
+      emitToBranch(o.branchId, 'web_order:status', {
+        webOrderId: o.id,
+        queueNumber: o.queueNumber,
+        status: o.status,
+        paymentStatus: 'PAID',
+      });
+    }
+
+    const remainingUnpaid = await prisma.webOrder.count({
+      where: {
+        tableSession: { tableId, status: 'ACTIVE' },
+        status: { not: 'CANCELLED' },
+        paymentStatus: { not: 'PAID' },
+      },
+    });
+
+    return ok({
+      settledCount: stillPayable.length,
+      totalDue,
+      cashReceived: paymentMethod === 'CASH' ? cashReceived : null,
+      cashChange,
+      paymentMethod,
+      allPaid: remainingUnpaid === 0,
+      orders: stillPayable.map((o) => ({ id: o.id, queueNumber: o.queueNumber, paymentStatus: 'PAID' })),
+      message:
+        stillPayable.length === 1
+          ? `Pesanan #${stillPayable[0].queueNumber} lunas.`
+          : `${stillPayable.length} pesanan lunas (Rp ${Math.round(totalDue).toLocaleString('id-ID')}).`,
     });
   }
 }

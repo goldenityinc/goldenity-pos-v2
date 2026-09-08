@@ -122,7 +122,25 @@ export class WebOrderService {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + WEB_ORDER_SESSION_TTL_HOURS * 3600_000);
 
+    // Satu meja = satu sesi makan. Kalau sudah ada sesi ACTIVE yang belum
+    // kedaluwarsa, PAKAI ULANG (device lain di meja yang sama ikut sesi itu) —
+    // supaya tidak numpuk sesi yatim yang bikin tagihan meja "hantu".
     const session = await prisma.$transaction(async (tx) => {
+      const existing = await tx.tableSession.findFirst({
+        where: { tableId: table.id, status: 'ACTIVE', expiresAt: { gt: now } },
+        orderBy: { openedAt: 'desc' },
+      });
+      if (existing) {
+        return tx.tableSession.update({
+          where: { id: existing.id },
+          data: {
+            // isi identitas kalau sebelumnya kosong, jangan timpa yang sudah ada
+            customerName: existing.customerName ?? (parsed.data.customerName?.trim() || null),
+            customerPhone: existing.customerPhone ?? (parsed.data.customerPhone?.trim() || null),
+            expiresAt, // sliding TTL — perpanjang selama masih dipakai
+          },
+        });
+      }
       const s = await tx.tableSession.create({
         data: {
           tableId: table.id,
