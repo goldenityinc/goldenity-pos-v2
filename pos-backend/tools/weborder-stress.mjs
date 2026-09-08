@@ -4,13 +4,26 @@
  * lalu verifikasi konsistensi data (queue unik, SalesRecord, stok, tidak ada
  * order hilang / dobel).
  *
- * Pakai:
- *   node tools/weborder-stress.mjs                 # default: 50 meja, 400 order, konkurensi 40, dua skenario
- *   TABLES=50 ORDERS=600 CONC=60 MODE=on   node tools/weborder-stress.mjs
- *   TABLES=30 ORDERS=200 CONC=25 MODE=off  node tools/weborder-stress.mjs
- *   BASE=http://localhost:3001 node tools/weborder-stress.mjs
+ * Pakai (LOKAL — verifikasi lengkap lewat DB):
+ *   node tools/weborder-stress.mjs
+ *   TABLES=50 ORDERS=600 CONC=60 MODE=on node tools/weborder-stress.mjs
+ *   MODE=cleanup node tools/weborder-stress.mjs        # bersihkan data test
+ *
+ * Pakai (RAILWAY STAGING — tanpa akses DB, verifikasi dari respons HTTP saja):
+ *   BASE=https://<staging>.up.railway.app LOAD_ONLY=1 \
+ *     TENANT_SLUG=<tenant-test> ADMIN_USER=<u> ADMIN_PASS=<p> \
+ *     KASIR_USER=<u> KASIR_PASS=<p> ORDERS=200 CONC=30 \
+ *     node tools/weborder-stress.mjs
+ *   (LOAD_ONLY: cek queue-unik, autoAccepted-sesuai-mode, tak ada 5xx, latency/
+ *    throughput. Tidak cek stok / jumlah SalesRecord di DB. Pakai tenant khusus
+ *    test — ini bikin order & SalesRecord beneran di staging.)
  */
-import { PrismaClient } from '@prisma/client';
+const LOAD_ONLY = process.env.LOAD_ONLY === '1' || process.argv.includes('--load-only');
+
+let PrismaClient;
+if (!LOAD_ONLY) {
+  ({ PrismaClient } = await import('@prisma/client'));
+}
 
 const BASE = process.env.BASE ?? 'http://localhost:3001';
 const API = `${BASE}/api/v1`;
@@ -21,7 +34,7 @@ const CONC = Number(process.env.CONC ?? 40);
 const MODES =
   process.env.MODE === 'on' ? ['on'] : process.env.MODE === 'off' ? ['off'] : ['off', 'on'];
 
-const prisma = new PrismaClient();
+const prisma = LOAD_ONLY ? null : new PrismaClient();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pct = (arr, p) => {
   if (!arr.length) return 0;
@@ -144,6 +157,7 @@ async function setAutoAccept(adminTok, on) {
 async function topUpStock(branchId) {
   // Isi ulang stok produk stock-tracked biar throughput bersih dari noise
   // "out of stock". Set STOCK=0 utk sengaja menguji penolakan oversell.
+  if (!prisma) return;
   const to = Number(process.env.STOCK ?? 100000);
   await prisma.product.updateMany({
     where: { OR: [{ branchId }, { branchId: null }], stock: { not: null } },
@@ -159,8 +173,8 @@ async function runScenario(mode, adminTok, sessions, products) {
 
   const branchId = products.branchId;
   const stockBefore = await snapshotStock(branchId);
-  const salesBefore = await prisma.salesRecord.count({ where: { branchId, orderType: 'WEB_ORDER' } });
-  const woBefore = await prisma.webOrder.count({ where: { branchId } });
+  const salesBefore = prisma ? await prisma.salesRecord.count({ where: { branchId, orderType: 'WEB_ORDER' } }) : 0;
+  const woBefore = prisma ? await prisma.webOrder.count({ where: { branchId } }) : 0;
 
   console.log(`\n━━━ Skenario auto-accept ${mode.toUpperCase()} — ${N_ORDERS} order, konkurensi ${CONC} ━━━`);
 
@@ -209,6 +223,26 @@ async function runScenario(mode, adminTok, sessions, products) {
   const lat = okr.map((r) => r.ms);
 
   // ── Verifikasi konsistensi ──
+  const checks = [];
+  const no5xx = errs.every((e) => !/HTTP 5/.test(e.err));
+  checks.push(['Tanpa error 5xx', no5xx, errs.filter((e) => /HTTP 5/.test(e.err)).length + ' 5xx']);
+
+  if (!prisma) {
+    // LOAD_ONLY — verifikasi dari respons HTTP saja (tanpa DB).
+    const qs = okr.map((r) => r.q);
+    const dupQ = qs.length - new Set(qs).size;
+    checks.push(['Queue number unik (dari respons)', dupQ === 0, `${dupQ} duplikat`]);
+    if (on) {
+      const notAuto = okr.filter((r) => !r.auto && r.status === 'SUBMITTED').length;
+      checks.push(['ON: order ter-ACCEPT / fallback SUBMITTED yang jelas', okr.every((r) => (r.auto && r.status !== 'SUBMITTED') || r.status === 'SUBMITTED'), `${notAuto} SUBMITTED (fallback)`]);
+      checks.push(['ON: order auto punya salesRecordId', okr.filter((r) => r.auto).every((r) => r.sale != null), 'ada auto tanpa sale']);
+    } else {
+      checks.push(['OFF: semua respons SUBMITTED & autoAccepted=false', okr.every((r) => r.status === 'SUBMITTED' && !r.auto), `${okr.filter((r) => r.auto).length} auto`]);
+    }
+    printReport(mode, submitted, dur, okr, errs, lat, checks, on);
+    return { mode, dur, okr: okr.length, errs: errs.length, lat, allPass: checks.every((c) => c[1]) };
+  }
+
   const ids = okr.map((r) => r.id);
   const dbOrders = await prisma.webOrder.findMany({
     where: { id: { in: ids } },
@@ -233,11 +267,9 @@ async function runScenario(mode, adminTok, sessions, products) {
   const expectedDec = expectedStockDrop(okr, byId, on);
   const stockDiffOk = verifyStock(stockBefore, stockAfter, expectedDec);
 
-  const checks = [];
   checks.push(['Tidak ada order hilang', lost.length === 0, `${lost.length} hilang`]);
   checks.push(['Queue number unik', dupQ === 0, `${dupQ} duplikat`]);
   checks.push(['WebOrder DB == submit sukses', createdWO === okr.length, `db+${createdWO} vs ok ${okr.length}`]);
-  checks.push(['Tanpa error 5xx', errs.every((e) => !/HTTP 5/.test(e.err)), errs.filter((e) => /HTTP 5/.test(e.err)).length + ' 5xx']);
   if (on) {
     const acceptedNoSale = acceptedInDb.filter((o) => o.salesRecordId == null);
     const starved = Number(process.env.STOCK ?? 100000) < 1000;
@@ -258,7 +290,11 @@ async function runScenario(mode, adminTok, sessions, products) {
   }
   checks.push(['Stok berkurang sesuai', stockDiffOk.ok, stockDiffOk.msg]);
 
-  // ── Report ──
+  printReport(mode, submitted, dur, okr, errs, lat, checks, on);
+  return { mode, dur, okr: okr.length, errs: errs.length, lat, allPass: checks.every((c) => c[1]) };
+}
+
+function printReport(mode, submitted, dur, okr, errs, lat, checks) {
   console.log(
     `  Terkirim   : ${submitted}/${N_ORDERS} sukses, ${errs.length} gagal  (${((submitted / N_ORDERS) * 100).toFixed(1)}%)`,
   );
@@ -281,10 +317,10 @@ async function runScenario(mode, adminTok, sessions, products) {
     console.log(`    ${pass ? 'PASS' : 'FAIL'}  ${name}${pass ? '' : `  (${detail})`}`);
   }
   console.log(`  → Skenario ${mode.toUpperCase()}: ${allPass && errs.length === 0 ? 'LULUS' : allPass ? 'LULUS (dgn error non-5xx)' : 'ADA MASALAH'}`);
-  return { mode, dur, okr: okr.length, errs: errs.length, lat, allPass };
 }
 
 async function snapshotStock(branchId) {
+  if (!prisma) return new Map();
   const rows = await prisma.product.findMany({
     where: { OR: [{ branchId }, { branchId: null }], stock: { not: null } },
     select: { id: true, stock: true },
@@ -321,13 +357,14 @@ async function main() {
   const kasirTok = await login(process.env.KASIR_USER ?? 'kasir', process.env.KASIR_PASS ?? 'kasir123');
 
   if (process.env.MODE === 'cleanup' || process.argv.includes('--cleanup')) {
+    if (!prisma) throw new Error('MODE=cleanup butuh akses DB (jangan pakai LOAD_ONLY).');
     await cleanup();
     await setAutoAccept(adminTok, false);
     await prisma.$disconnect();
     return;
   }
 
-  console.log(`Stress test web order — ${BASE}`);
+  console.log(`Stress test web order — ${BASE}${LOAD_ONLY ? '  [LOAD_ONLY — verifikasi via HTTP saja]' : ''}`);
   console.log(`  meja target ${N_TABLES} · order/skenario ${N_ORDERS} · konkurensi ${CONC} · skenario: ${MODES.join(', ')}`);
   console.log(`  (hanya menyentuh meja "${ST_PREFIX}*" — meja asli tidak diutak-atik)`);
 
@@ -340,11 +377,15 @@ async function main() {
 
   const menu = await j(await fetch(`${API}/order/menu?sessionToken=${sessions[0].sessionToken}`));
   const avail = menu.products.filter((p) => !p.outOfStock);
-  const branchRow = await prisma.tableSession.findFirst({
-    where: { sessionToken: sessions[0].sessionToken },
-    select: { table: { select: { branchId: true } } },
-  });
-  const products = { ids: avail.map((p) => p.id), branchId: branchRow.table.branchId };
+  let branchId = '';
+  if (prisma) {
+    const branchRow = await prisma.tableSession.findFirst({
+      where: { sessionToken: sessions[0].sessionToken },
+      select: { table: { select: { branchId: true } } },
+    });
+    branchId = branchRow?.table?.branchId ?? '';
+  }
+  const products = { ids: avail.map((p) => p.id), branchId };
   console.log(`  produk tersedia: ${products.ids.length}`);
 
   const summary = [];
@@ -360,6 +401,10 @@ async function main() {
   }
   // kembalikan setting ke OFF (default aman)
   await setAutoAccept(adminTok, false);
+  if (!prisma) {
+    console.log('\n(LOAD_ONLY — data order di server TIDAK dibersihkan otomatis. Bersihkan manual di tenant test.)');
+    return;
+  }
   if (process.env.KEEP !== '1') {
     await cleanup();
   } else {
@@ -370,6 +415,6 @@ async function main() {
 
 main().catch(async (e) => {
   console.error('FATAL:', e);
-  await prisma.$disconnect();
+  if (prisma) await prisma.$disconnect();
   process.exit(1);
 });
