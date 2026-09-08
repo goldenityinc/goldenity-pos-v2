@@ -102,5 +102,5 @@ initSocket(httpServer);
 
 httpServer.listen(PORT, () => {
   console.log(`[goldenity-pos-backend] listening on :${PORT} (+ Socket.IO /socket.io)`);
-  console.log(`[goldenity-pos-backend] mounted routes: /api/v1/health, /api/v1/auth, /api/v1/categories, /api/v1/products, /api/v1/sales, /api/v1/settings, /api/v1/shifts, /api/v1/dashboard, /api/v1/uploads, /api/v1/tables, /api/v1/web-orders, /api/v1/order (customer, no-JWT), /api/v1/notifications, /api/v1/staff`);
+  console.log(`[goldenity-pos-backend] mounted routes: /api/v1/health, /api/v1/auth, /api/v1/categories, /api/v1/products, /api/v1/sales, /api/v1/settings, /api/v1/shifts, /api/v1/dashboard, /api/v1/uploads, /api/v1/tables, /api/v1/web-orders, /api/v1/order (customer, no-JWT), /api/v1/notifications, /api/v1/staff, /api/v1/devices, /api/v1/subscription`);
 });
