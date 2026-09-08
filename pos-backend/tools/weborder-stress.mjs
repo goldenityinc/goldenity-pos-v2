@@ -56,21 +56,46 @@ async function login(username, password) {
   ).token;
 }
 
+const ST_PREFIX = 'ST-';
+
 async function ensureTables(adminTok, kasirTok, want) {
-  let list = await j(await fetch(`${API}/tables`, { headers: { authorization: `Bearer ${kasirTok}` } }));
-  let tables = list.tables ?? list;
-  const need = want - tables.length;
-  for (let i = 0; i < need; i++) {
-    const code = `ST-${String(tables.length + i + 1).padStart(3, '0')}`;
+  // HANYA pakai meja khusus stress test (prefix ST-). Jangan pernah menyentuh
+  // meja asli — orderannya akan nyangkut & ikut nama sesi lama.
+  const listAll = async () =>
+    (await j(await fetch(`${API}/tables`, { headers: { authorization: `Bearer ${kasirTok}` } }))).tables ?? [];
+  let st = (await listAll()).filter((t) => t.code.startsWith(ST_PREFIX));
+  for (let i = st.length; i < want; i++) {
+    const code = `${ST_PREFIX}${String(i + 1).padStart(3, '0')}`;
     await fetch(`${API}/tables`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${adminTok}` },
       body: JSON.stringify({ code, capacity: 4 }),
     });
   }
-  list = await j(await fetch(`${API}/tables`, { headers: { authorization: `Bearer ${kasirTok}` } }));
-  tables = list.tables ?? list;
-  return tables.slice(0, want);
+  st = (await listAll()).filter((t) => t.code.startsWith(ST_PREFIX));
+  st.sort((a, b) => a.code.localeCompare(b.code));
+  return st.slice(0, want);
+}
+
+async function cleanup() {
+  // Hapus SEMUA data stress test (order + sales + sesi) dari meja ST-*.
+  const stTables = await prisma.diningTable.findMany({ where: { code: { startsWith: ST_PREFIX } }, select: { id: true } });
+  const tIds = stTables.map((t) => t.id);
+  const sess = await prisma.tableSession.findMany({ where: { tableId: { in: tIds } }, select: { id: true } });
+  const sIds = sess.map((s) => s.id);
+  const wos = await prisma.webOrder.findMany({ where: { tableSessionId: { in: sIds } }, select: { id: true, salesRecordId: true } });
+  const woIds = wos.map((w) => w.id);
+  const saleIds = wos.map((w) => w.salesRecordId).filter((x) => x != null);
+  await prisma.$transaction([
+    prisma.notificationEvent.deleteMany({ where: { webOrderId: { in: woIds } } }),
+    prisma.webOrderItem.deleteMany({ where: { webOrderId: { in: woIds } } }),
+    prisma.webOrder.deleteMany({ where: { id: { in: woIds } } }),
+    prisma.salesRecordItem.deleteMany({ where: { salesRecordId: { in: saleIds } } }),
+    prisma.salesRecord.deleteMany({ where: { id: { in: saleIds } } }),
+    prisma.tableSession.deleteMany({ where: { id: { in: sIds } } }),
+    prisma.diningTable.updateMany({ where: { id: { in: tIds } }, data: { status: 'AVAILABLE' } }),
+  ]);
+  console.log(`Cleanup: hapus ${woIds.length} webOrder, ${saleIds.length} SalesRecord, ${sIds.length} sesi. Meja ST-* (${tIds.length}) disisakan AVAILABLE.`);
 }
 
 async function openSessions(tables) {
@@ -292,11 +317,19 @@ function verifyStock(before, after, _expected) {
 }
 
 async function main() {
-  console.log(`Stress test web order — ${BASE}`);
-  console.log(`  meja target ${N_TABLES} · order/skenario ${N_ORDERS} · konkurensi ${CONC} · skenario: ${MODES.join(', ')}`);
-
   const adminTok = await login(process.env.ADMIN_USER ?? 'admin', process.env.ADMIN_PASS ?? 'admin123');
   const kasirTok = await login(process.env.KASIR_USER ?? 'kasir', process.env.KASIR_PASS ?? 'kasir123');
+
+  if (process.env.MODE === 'cleanup' || process.argv.includes('--cleanup')) {
+    await cleanup();
+    await setAutoAccept(adminTok, false);
+    await prisma.$disconnect();
+    return;
+  }
+
+  console.log(`Stress test web order — ${BASE}`);
+  console.log(`  meja target ${N_TABLES} · order/skenario ${N_ORDERS} · konkurensi ${CONC} · skenario: ${MODES.join(', ')}`);
+  console.log(`  (hanya menyentuh meja "${ST_PREFIX}*" — meja asli tidak diutak-atik)`);
 
   const tables = await ensureTables(adminTok, kasirTok, N_TABLES);
   console.log(`  meja siap: ${tables.length}`);
@@ -327,6 +360,11 @@ async function main() {
   }
   // kembalikan setting ke OFF (default aman)
   await setAutoAccept(adminTok, false);
+  if (process.env.KEEP !== '1') {
+    await cleanup();
+  } else {
+    console.log('\n(KEEP=1 → data stress test TIDAK dihapus; jalankan `MODE=cleanup node tools/weborder-stress.mjs` utk bersihkan)');
+  }
   await prisma.$disconnect();
 }
 

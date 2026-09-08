@@ -6,9 +6,17 @@ import {
   getToken,
   getLoginInfo,
   getWebOrder,
+  getBranchPrinters,
   resolvedBranchId,
+  type PrinterConfigRow,
 } from './backend.js';
-import { printOrderTickets, type PrintResult } from './printer.js';
+import {
+  printOrderTickets,
+  envTargets,
+  type PrintResult,
+  type OrderTargets,
+  type PrintTarget,
+} from './printer.js';
 
 interface JobLog {
   at: string;
@@ -34,6 +42,46 @@ const state = {
 /** Order yang sudah dicetak — cegah dobel cetak saat socket replay / reconnect. */
 const printed = new Set<string>();
 
+/** Target printer aktif — dari Pengaturan (backend), fallback .env. Di-refresh berkala. */
+let orderTargets: OrderTargets = envTargets();
+
+function targetsFromConfigs(rows: PrinterConfigRow[]): OrderTargets {
+  const env = envTargets();
+  const pick = (slots: PrinterConfigRow['slot'][]): PrintTarget | null => {
+    for (const s of slots) {
+      const r = rows.find((x) => x.slot === s && x.connectionType === 'network' && x.address);
+      if (r) return { host: r.address as string, port: r.port ?? 9100, source: `settings:${s}` };
+    }
+    return null;
+  };
+  // struk kasir: slot cashier → defaultPrinter ; nota dapur: slot kitchen → defaultPrinter
+  return {
+    receipt: pick(['cashier', 'defaultPrinter']) ?? env.receipt,
+    kitchen: pick(['kitchen', 'defaultPrinter']) ?? env.kitchen,
+  };
+}
+
+async function refreshPrinterTargets(): Promise<void> {
+  try {
+    const rows = await getBranchPrinters(state.branchId);
+    if (rows.length) {
+      orderTargets = targetsFromConfigs(rows);
+      console.log(
+        `[printer] dari Pengaturan → struk ${describeTarget(orderTargets.receipt)} · dapur ${describeTarget(orderTargets.kitchen)}`,
+      );
+    } else {
+      orderTargets = envTargets();
+    }
+  } catch (e: any) {
+    console.warn(`[printer] gagal ambil config dari backend: ${e?.message ?? e} — pakai .env`);
+  }
+}
+
+function describeTarget(t: PrintTarget): string {
+  if (config.printerMode !== 'tcp' || !t.host) return `console (${t.source})`;
+  return `${t.host}:${t.port} (${t.source})`;
+}
+
 function pushJob(j: JobLog) {
   state.jobs.unshift(j);
   if (state.jobs.length > 80) state.jobs.length = 80;
@@ -58,7 +106,7 @@ async function printForOrder(webOrderId: string, meta: Partial<JobLog>): Promise
   };
   try {
     const wo = await getWebOrder(webOrderId);
-    const prints = await printOrderTickets(wo);
+    const prints = await printOrderTickets(wo, orderTargets);
     pushJob({ ...base, queueNumber: wo.queueNumber, tableCode: wo.table?.code, prints });
     const okAll = prints.every((p) => p.ok);
     console.log(
@@ -173,8 +221,10 @@ function startHttp(socket: Socket) {
       ...state,
       backendUrl: config.backendUrl,
       printerMode: config.printerMode,
-      printerTarget:
-        config.printerMode === 'tcp' ? `${config.printerHost}:${config.printerPort}` : 'stdout',
+      printerTargets: {
+        receipt: describeTarget(orderTargets.receipt),
+        kitchen: describeTarget(orderTargets.kitchen),
+      },
       socketId: socket.id ?? null,
     });
   });
@@ -183,7 +233,7 @@ function startHttp(socket: Socket) {
   app.post('/reprint/:id', async (req, res) => {
     try {
       const wo = await getWebOrder(req.params.id);
-      const prints = await printOrderTickets(wo);
+      const prints = await printOrderTickets(wo, orderTargets);
       pushJob({
         at: new Date().toISOString(),
         webOrderId: wo.id,
@@ -216,6 +266,8 @@ async function main() {
   const info = getLoginInfo();
   state.user = info?.user.username ?? config.username;
   state.branchId = resolvedBranchId();
+  await refreshPrinterTargets();
+  setInterval(() => { void refreshPrinterTargets(); }, 60_000);
   console.log(
     `[auth] login OK sebagai ${state.user} (role ${info?.user.role}) — branch ${
       state.branchId || '(tidak ada, order tenant-wide)'

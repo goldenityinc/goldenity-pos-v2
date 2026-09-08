@@ -212,40 +212,62 @@ export interface PrintResult {
   error?: string;
 }
 
+/** Tujuan cetak 1 slot — kalau host kosong → mode console. */
+export interface PrintTarget {
+  host: string;
+  port: number;
+  source: string; // 'settings' | 'env' | 'console'
+}
+
 async function emit(
   kind: 'kitchen' | 'receipt',
   ticket: TicketBuilder,
-  host: string,
-  port: number,
+  target: PrintTarget,
 ): Promise<PrintResult> {
-  if (config.printerMode === 'tcp') {
-    const target = `${host}:${port}`;
+  const useTcp = config.printerMode === 'tcp' && !!target.host;
+  if (useTcp) {
+    const t = `${target.host}:${target.port} (${target.source})`;
     try {
-      await sendTcp(ticket.buffer(), host, port);
-      return { ok: true, mode: 'tcp', target, kind };
+      await sendTcp(ticket.buffer(), target.host, target.port);
+      return { ok: true, mode: 'tcp', target: t, kind };
     } catch (e: any) {
-      return { ok: false, mode: 'tcp', target, kind, error: e?.message ?? String(e) };
+      return { ok: false, mode: 'tcp', target: t, kind, error: e?.message ?? String(e) };
     }
   }
   const border = '-'.repeat(config.printerCols);
-  console.log(`\n[${kind.toUpperCase()}]\n${border}\n${ticket.plainText()}\n${border}\n`);
+  console.log(`\n[${kind.toUpperCase()}]  (${target.source})\n${border}\n${ticket.plainText()}\n${border}\n`);
   return { ok: true, mode: 'console', target: 'stdout', kind };
 }
 
-export function printKitchenTicket(wo: WebOrder): Promise<PrintResult> {
-  return emit('kitchen', buildKitchenTicket(wo), config.printerHost, config.printerPort);
+export interface OrderTargets {
+  receipt: PrintTarget;
+  kitchen: PrintTarget;
 }
 
-export function printReceiptTicket(wo: WebOrder): Promise<PrintResult> {
-  const host = config.receiptPrinterHost || config.printerHost;
-  const port = config.receiptPrinterHost ? config.receiptPrinterPort : config.printerPort;
-  return emit('receipt', buildReceiptTicket(wo), host, port);
+/** Target default dari .env (fallback kalau backend belum punya config printer). */
+export function envTargets(): OrderTargets {
+  return {
+    kitchen: { host: config.printerHost, port: config.printerPort, source: 'env' },
+    receipt: {
+      host: config.receiptPrinterHost || config.printerHost,
+      port: config.receiptPrinterHost ? config.receiptPrinterPort : config.printerPort,
+      source: 'env',
+    },
+  };
+}
+
+export function printKitchenTicket(wo: WebOrder, t?: PrintTarget): Promise<PrintResult> {
+  return emit('kitchen', buildKitchenTicket(wo), t ?? envTargets().kitchen);
+}
+
+export function printReceiptTicket(wo: WebOrder, t?: PrintTarget): Promise<PrintResult> {
+  return emit('receipt', buildReceiptTicket(wo), t ?? envTargets().receipt);
 }
 
 /** Cetak struk kasir + nota dapur untuk 1 web order (dipakai saat order ACCEPTED). */
-export async function printOrderTickets(wo: WebOrder): Promise<PrintResult[]> {
-  // Struk dulu (kasir), lalu nota dapur.
-  const receipt = await printReceiptTicket(wo);
-  const kitchen = await printKitchenTicket(wo);
+export async function printOrderTickets(wo: WebOrder, targets?: OrderTargets): Promise<PrintResult[]> {
+  const t = targets ?? envTargets();
+  const receipt = await printReceiptTicket(wo, t.receipt); // struk dulu (kasir)
+  const kitchen = await printKitchenTicket(wo, t.kitchen); // lalu nota dapur
   return [receipt, kitchen];
 }

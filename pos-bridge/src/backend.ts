@@ -97,3 +97,29 @@ export async function getWebOrder(id: string): Promise<WebOrder> {
   }
   return unwrap<WebOrder>(res);
 }
+
+export interface PrinterConfigRow {
+  slot: 'defaultPrinter' | 'kitchen' | 'cashier';
+  connectionType: 'bluetooth' | 'usb' | 'network' | 'none';
+  address: string | null;
+  port: number | null;
+  paperWidth: number | null;
+}
+
+/** Ambil konfigurasi printer cabang dari backend (sumber kebenaran = Pengaturan). */
+export async function getBranchPrinters(branchId: string): Promise<PrinterConfigRow[]> {
+  if (!branchId) return [];
+  const res = await fetch(url(`/settings/printers/${branchId}`), {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) {
+    await login();
+    return getBranchPrinters(branchId);
+  }
+  if (!res.ok) return [];
+  try {
+    return await unwrap<PrinterConfigRow[]>(res);
+  } catch {
+    return [];
+  }
+}
