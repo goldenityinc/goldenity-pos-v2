@@ -77,14 +77,70 @@ puncak → headroom ratusan kali lipat.)
 - Notifikasi desktop: toast Windows keluar utk order baru (XML `<toast>` terkirim
   ke Windows saat POS tidak fokus).
 
+## Tindak lanjut pertanyaan (run 4b)
+
+**"Order 'AutoAccept ON' kok masih ada tombol Terima?"**
+Bukan bug auto-accept. Verifikasi ulang di meja bersih (VERIFY-1): toggle ON →
+submit → `status ACCEPTED, autoAccepted true, salesRecordId` terisi (tak ada
+tombol Terima — hanya order SUBMITTED yang punya tombol itu). Yang muncul di
+screenshot adalah order **sisa stress test** yang bocor ke meja asli
+(F5251/S1397/A-02/T10228) karena bug `ensureTables` — script dulu pakai
+`tables.slice(0, want)` sehingga 4 meja asli jadi bagian dari 50 meja test, dan
+order-nya ikut nama sesi lama ("AutoAccept ON" padahal itu order skenario OFF /
+yang gagal auto-accept krn stok 0). **Fixed** `902f9f7`: script HANYA menyentuh
+meja prefix `ST-*` + auto-cleanup. Data test lama (880+ order) sudah diwipe.
+
+**"Stress test tanpa printer? tidak ada struk/checker ke-print"**
+Betul — bridge jalan `PRINTER_MODE=console`, jadi "cetak" = tulis plaintext ke
+log bridge (`[RECEIPT]` / `[KITCHEN]`), bukan ke printer fisik (tak ada hardware
+di sini). Stress test menghantam **backend** `/order/submit`; bridge tetap terima
+event ACCEPTED & console-print. Untuk cetak asli: set `PRINTER_MODE=tcp`.
+
+**"Struk belum di-setting?"**
+Sudah ada builder-nya (`buildReceiptTicket`), tapi alamat printer sebelumnya
+cuma dari `.env` bridge — terpisah dari Pengaturan POS. **Fixed** `902f9f7`:
+bridge sekarang **tarik config dari Pengaturan POS** (`GET /settings/printers/
+:branchId`, refresh 60 dtk). Slot `cashier`/`defaultPrinter` = Struk Kasir,
+`kitchen`/`defaultPrinter` = Nota Dapur — HANYA yang koneksi "Network (LAN)"
+(bridge tak bisa USB/Bluetooth; itu wewenang app POS langsung). `.env` = fallback.
+`/status` bridge tampilkan sumber tiap target. **Catatan**: kalau printer di
+Pengaturan di-set USB, bridge tak bisa pakai — perlu Network, atau printing
+web-order dilakukan app POS sendiri (belum diimplementasi).
+
+**"Badge 28 baru muncul di test terakhir"**
+"Baru (N)" = jumlah order SUBMITTED. Saat skenario ON, order langsung ACCEPTED →
+tak masuk hitungan "Baru". 28 (lalu 180) itu akumulasi order SUBMITTED dari
+skenario OFF + auto-accept yang gagal krn stok habis, yang tak pernah
+diterima/ditolak. Sudah dibersihkan. Poll app 15 dtk → badge tak update instan.
+
+## Jalankan di Railway staging (tanpa akses DB)
+```bash
+BASE=https://<staging>.up.railway.app LOAD_ONLY=1 \
+  TENANT_SLUG=<tenant-khusus-test> \
+  ADMIN_USER=<u> ADMIN_PASS=<p> KASIR_USER=<u> KASIR_PASS=<p> \
+  ORDERS=200 CONC=30 \
+  node tools/weborder-stress.mjs
+```
+`LOAD_ONLY=1` → tak import Prisma, verifikasi HANYA dari respons HTTP: queue
+number unik, `autoAccepted` sesuai mode, order auto punya `salesRecordId`, tak
+ada 5xx, + latency/throughput. Tidak cek stok / jumlah SalesRecord di DB.
+Pakai **tenant khusus test** — script bikin order + SalesRecord + toggle setting
+BENERAN di staging, dan **tidak auto-cleanup** di LOAD_ONLY.
+Kalau `DATABASE_URL` staging bisa diakses (Railway public proxy) → jalankan
+tanpa `LOAD_ONLY` untuk verifikasi + cleanup penuh.
+
 ## Commits (branch `staging`)
 `66737ef` backend+bridge auto-accept · `300a273` Flutter toggle+notif ·
-`445dd64` fix deadlock+oversell + tool stress.
+`445dd64` fix deadlock+oversell · `9e790fe` fix notif beruntun ·
+`902f9f7` printer dari Pengaturan + stress test tak sentuh meja asli ·
+`525fc19` stress LOAD_ONLY utk Railway.
 
-## Cara jalankan stress test lagi
+## Cara jalankan stress test lagi (lokal)
 ```bash
 cd pos-backend
-node tools/weborder-stress.mjs                          # 50 meja, 400 order, dua skenario
+node tools/weborder-stress.mjs                          # 50 meja, 400 order, 2 skenario, auto-cleanup
+KEEP=1 node tools/weborder-stress.mjs                    # jangan hapus data test
+MODE=cleanup node tools/weborder-stress.mjs             # bersihkan data test manual
 TABLES=50 ORDERS=1000 CONC=100 node tools/weborder-stress.mjs
 TABLES=50 ORDERS=150 CONC=60 MODE=on STOCK=8 node tools/weborder-stress.mjs   # uji oversell
 ```
