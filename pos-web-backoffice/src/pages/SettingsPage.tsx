@@ -25,7 +25,7 @@ function SettingRow({
           <span className={`text-[13px] font-bold ${locked ? 'text-ink2' : 'text-ink'}`}>{title}</span>
           {locked && (
             <span className="inline-flex items-center gap-1 rounded-full border border-[#FDE68A] bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-extrabold text-[#854D0E]">
-              <Icon.lock width={10} height={10} /> Hanya Super Admin
+              <Icon.lock width={10} height={10} /> Hanya Owner
             </span>
           )}
         </div>
@@ -70,7 +70,7 @@ export default function SettingsPage() {
   const toast = useToast();
   const me = useAuth((s) => s.me);
   const refreshMe = useAuth((s) => s.refreshMe);
-  const isSuperAdmin = me?.user.role === 'SUPER_ADMIN';
+  const canEditOwnerSettings = me?.user.role === 'SUPER_ADMIN' || me?.user.role === 'TENANT_ADMIN';
 
   const [tab, setTab] = useState('toko');
   const [store, setStore] = useState<StoreSettings | null>(null);
@@ -105,9 +105,9 @@ export default function SettingsPage() {
         phone: store.phone,
         receiptFooter: store.receiptFooter,
         isPaymentProofMandatory: store.isPaymentProofMandatory,
-        // Blind Close & Pajak (PPN) — hanya SUPER_ADMIN. Server juga menolak
-        // perubahan dari peran lain, jadi tidak dikirim kalau bukan super admin.
-        ...(isSuperAdmin
+        // Blind Close & Pajak (PPN) = pengaturan level pemilik (Owner =
+        // SUPER_ADMIN / TENANT_ADMIN). Server juga menolak peran operasional.
+        ...(canEditOwnerSettings
           ? {
               blindShiftClose: store.blindShiftClose,
               taxEnabled: store.taxEnabled,
@@ -248,19 +248,19 @@ export default function SettingsPage() {
             />
             <SettingRow
               title="Blind Close Shift Kasir"
-              locked={!isSuperAdmin}
+              locked={!canEditOwnerSettings}
               desc="Jika aktif, kasir tidak melihat ekspektasi uang sistem & selisih saat buka/tutup shift. Ekspektasi baru ditampilkan setelah kasir memasukkan jumlah aktual."
               control={
                 <Toggle
                   checked={store.blindShiftClose}
-                  disabled={!isSuperAdmin}
+                  disabled={!canEditOwnerSettings}
                   onChange={(v) => setStore({ ...store, blindShiftClose: v })}
                 />
               }
             />
             <SettingRow
               title="Aktifkan Pajak (PPN)"
-              locked={!isSuperAdmin}
+              locked={!canEditOwnerSettings}
               desc={
                 store.taxEnabled
                   ? 'Transaksi dikenakan pajak sesuai persentase di bawah.'
@@ -269,7 +269,7 @@ export default function SettingsPage() {
               control={
                 <Toggle
                   checked={store.taxEnabled}
-                  disabled={!isSuperAdmin}
+                  disabled={!canEditOwnerSettings}
                   onChange={(v) => setStore({ ...store, taxEnabled: v })}
                 />
               }
@@ -281,7 +281,7 @@ export default function SettingsPage() {
                     label="Persentase PPN (%)"
                     mono
                     type="number"
-                    disabled={!isSuperAdmin}
+                    disabled={!canEditOwnerSettings}
                     value={store.taxRatePercentage}
                     onChange={(e) => setStore({ ...store, taxRatePercentage: Number(e.target.value) || 0 })}
                   />
@@ -290,12 +290,12 @@ export default function SettingsPage() {
             )}
             <SettingRow
               title="Harga Sudah Termasuk PPN"
-              locked={!isSuperAdmin}
+              locked={!canEditOwnerSettings}
               desc="ON: harga jual produk sudah termasuk pajak (dihitung mundur). OFF: PPN ditambahkan di atas subtotal."
               control={
                 <Toggle
                   checked={store.pricesIncludeTax}
-                  disabled={!isSuperAdmin || !store.taxEnabled}
+                  disabled={!canEditOwnerSettings || !store.taxEnabled}
                   onChange={(v) => setStore({ ...store, pricesIncludeTax: v })}
                 />
               }

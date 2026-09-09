@@ -86,10 +86,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     return s?.selectedBranchId ?? s?.user.branchId;
   }
 
-  /// Beberapa pengaturan (Blind Close Shift, Pajak/PPN) hanya bisa diubah oleh
-  /// SUPER_ADMIN. Peran lain melihat toggle-nya terkunci ("Hanya Super Admin").
-  bool get _isSuperAdmin =>
-      ref.read(currentSessionProvider)?.user.role == UserRole.SUPER_ADMIN;
+  /// Pengaturan level pemilik (Blind Close Shift, Pajak/PPN) hanya bisa diubah
+  /// oleh Owner tenant = SUPER_ADMIN atau TENANT_ADMIN (akun yang dibuat admin
+  /// dari portal). Peran operasional (kasir/manajer/checker/dll) melihatnya
+  /// terkunci ("Hanya Owner").
+  bool get _canEditOwnerSettings {
+    final role = ref.read(currentSessionProvider)?.user.role;
+    return role == UserRole.SUPER_ADMIN || role == UserRole.TENANT_ADMIN;
+  }
 
   String _branchNameFor(String? id) {
     if (id == null) return 'Cabang';
@@ -203,10 +207,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         'isPaymentProofMandatory': _storeIsPaymentProofMandatory,
         // Blind Close & Pajak (PPN) hanya dikirim oleh SUPER_ADMIN — peran lain
         // melihatnya terkunci & server juga menolak perubahannya.
-        if (_isSuperAdmin) 'blindShiftClose': _blindShiftClose,
-        if (_isSuperAdmin) 'taxEnabled': _taxEnabled,
-        if (_isSuperAdmin) 'taxRatePercentage': _taxRatePercentage.toInt(),
-        if (_isSuperAdmin) 'pricesIncludeTax': _pricesIncludeTax,
+        if (_canEditOwnerSettings) 'blindShiftClose': _blindShiftClose,
+        if (_canEditOwnerSettings) 'taxEnabled': _taxEnabled,
+        if (_canEditOwnerSettings) 'taxRatePercentage': _taxRatePercentage.toInt(),
+        if (_canEditOwnerSettings) 'pricesIncludeTax': _pricesIncludeTax,
         'webOrderAutoAccept': _webOrderAutoAccept,
       };
       await settingsApi.updateStore(authToken: token, data: payload);
@@ -1010,8 +1014,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     subtitle:
                         'Jika aktif, kasir tidak melihat ekspektasi uang sistem & selisih saat buka/tutup shift. Ekspektasi baru ditampilkan setelah kasir memasukkan jumlah aktual.',
                     value: _blindShiftClose,
-                    locked: !_isSuperAdmin,
-                    onChanged: (!_isSuperAdmin || _loading)
+                    locked: !_canEditOwnerSettings,
+                    onChanged: (!_canEditOwnerSettings || _loading)
                         ? null
                         : (v) => setState(() => _blindShiftClose = v),
                   ),
@@ -1024,8 +1028,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         ? 'Transaksi dikenakan pajak sesuai persentase di bawah.'
                         : 'Pajak dinonaktifkan — harga produk dianggap sudah final.',
                     value: _taxEnabled,
-                    locked: !_isSuperAdmin,
-                    onChanged: (!_isSuperAdmin || _loading)
+                    locked: !_canEditOwnerSettings,
+                    onChanged: (!_canEditOwnerSettings || _loading)
                         ? null
                         : (v) => setState(() => _taxEnabled = v),
                   ),
@@ -1036,7 +1040,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       suffixText: '%',
                       helperText: 'Default 11% (standar PPN UMKM F&B)',
                     ),
-                    enabled: _isSuperAdmin && _taxEnabled && !_loading,
+                    enabled: _canEditOwnerSettings && _taxEnabled && !_loading,
                     keyboardType: TextInputType.number,
                     initialValue: _taxRatePercentage.toString(),
                     onChanged: (s) {
@@ -1058,8 +1062,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     subtitle:
                         'ON: harga jual produk sudah termasuk pajak (dihitung mundur). OFF: PPN ditambahkan di atas subtotal.',
                     value: _pricesIncludeTax,
-                    locked: !_isSuperAdmin,
-                    onChanged: (!_isSuperAdmin || !_taxEnabled || _loading)
+                    locked: !_canEditOwnerSettings,
+                    onChanged: (!_canEditOwnerSettings || !_taxEnabled || _loading)
                         ? null
                         : (v) => setState(() => _pricesIncludeTax = v),
                   ),
@@ -1083,7 +1087,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
   }
 
-  /// Pill "🔒 Hanya Super Admin" untuk pengaturan yang terkunci ke SUPER_ADMIN.
+  /// Pill "🔒 Hanya Owner" untuk pengaturan level pemilik (SUPER_ADMIN/TENANT_ADMIN).
   Widget _lockBadge(TextTheme textTheme) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
@@ -1096,7 +1100,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           children: [
             const Icon(Icons.lock_rounded, size: 11, color: Color(0xFF854D0E)),
             const SizedBox(width: 4),
-            Text('Hanya Super Admin',
+            Text('Hanya Owner',
                 style: textTheme.labelSmall?.copyWith(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w800,

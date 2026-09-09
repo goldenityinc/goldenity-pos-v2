@@ -143,16 +143,9 @@ export class SettingsService {
 
     try {
       const payload = parsed.data;
-
-      // RBAC — Blind Close Shift & Pajak (PPN) hanya boleh diubah SUPER_ADMIN.
-      // Untuk peran lain (termasuk TENANT_ADMIN), field-field ini di-strip
-      // diam-diam agar sisa pengaturan tetap tersimpan; UI juga menonaktifkannya.
-      if (user.role !== TypesUserRole.SUPER_ADMIN) {
-        payload.blindShiftClose = undefined;
-        payload.taxEnabled = undefined;
-        payload.taxRatePercentage = undefined;
-        payload.pricesIncludeTax = undefined;
-      }
+      // Blind Close Shift & Pajak (PPN) = pengaturan level pemilik. Endpoint ini
+      // sudah menolak peran selain TENANT_ADMIN (owner) / SUPER_ADMIN di atas,
+      // jadi tidak perlu strip field tambahan di sini.
       const updated = await prisma.tenant.update({
         where: { id: user.tenantId },
         data: {
