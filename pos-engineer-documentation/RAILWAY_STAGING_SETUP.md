@@ -1,7 +1,62 @@
 # Railway Staging — Setup & Cara Connect
 
-Status: **panduan** (belum dieksekusi). Tidak ada `git push` sampai aba-aba.
-Terakhir diperbarui: 2026-09-09.
+Status: **siap eksekusi.** `railway.json` per service sudah dibuat; deploy = auto dari GitHub
+setelah `git push origin staging`. Terakhir diperbarui: 2026-09-09.
+
+---
+
+## RUNBOOK — langkah berurutan (ikuti dari atas)
+
+Prasyarat: akun Railway, `psql`/`pg_dump` lokal, `DATABASE_URL` DB POS **produksi** (`$PROD`).
+
+### 1 · Push kode
+```bash
+cd E:/Goldenity/goldenity-pos-v2
+git push origin staging        # ~96 commit; branch `staging`
+```
+(admin-core & super-admin: branch masing-masing di-push terpisah kalau perlu portal — POS staging tidak butuh itu.)
+
+### 2 · Railway project
+1. railway.app → **New Project** → `goldenity-pos-staging`.
+2. **+ New → Database → PostgreSQL**. Buka tab *Variables*, catat `DATABASE_URL` (versi **public/proxy** untuk restore dari laptop; versi **internal** untuk service).
+3. **+ New → GitHub Repo** `goldenityinc/goldenity-pos-v2`, branch `staging`, **3x** — sekali per service, set **Root Directory**:
+   - `pos-backend`  ·  `pos-web-order`  ·  `pos-web-backoffice`
+   Tiap service otomatis pakai `railway.json` di folder itu.
+
+### 3 · Slice DB produksi → staging
+```bash
+pg_dump "$PROD" --no-owner --no-privileges -Fc -f pos_prod.dump
+pg_restore --no-owner --no-privileges --clean --if-exists -d "$STAGING_PUBLIC_URL" pos_prod.dump
+```
+Terapkan 3 fase skema baru yang belum ada di dump (**idempoten, aman diulang**):
+```bash
+cd pos-backend
+DATABASE_URL="$STAGING_PUBLIC_URL" npx prisma db execute \
+  --file prisma/manual/staging_apply_v2_additions.sql --schema prisma/schema.prisma
+```
+> Kalau `_prisma_migrations` di produksi rapi, boleh ganti dengan `npx prisma migrate deploy` — tapi histori V1→V2 sering tidak sinkron, jadi SQL idempoten di atas lebih aman. Backend TIDAK auto-migrate saat boot (`startCommand` = `node dist/index.js` saja).
+
+### 4 · Env vars pos-backend  (Settings → Variables)
+| Key | Value |
+|---|---|
+| `NODE_ENV` | `production` |
+| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (reference, versi internal) |
+| `JWT_SECRET` | `openssl rand -hex 32` — **baru, bukan produksi** |
+| `JWT_EXPIRES_IN` | `24h` |
+| `CORS_ORIGIN` | `https://<web-order>.up.railway.app,https://<backoffice>.up.railway.app` (isi setelah step 6) |
+| `WEB_ORDER_BASE_URL` | `https://<web-order>.up.railway.app` (isi setelah step 6) |
+| `CORE_SYNC_TOKEN` | token acak (kalau mau sync langganan dari admin-core prod — lihat §5 bawah) |
+
+### 5 · Env vars web (build-time — set SEBELUM deploy pertama, atau redeploy)
+- **pos-web-order** & **pos-web-backoffice**: `VITE_API_BASE = https://<pos-backend>.up.railway.app`
+
+### 6 · Domain & finalisasi
+1. Tiap service: Settings → Networking → **Generate Domain**. Catat 3 URL.
+2. Isi balik `CORS_ORIGIN` + `WEB_ORDER_BASE_URL` (pos-backend) dan `VITE_API_BASE` (2 web app) dengan URL nyata → **Redeploy** service yang env-nya berubah.
+3. Smoke test: `GET https://<pos-backend>/api/v1/health` → 200; login pos-web-backoffice pakai user produksi; buka pos-web-order (refresh di halaman dalam tidak 404).
+
+### 7 · POS Flutter → staging
+`pos-native-desktop-tablet/lib/core/config/api_constants.dart` → ganti `devBaseUrl` ke `https://<pos-backend>.up.railway.app`, rebuild.
 
 ---
 
