@@ -1704,8 +1704,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
   /// Toggle "Metode Pembayaran Web Order" per-cabang — simpan ke /settings/branches/:id.
   Future<void> _toggleWebOrderQrisOnly(bool value) async {
+    if (_savingPaymentMode) return;
     final branchId = _loginBranchId;
-    if (branchId == null || branchId.isEmpty) return;
+    if (branchId == null || branchId.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          backgroundColor: GoldenityColors.warning,
+          content: Text('Cabang belum terpilih — buka ulang aplikasi & pilih cabang dulu.'),
+        ));
+      }
+      return;
+    }
     final prev = _webOrderQrisOnly;
     setState(() {
       _webOrderQrisOnly = value;
@@ -1773,7 +1782,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                           ?.copyWith(fontWeight: FontWeight.w800)),
                   const SizedBox(height: 2),
                   Text(
-                      'Cabang ${_branchNameFor(_loginBranchId)} · cara pelanggan menyelesaikan pembayaran pesanan online',
+                      '${_branchNameFor(_loginBranchId)} · cara pelanggan menyelesaikan pembayaran pesanan online',
                       style: textTheme.bodySmall
                           ?.copyWith(color: GoldenityColors.muted)),
                 ],
@@ -1841,6 +1850,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.4,
                 color: GoldenityColors.muted)),
+        Text('Ketuk "Bayar di Kasir" untuk mengaktifkan / menonaktifkannya.',
+            style: textTheme.labelSmall
+                ?.copyWith(color: GoldenityColors.muted, fontSize: 10.5)),
         const SizedBox(height: GoldenitySpacing.sm),
         LayoutBuilder(builder: (context, c) {
           final qrisOpt = _checkoutPreviewOption(
@@ -1849,7 +1861,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             icon: Icons.qr_code_2_rounded,
             title: 'Bayar via QRIS',
             subtitle: 'Scan & bayar sekarang',
-            selected: true,
+            available: true,
+            onTap: () {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: Text('QRIS selalu tersedia untuk web order.'),
+                ));
+              }
+            },
           );
           final cashierOpt = _checkoutPreviewOption(
             textTheme,
@@ -1857,8 +1876,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             icon: Icons.storefront_rounded,
             title: 'Bayar di Kasir',
             subtitle: 'Tunai saat di tempat',
-            selected: false,
-            disabled: !cashierAllowed,
+            available: cashierAllowed,
+            onTap: _loading ? null : () => _toggleWebOrderQrisOnly(cashierAllowed),
           );
           if (c.maxWidth < 460) {
             return Column(children: [
@@ -1911,54 +1930,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     required IconData icon,
     required String title,
     required String subtitle,
-    required bool selected,
-    bool disabled = false,
+    required bool available,
+    VoidCallback? onTap,
   }) {
-    final border = selected ? biz.base : GoldenityColors.border;
-    return Opacity(
-      opacity: disabled ? 0.45 : 1,
-      child: Container(
-        padding: const EdgeInsets.all(GoldenitySpacing.md),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(GoldenityRadius.md),
-          border: Border.all(color: border, width: selected ? 1.5 : 1),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: GoldenityColors.surface2,
-                borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-              ),
-              alignment: Alignment.center,
-              child: Icon(icon, size: 16, color: GoldenityColors.text2),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        child: Opacity(
+          opacity: available ? 1 : 0.5,
+          child: Container(
+            padding: const EdgeInsets.all(GoldenitySpacing.md),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(GoldenityRadius.md),
+              border: Border.all(
+                  color: available ? biz.base : GoldenityColors.border,
+                  width: available ? 1.5 : 1),
             ),
-            const SizedBox(width: GoldenitySpacing.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: textTheme.bodySmall
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 1),
-                  Text(subtitle,
-                      style: textTheme.labelSmall
-                          ?.copyWith(color: GoldenityColors.muted, fontSize: 11)),
-                ],
-              ),
+            child: Row(
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: GoldenityColors.surface2,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, size: 16, color: GoldenityColors.text2),
+                ),
+                const SizedBox(width: GoldenitySpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: textTheme.bodySmall
+                              ?.copyWith(fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 1),
+                      Text(available ? subtitle : 'Disembunyikan di checkout',
+                          style: textTheme.labelSmall?.copyWith(
+                              color: GoldenityColors.muted, fontSize: 11)),
+                    ],
+                  ),
+                ),
+                Icon(
+                  available
+                      ? Icons.check_circle_rounded
+                      : Icons.remove_circle_outline_rounded,
+                  size: 16,
+                  color: available ? GoldenityColors.success : GoldenityColors.border,
+                ),
+              ],
             ),
-            Icon(
-              selected
-                  ? Icons.radio_button_checked_rounded
-                  : Icons.radio_button_off_rounded,
-              size: 16,
-              color: selected ? biz.base : GoldenityColors.border,
-            ),
-          ],
+          ),
         ),
       ),
     );

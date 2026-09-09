@@ -80,8 +80,9 @@ class ShiftApiService {
       if (notes != null && notes.isNotEmpty) 'notes': notes,
     };
     final uri = ApiConstants.shiftCloseEndpoint(shiftId);
+    // Backend: PUT /shifts/:shiftId/close (bukan POST) — POST → 404.
     final resp = await _client
-        .post(uri, headers: _authHeaders(authToken), body: jsonEncode(payload))
+        .put(uri, headers: _authHeaders(authToken), body: jsonEncode(payload))
         .timeout(ApiConstants.defaultReceiveTimeout);
     final data = _ensureSuccess(_parseJsonOrFail(resp.body, resp.statusCode));
     final inner = data['data'] as Map<String, dynamic>? ?? data;
