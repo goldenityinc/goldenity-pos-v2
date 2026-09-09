@@ -579,7 +579,7 @@ export default function FinancePage() {
           </div>
         </div>
       ) : tab === 'ledger' && ledger ? (
-        <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+        <div className="grid items-start gap-4 lg:grid-cols-[1fr_280px]">
           <section className="overflow-hidden rounded-card border border-line bg-white shadow-card">
             <div className="flex items-center gap-2 border-b border-line p-3">
               <Button size="sm" variant="outline" disabled title="Fase berikutnya">
@@ -587,7 +587,7 @@ export default function FinancePage() {
               </Button>
               <span className="text-[11px] text-muted">{ledger.note}</span>
             </div>
-            <div className="max-h-[560px] overflow-auto">
+            <div className="max-h-[calc(100vh-260px)] min-h-[240px] overflow-auto">
               <table className="w-full text-[12.5px]">
                 <thead className="sticky top-0 bg-[#FAFAFA] text-[10.5px] uppercase tracking-wide text-muted">
                   <tr>
@@ -644,18 +644,18 @@ export default function FinancePage() {
               </table>
             </div>
           </section>
-          <section className="h-fit rounded-card border border-line bg-white p-4 shadow-card">
-            <h3 className="mb-3 text-[13px] font-extrabold text-ink">Saldo Akun</h3>
-            <div className="flex flex-col gap-2.5">
+          <section className="flex max-h-[calc(100vh-200px)] flex-col rounded-card border border-line bg-white p-4 shadow-card lg:sticky lg:top-4">
+            <h3 className="mb-3 shrink-0 text-[13px] font-extrabold text-ink">Saldo Akun</h3>
+            <div className="-mr-1 flex flex-col gap-2.5 overflow-y-auto pr-1">
               {ledger.accounts.map((a, i) => (
-                <div key={i} className="flex items-center justify-between border-b border-line pb-2 last:border-0">
-                  <div>
+                <div key={i} className="flex items-center justify-between gap-2 border-b border-line pb-2 last:border-0">
+                  <div className="min-w-0">
                     <div className="text-[12.5px] font-semibold text-ink2">{a.name}</div>
                     <div className="text-[10.5px] text-muted">
                       {a.code} · {a.type}
                     </div>
                   </div>
-                  <span className={`num text-[13px] font-bold ${a.type === 'Pendapatan' ? 'text-ok' : a.type === 'Beban' ? 'text-err' : 'text-ink'}`}>
+                  <span className={`num shrink-0 text-[13px] font-bold ${a.type === 'Pendapatan' ? 'text-ok' : a.type === 'Beban' ? 'text-err' : 'text-ink'}`}>
                     {rupiahShort(a.balance)}
                   </span>
                 </div>

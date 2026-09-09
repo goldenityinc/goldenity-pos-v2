@@ -230,6 +230,12 @@ export class FinanceService {
     const payGrp = await prisma.salesRecord.groupBy({ by: ['paymentMethod'], where: salesWhere(s), _sum: { total: true } });
 
     const catName = new Map(cats.map((c) => [c.id, c.name]));
+    // Kode akun beban per kategori: 5-101, 5-102, … (stabil per urutan kategori).
+    const sortedCatIds = [...cats].sort((a, b) => a.name.localeCompare(b.name)).map((c) => c.id);
+    const bebanCode = (categoryId: string | null) => {
+      const idx = categoryId ? sortedCatIds.indexOf(categoryId) : -1;
+      return idx >= 0 ? `5-1${String(idx + 1).padStart(2, '0')}` : '5-100';
+    };
 
     let seq = 0;
     const entries: any[] = [];
@@ -253,7 +259,7 @@ export class FinanceService {
       });
     }
     for (const ex of expenses) {
-      const acc = { code: '5-1xx', name: `Beban ${ex.category?.name ?? 'Operasional'}`, type: 'Beban' };
+      const acc = { code: bebanCode(ex.categoryId), name: `Beban ${ex.category?.name ?? 'Operasional'}`, type: 'Beban' };
       entries.push({
         id: `E${ex.id}`,
         entryNumber: `JRN-${iso(ex.expenseDate).replace(/-/g, '').slice(2)}-${String(++seq).padStart(3, '0')}`,
@@ -306,7 +312,7 @@ export class FinanceService {
       { ...ACC.svc, balance: totalSvc },
       { ...ACC.cogs, balance: Math.round(cogs) },
       ...expAllByCat.map((g) => ({
-        code: '5-1xx',
+        code: bebanCode(g.categoryId),
         name: `Beban ${catName.get(g.categoryId) ?? '—'}`,
         type: 'Beban',
         balance: n(g._sum.amount),
