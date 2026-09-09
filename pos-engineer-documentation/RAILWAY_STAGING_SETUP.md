@@ -129,6 +129,7 @@ Tambahkan 4 komponen:
 | `JWT_SECRET` | 32+ byte acak baru — **jangan** samakan dengan produksi (`openssl rand -hex 32`) |
 | `JWT_EXPIRES_IN` | `24h` |
 | `CORS_ORIGIN` | daftar origin FE staging, **dipisah koma** (dipakai Express **dan** Socket.IO): `https://pos-web-order-staging.up.railway.app,https://pos-web-backoffice-staging.up.railway.app` (hindari `*` karena `credentials: true`) |
+| `WEB_ORDER_BASE_URL` | origin **pos-web-order** yang ter-deploy, mis. `https://pos-web-order-staging.up.railway.app`. Dipakai membangun URL QR meja (`{BASE}/{tenantSlug}/{branchId}/t/{qrToken}`). QR di-generate saat request → cukup set env ini, tidak ada data yang perlu disiapkan; `qrToken` per meja tidak berubah. PDF QR yang sudah dicetak sebelum env di-set (masih pakai default `order.goldenity.app`) tinggal dicetak ulang. |
 | `CORE_SYNC_TOKEN` | token acak baru; **harus sama** dengan yang dipasang di admin-core produksi kalau mau sync langganan otomatis (langkah 5). Kosongkan kalau mau isi langganan manual. |
 
 > `src/config/cors.ts` `parseCorsOrigin()` sudah menangani `*` / satu origin / daftar dipisah koma, dipakai bersama oleh Express CORS dan Socket.IO. Tidak perlu var terpisah untuk socket.
