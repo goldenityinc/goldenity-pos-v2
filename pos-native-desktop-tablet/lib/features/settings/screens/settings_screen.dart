@@ -6,6 +6,7 @@ import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/services/hardware_connection_service.dart';
+import '../../../core/services/pin_service.dart';
 import '../../../shared/widgets/goldenity_image_upload_field.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
@@ -778,6 +779,54 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
   }
 
+  Widget _buildOfflinePinCard(TextTheme textTheme) {
+    final session = ref.read(currentSessionProvider);
+    final userId = session?.user.id;
+    final pin = ref.read(pinServiceProvider);
+    final isSet = userId != null && pin.isSet(userId);
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        border: Border.all(color: GoldenityColors.border),
+      ),
+      padding: const EdgeInsets.all(GoldenitySpacing.lg),
+      child: Row(
+        children: [
+          const Icon(Icons.pin_rounded, color: GoldenityColors.primary),
+          const SizedBox(width: GoldenitySpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('PIN Offline', style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 2),
+                Text(
+                    isSet
+                        ? 'Aktif — dipakai untuk buka aplikasi saat offline.'
+                        : 'Belum diatur. Akan ditawarkan saat login berikutnya.',
+                    style: textTheme.bodySmall?.copyWith(color: GoldenityColors.muted)),
+              ],
+            ),
+          ),
+          if (isSet)
+            TextButton(
+              onPressed: () async {
+                await pin.clear(userId);
+                if (mounted) {
+                  setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('PIN Offline dihapus. Login ulang untuk membuat baru.')),
+                  );
+                }
+              },
+              child: const Text('Reset PIN', style: TextStyle(color: GoldenityColors.error)),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStoreInfoTab(
       BuildContext context, TextTheme textTheme, GoldenityBizColors biz) {
     final token = ref.read(authNotifierProvider.notifier).session?.token ?? '';
@@ -786,6 +835,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       child: ListView(
         padding: const EdgeInsets.all(GoldenitySpacing.lg),
         children: [
+          _buildOfflinePinCard(textTheme),
+          const SizedBox(height: GoldenitySpacing.md),
           Container(
             decoration: BoxDecoration(
               color: Colors.white,

@@ -15,6 +15,7 @@ function statusFor(result: ApiResponse<any>, okStatus = 200): number {
   if (result.code === 'NOT_FOUND') return 404;
   if (result.code === 'SESSION_ENDED') return 410;
   if (result.code === 'TABLE_INACTIVE' || result.code === 'OUT_OF_STOCK' || result.code === 'PRODUCT_UNAVAILABLE') return 409;
+  if (result.code === 'PAYMENT_METHOD_NOT_ALLOWED' || result.code === 'INSUFFICIENT_STOCK') return 422;
   if (e.startsWith('Payload')) return 400;
   return 500;
 }
