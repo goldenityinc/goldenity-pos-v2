@@ -23,18 +23,32 @@ git push origin staging        # ~96 commit; branch `staging`
    - `pos-backend`  ·  `pos-web-order`  ·  `pos-web-backoffice`
    Tiap service otomatis pakai `railway.json` di folder itu.
 
-### 3 · Slice DB produksi → staging
-```bash
-pg_dump "$PROD" --no-owner --no-privileges -Fc -f pos_prod.dump
-pg_restore --no-owner --no-privileges --clean --if-exists -d "$STAGING_PUBLIC_URL" pos_prod.dump
-```
-Terapkan 3 fase skema baru yang belum ada di dump (**idempoten, aman diulang**):
+### 3 · DB staging — **fresh + seed** (bukan slice)
+
+> **PENTING — koreksi arsitektur.** V2 pos-backend = **single-DB multi-tenant**
+> (`prisma` satu client, satu `DATABASE_URL`; login cek tabel `Tenant`/`User`
+> di DB itu, bcrypt lokal — TIDAK ada SSO/link ke admin-core). admin-core ↔
+> pos-backend V2 **hanya** webhook langganan (`PUT /subscription/:tenantId`),
+> tidak membawa user/produk/cabang. **V2 belum pernah deploy produksi**, jadi
+> **tidak ada "DB POS produksi V2" untuk di-slice.** DB per-tenant + `provision:tenant`
+> itu arsitektur **V1** (`goldenity-pointofsales-app`), skema-nya beda (snake_case,
+> tanpa `tenantId`) → dump V1 TIDAK bisa `pg_restore` ke V2.
+>
+> Migrasi data V1→V2 = proyek ETL terpisah, di luar scope "set up staging".
+
 ```bash
 cd pos-backend
-DATABASE_URL="$STAGING_PUBLIC_URL" npx prisma db execute \
-  --file prisma/manual/staging_apply_v2_additions.sql --schema prisma/schema.prisma
+# 1. Skema: pakai db push (bukan migrate deploy — histori migrasi V2 rusak,
+#    `20260904110000_category_hard_cutover` gagal replay dari nol).
+DATABASE_URL="$STAGING_PUBLIC_URL" npx prisma db push --skip-generate
+# 2. Data awal: tenant demo + admin/kasir + produk + contoh pengeluaran.
+DATABASE_URL="$STAGING_PUBLIC_URL" npm run db:seed
 ```
-> Kalau `_prisma_migrations` di produksi rapi, boleh ganti dengan `npx prisma migrate deploy` — tapi histori V1→V2 sering tidak sinkron, jadi SQL idempoten di atas lebih aman. Backend TIDAK auto-migrate saat boot (`startCommand` = `node dist/index.js` saja).
+Login staging: **demo-fnb** · `admin` / `admin123` (owner) · `kasir` / `kasir123`.
+
+`prisma/manual/staging_apply_v2_additions.sql` (idempoten) hanya dibutuhkan
+**kalau** kelak me-restore dump DB V2 lama yang belum punya Fase 3 / Keuangan K1.
+Backend TIDAK auto-migrate saat boot (`startCommand` = `node dist/index.js`).
 
 ### 4 · Env vars pos-backend  (Settings → Variables)
 | Key | Value |
@@ -53,7 +67,7 @@ DATABASE_URL="$STAGING_PUBLIC_URL" npx prisma db execute \
 ### 6 · Domain & finalisasi
 1. Tiap service: Settings → Networking → **Generate Domain**. Catat 3 URL.
 2. Isi balik `CORS_ORIGIN` + `WEB_ORDER_BASE_URL` (pos-backend) dan `VITE_API_BASE` (2 web app) dengan URL nyata → **Redeploy** service yang env-nya berubah.
-3. Smoke test: `GET https://<pos-backend>/api/v1/health` → 200; login pos-web-backoffice pakai user produksi; buka pos-web-order (refresh di halaman dalam tidak 404).
+3. Smoke test: `GET https://<pos-backend>/api/v1/health` → 200; login pos-web-backoffice: demo-fnb/admin/admin123; buka pos-web-order (refresh di halaman dalam tidak 404).
 
 ### 7 · POS Flutter → staging
 `pos-native-desktop-tablet/lib/core/config/api_constants.dart` → ganti `devBaseUrl` ke `https://<pos-backend>.up.railway.app`, rebuild.
