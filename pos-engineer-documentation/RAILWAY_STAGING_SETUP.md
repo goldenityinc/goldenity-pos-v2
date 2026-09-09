@@ -74,6 +74,11 @@ Backend TIDAK auto-migrate saat boot (`startCommand` = `node dist/index.js`).
 
 ---
 
+> ⚠️ **Bagian §0–§8 di bawah ini adalah draf lama** yang mengasumsikan "slice dari
+> DB POS produksi". Itu **tidak berlaku untuk V2** (lihat kotak PENTING di §3
+> RUNBOOK di atas). Ikuti **RUNBOOK** di atas. §0–§8 disimpan hanya sebagai
+> catatan/arsip.
+
 ## 0. Topologi yang dituju
 
 ```
