@@ -12,6 +12,7 @@ import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../../../core/models/branch_profile_extended.dart';
 import '../../../core/models/printer_config_profile.dart';
+import '../../../core/models/user_profile.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../inventory/providers/product_list_provider.dart';
 import '../../sales/providers/cart_provider.dart';
@@ -84,6 +85,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     final s = ref.read(currentSessionProvider);
     return s?.selectedBranchId ?? s?.user.branchId;
   }
+
+  /// Beberapa pengaturan (Blind Close Shift, Pajak/PPN) hanya bisa diubah oleh
+  /// SUPER_ADMIN. Peran lain melihat toggle-nya terkunci ("Hanya Super Admin").
+  bool get _isSuperAdmin =>
+      ref.read(currentSessionProvider)?.user.role == UserRole.SUPER_ADMIN;
 
   String _branchNameFor(String? id) {
     if (id == null) return 'Cabang';
@@ -195,10 +201,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           'receiptFooter': _storeReceiptFooterCtrl.text.trim(),
         'allowPayAtCashier': _storeAllowPayAtCashier,
         'isPaymentProofMandatory': _storeIsPaymentProofMandatory,
-        'blindShiftClose': _blindShiftClose,
-        'taxEnabled': _taxEnabled,
-        'taxRatePercentage': _taxRatePercentage.toInt(),
-        'pricesIncludeTax': _pricesIncludeTax,
+        // Blind Close & Pajak (PPN) hanya dikirim oleh SUPER_ADMIN — peran lain
+        // melihatnya terkunci & server juga menolak perubahannya.
+        if (_isSuperAdmin) 'blindShiftClose': _blindShiftClose,
+        if (_isSuperAdmin) 'taxEnabled': _taxEnabled,
+        if (_isSuperAdmin) 'taxRatePercentage': _taxRatePercentage.toInt(),
+        if (_isSuperAdmin) 'pricesIncludeTax': _pricesIncludeTax,
         'webOrderAutoAccept': _webOrderAutoAccept,
       };
       await settingsApi.updateStore(authToken: token, data: payload);
@@ -879,18 +887,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         v!.trim().isEmpty ? 'Nama toko wajib diisi' : null,
                   ),
                   const SizedBox(height: GoldenitySpacing.md),
-                  GoldenityImageUploadField(
-                    label: 'Logo Toko',
-                    kind: 'logo',
-                    authToken: token,
-                    value: _storeLogoCtrl.text.trim().isEmpty
-                        ? null
-                        : _storeLogoCtrl.text.trim(),
-                    enabled: !_loading,
-                    helperText: 'PNG / JPG, maks 6MB. Tampil di header struk.',
-                    onChanged: (url) =>
-                        setState(() => _storeLogoCtrl.text = url ?? ''),
-                  ),
+                  // Logo + QRIS sejajar (2 kolom) — sesuai Figma.
+                  LayoutBuilder(builder: (context, c) {
+                    final logo = GoldenityImageUploadField(
+                      label: 'Logo Toko',
+                      kind: 'logo',
+                      authToken: token,
+                      value: _storeLogoCtrl.text.trim().isEmpty
+                          ? null
+                          : _storeLogoCtrl.text.trim(),
+                      enabled: !_loading,
+                      helperText: 'PNG / JPG, maks 6MB. Tampil di header struk.',
+                      onChanged: (url) =>
+                          setState(() => _storeLogoCtrl.text = url ?? ''),
+                    );
+                    final qris = GoldenityImageUploadField(
+                      label: 'QRIS Statis',
+                      kind: 'qris',
+                      authToken: token,
+                      value: _storeQrisUrlCtrl.text.trim().isEmpty
+                          ? null
+                          : _storeQrisUrlCtrl.text.trim(),
+                      enabled: !_loading,
+                      helperText:
+                          'Ditampilkan saat pelanggan memilih bayar QRIS.',
+                      onChanged: (url) =>
+                          setState(() => _storeQrisUrlCtrl.text = url ?? ''),
+                    );
+                    if (c.maxWidth < 520) {
+                      return Column(children: [
+                        logo,
+                        const SizedBox(height: GoldenitySpacing.md),
+                        qris,
+                      ]);
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: logo),
+                        const SizedBox(width: GoldenitySpacing.md),
+                        Expanded(child: qris),
+                      ],
+                    );
+                  }),
                   const SizedBox(height: GoldenitySpacing.md),
                   TextFormField(
                     controller: _storeAddressCtrl,
@@ -908,176 +947,121 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       hintText: '08xx-xxxx-xxxx',
                     ),
                   ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  TextFormField(
-                    controller: _storeReceiptFooterCtrl,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Footer Struk',
-                      hintText: 'Terima kasih atas kunjungan Anda',
-                    ),
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  GoldenityImageUploadField(
-                    label: 'Gambar QRIS Statis',
-                    kind: 'qris',
-                    authToken: token,
-                    value: _storeQrisUrlCtrl.text.trim().isEmpty
-                        ? null
-                        : _storeQrisUrlCtrl.text.trim(),
-                    enabled: !_loading,
-                    helperText:
-                        'QRIS statis toko — ditampilkan saat pelanggan bayar QRIS.',
-                    onChanged: (url) =>
-                        setState(() => _storeQrisUrlCtrl.text = url ?? ''),
-                  ),
+                  const SizedBox(height: GoldenitySpacing.lg),
+                  // Footer Struk + pratinjau — sesuai Figma.
+                  Text('Footer Struk',
+                      style: textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: GoldenitySpacing.sm),
+                  LayoutBuilder(builder: (context, c) {
+                    final field = TextFormField(
+                      controller: _storeReceiptFooterCtrl,
+                      maxLines: 4,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Teks Footer (tampil di bawah struk)',
+                        hintText: 'Terima kasih sudah berkunjung!',
+                        helperText:
+                            'Mendukung baris baru (Enter). Tampil di struk 58mm & 80mm.',
+                        helperMaxLines: 2,
+                      ),
+                    );
+                    if (c.maxWidth < 560) {
+                      return Column(children: [
+                        field,
+                        const SizedBox(height: GoldenitySpacing.md),
+                        _footerPreview(textTheme),
+                      ]);
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 3, child: field),
+                        const SizedBox(width: GoldenitySpacing.md),
+                        Expanded(flex: 2, child: _footerPreview(textTheme)),
+                      ],
+                    );
+                  }),
                   const SizedBox(height: GoldenitySpacing.lg),
                   const Divider(),
                   const SizedBox(height: GoldenitySpacing.md),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Izinkan Pembayaran di Kasir',
-                              style: textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: GoldenitySpacing.xs),
-                            Text(
-                              'Jika aktif, pelanggan bisa bayar langsung di kasir',
-                              style: textTheme.bodySmall
-                                  ?.copyWith(color: GoldenityColors.text2),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch.adaptive(
-                        value: _storeAllowPayAtCashier,
-                        onChanged: (v) =>
-                            setState(() => _storeAllowPayAtCashier = v),
-                        activeTrackColor: biz.base.withValues(alpha: 0.5),
-                        activeThumbColor: biz.base,
-                      ),
-                    ],
-                  ),
+                  // ═══ Metode Pembayaran Web Order (1 toggle, per-cabang) ═══
+                  _webOrderPaymentSection(textTheme, biz),
+                  const SizedBox(height: GoldenitySpacing.lg),
+                  const Divider(),
                   const SizedBox(height: GoldenitySpacing.md),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Bukti Pembayaran Wajib',
-                              style: textTheme.titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: GoldenitySpacing.xs),
-                            Text(
-                              'Jika aktif, wajib upload bukti transfer untuk non-tunai',
-                              style: textTheme.bodySmall
-                                  ?.copyWith(color: GoldenityColors.text2),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Switch.adaptive(
-                        value: _storeIsPaymentProofMandatory,
-                        onChanged: (v) =>
+                  _settingToggleRow(
+                    textTheme,
+                    biz,
+                    title: 'Bukti Pembayaran Wajib',
+                    subtitle:
+                        'Jika aktif, pelanggan wajib upload foto bukti pembayaran QRIS di web order sebelum pesanan dikonfirmasi. Jika nonaktif, bukti bersifat opsional.',
+                    value: _storeIsPaymentProofMandatory,
+                    onChanged: _loading
+                        ? null
+                        : (v) =>
                             setState(() => _storeIsPaymentProofMandatory = v),
-                        activeTrackColor: biz.base.withValues(alpha: 0.5),
-                        activeThumbColor: biz.base,
-                      ),
+                  ),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  _settingToggleRow(
+                    textTheme,
+                    biz,
+                    title: 'Blind Close Shift Kasir',
+                    subtitle:
+                        'Jika aktif, kasir tidak melihat ekspektasi uang sistem & selisih saat buka/tutup shift. Ekspektasi baru ditampilkan setelah kasir memasukkan jumlah aktual.',
+                    value: _blindShiftClose,
+                    locked: !_isSuperAdmin,
+                    onChanged: (!_isSuperAdmin || _loading)
+                        ? null
+                        : (v) => setState(() => _blindShiftClose = v),
+                  ),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  _settingToggleRow(
+                    textTheme,
+                    biz,
+                    title: 'Aktifkan Pajak (PPN)',
+                    subtitle: _taxEnabled
+                        ? 'Transaksi dikenakan pajak sesuai persentase di bawah.'
+                        : 'Pajak dinonaktifkan — harga produk dianggap sudah final.',
+                    value: _taxEnabled,
+                    locked: !_isSuperAdmin,
+                    onChanged: (!_isSuperAdmin || _loading)
+                        ? null
+                        : (v) => setState(() => _taxEnabled = v),
+                  ),
+                  const SizedBox(height: GoldenitySpacing.md),
+                  TextFormField(
+                    decoration: const InputDecoration(
+                      labelText: 'Persentase PPN (%)',
+                      suffixText: '%',
+                      helperText: 'Default 11% (standar PPN UMKM F&B)',
+                    ),
+                    enabled: _isSuperAdmin && _taxEnabled && !_loading,
+                    keyboardType: TextInputType.number,
+                    initialValue: _taxRatePercentage.toString(),
+                    onChanged: (s) {
+                      final n = num.tryParse(s);
+                      if (n != null) {
+                        setState(() => _taxRatePercentage = n.clamp(0, 100));
+                      }
+                    },
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(3)
                     ],
                   ),
                   const SizedBox(height: GoldenitySpacing.md),
-                  SwitchListTile.adaptive(
-                    title: Text(
-                      'Blind Close Shift Kasir',
-                      style: textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                      'Jika ON: kasir tidak melihat perkiraan uang sistem & selisih kasir saat buka/tutup shift (mode blind close).',
-                      style: textTheme.bodySmall
-                          ?.copyWith(color: GoldenityColors.text2),
-                    ),
-                    value: _blindShiftClose,
-                    activeTrackColor: biz.base.withValues(alpha: 0.5),
-                    activeThumbColor: biz.base,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: _loading
-                        ? null
-                        : (val) => setState(() => _blindShiftClose = val),
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  SwitchListTile.adaptive(
-                    title: Text(
-                      'Aktifkan Pajak (PPN)',
-                      style: textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                      'Jika ON: transaksi akan dikenakan pajak sesuai persentase di bawah.',
-                      style: textTheme.bodySmall
-                          ?.copyWith(color: GoldenityColors.text2),
-                    ),
-                    value: _taxEnabled,
-                    activeTrackColor: biz.base.withValues(alpha: 0.5),
-                    activeThumbColor: biz.base,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: _loading
-                        ? null
-                        : (val) => setState(() => _taxEnabled = val),
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 0),
-                    child: TextFormField(
-                      decoration: const InputDecoration(
-                        labelText: 'Persentase PPN (%)',
-                        suffixText: '%',
-                        helperText: 'Default 11% (standar PPN UMKM F&B)',
-                      ),
-                      enabled: _taxEnabled && !_loading,
-                      keyboardType: TextInputType.number,
-                      initialValue: _taxRatePercentage.toString(),
-                      onChanged: (s) {
-                        final n = num.tryParse(s);
-                        if (n != null) {
-                          setState(() => _taxRatePercentage = n.clamp(0, 100));
-                        }
-                      },
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                        LengthLimitingTextInputFormatter(3)
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  SwitchListTile.adaptive(
-                    title: Text(
-                      'Harga Sudah Termasuk PPN',
-                      style: textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                      'ON: harga jual produk sudah termasuk pajak, PPN dihitung mundur '
-                      '(total ÷ (1 + rate) × rate) dan tidak ditambah lagi di atas total. '
-                      'OFF: PPN ditambahkan di atas subtotal.',
-                      style: textTheme.bodySmall
-                          ?.copyWith(color: GoldenityColors.text2),
-                    ),
+                  _settingToggleRow(
+                    textTheme,
+                    biz,
+                    title: 'Harga Sudah Termasuk PPN',
+                    subtitle:
+                        'ON: harga jual produk sudah termasuk pajak (dihitung mundur). OFF: PPN ditambahkan di atas subtotal.',
                     value: _pricesIncludeTax,
-                    activeTrackColor: biz.base.withValues(alpha: 0.5),
-                    activeThumbColor: biz.base,
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (_taxEnabled && !_loading)
-                        ? (val) => setState(() => _pricesIncludeTax = val)
-                        : null,
+                    locked: !_isSuperAdmin,
+                    onChanged: (!_isSuperAdmin || !_taxEnabled || _loading)
+                        ? null
+                        : (v) => setState(() => _pricesIncludeTax = v),
                   ),
                   const SizedBox(height: GoldenitySpacing.xl),
                   SizedBox(
@@ -1094,6 +1078,128 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Pill "🔒 Hanya Super Admin" untuk pengaturan yang terkunci ke SUPER_ADMIN.
+  Widget _lockBadge(TextTheme textTheme) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEF3C7),
+          borderRadius: BorderRadius.circular(GoldenityRadius.full),
+          border: Border.all(color: const Color(0xFFFDE68A)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.lock_rounded, size: 11, color: Color(0xFF854D0E)),
+            const SizedBox(width: 4),
+            Text('Hanya Super Admin',
+                style: textTheme.labelSmall?.copyWith(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF854D0E))),
+          ],
+        ),
+      );
+
+  /// Baris toggle standar: judul (+ badge kunci opsional), subjudul, switch.
+  Widget _settingToggleRow(
+    TextTheme textTheme,
+    GoldenityBizColors biz, {
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool>? onChanged,
+    bool locked = false,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(title,
+                        style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: locked
+                                ? GoldenityColors.text2
+                                : GoldenityColors.text)),
+                  ),
+                  if (locked) ...[
+                    const SizedBox(width: GoldenitySpacing.sm),
+                    _lockBadge(textTheme),
+                  ],
+                ],
+              ),
+              const SizedBox(height: GoldenitySpacing.xs),
+              Text(subtitle,
+                  style: textTheme.bodySmall
+                      ?.copyWith(color: GoldenityColors.text2, height: 1.35)),
+            ],
+          ),
+        ),
+        const SizedBox(width: GoldenitySpacing.md),
+        Switch.adaptive(
+          value: value,
+          onChanged: onChanged,
+          activeTrackColor: biz.base.withValues(alpha: 0.5),
+          activeThumbColor: biz.base,
+        ),
+      ],
+    );
+  }
+
+  /// Pratinjau struk 58mm ringkas (nama toko, alamat, total, footer).
+  Widget _footerPreview(TextTheme textTheme) {
+    final name = _storeNameCtrl.text.trim().isEmpty
+        ? 'NAMA TOKO'
+        : _storeNameCtrl.text.trim().toUpperCase();
+    final addr = _storeAddressCtrl.text.trim();
+    final footer = _storeReceiptFooterCtrl.text.trim();
+    const mono = TextStyle(fontFamily: 'monospace', fontSize: 10.5, height: 1.5);
+    return Container(
+      padding: const EdgeInsets.all(GoldenitySpacing.md),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+        border: Border.all(color: GoldenityColors.border),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 6,
+              offset: const Offset(0, 2)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Pratinjau Struk 58mm',
+              style: textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800, color: GoldenityColors.muted)),
+          const SizedBox(height: GoldenitySpacing.sm),
+          Text(name,
+              textAlign: TextAlign.center,
+              style: mono.copyWith(fontWeight: FontWeight.w800)),
+          if (addr.isNotEmpty)
+            Text(addr, textAlign: TextAlign.center, style: mono),
+          const SizedBox(height: 4),
+          const Text('--------------------------------', style: mono),
+          const Text('Kopi Susu       x2      45.000', style: mono),
+          const Text('Croissant       x1      19.000', style: mono),
+          const Text('--------------------------------', style: mono),
+          Text('TOTAL                   64.000',
+              style: mono.copyWith(fontWeight: FontWeight.w800)),
+          if (footer.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(footer, textAlign: TextAlign.center, style: mono),
+          ],
         ],
       ),
     );
@@ -1630,84 +1736,226 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     }
   }
 
-  Widget _buildWebOrderPaymentCard(TextTheme textTheme) {
+  /// Kartu "Metode Pembayaran Web Order" — 1 toggle per-cabang (disimpan
+  /// langsung ke `/settings/branches/:id`). Sesuai Figma: header + catatan +
+  /// pratinjau tampilan checkout pelanggan.
+  Widget _webOrderPaymentSection(TextTheme textTheme, GoldenityBizColors biz) {
     final qrisOnly = _webOrderQrisOnly;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
-        border: Border.all(color: GoldenityColors.border),
-      ),
-      padding: const EdgeInsets.all(GoldenitySpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    final cashierAllowed = !qrisOnly;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: GoldenityColors.primaryLight,
+                borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.credit_card_rounded,
+                  size: 20, color: GoldenityColors.primary),
+            ),
+            const SizedBox(width: GoldenitySpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Metode Pembayaran Web Order',
+                      style: textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 2),
+                  Text(
+                      'Cabang ${_branchNameFor(_loginBranchId)} · cara pelanggan menyelesaikan pembayaran pesanan online',
+                      style: textTheme.bodySmall
+                          ?.copyWith(color: GoldenityColors.muted)),
+                ],
+              ),
+            ),
+            const SizedBox(width: GoldenitySpacing.sm),
+            _savingPaymentMode
+                ? const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(qrisOnly ? 'QRIS Saja' : 'QRIS + Kasir',
+                          style: textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: cashierAllowed
+                                  ? biz.base
+                                  : GoldenityColors.muted)),
+                      Switch.adaptive(
+                        value: cashierAllowed,
+                        activeTrackColor: biz.base.withValues(alpha: 0.5),
+                        activeThumbColor: biz.base,
+                        onChanged: _loading
+                            ? null
+                            : (v) => _toggleWebOrderQrisOnly(!v),
+                      ),
+                    ],
+                  ),
+          ],
+        ),
+        const SizedBox(height: GoldenitySpacing.sm),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(GoldenitySpacing.md),
+          decoration: BoxDecoration(
+            color: GoldenityColors.surface2,
+            borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+          ),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: GoldenityColors.primaryLight,
-                  borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(Icons.qr_code_2_rounded,
-                    size: 20, color: GoldenityColors.primary),
-              ),
-              const SizedBox(width: GoldenitySpacing.md),
+              Icon(cashierAllowed ? Icons.lock_open_rounded : Icons.lock_rounded,
+                  size: 14, color: GoldenityColors.text2),
+              const SizedBox(width: 6),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Metode Pembayaran Web Order',
-                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 2),
-                    Text(
-                        'Cabang ${_branchNameFor(_loginBranchId)} · cara pelanggan menyelesaikan pembayaran',
-                        style: textTheme.bodySmall?.copyWith(color: GoldenityColors.muted)),
-                  ],
+                child: Text(
+                  cashierAllowed
+                      ? 'Pelanggan dapat memilih: scan QRIS langsung atau membayar tunai di kasir saat pesanan diambil / diantar.'
+                      : 'Pelanggan hanya bisa membayar via scan QRIS. Opsi "Bayar di Kasir" disembunyikan di halaman checkout cabang ini.',
+                  style: textTheme.bodySmall
+                      ?.copyWith(color: GoldenityColors.text2, height: 1.35),
                 ),
               ),
-              _savingPaymentMode
-                  ? const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: SizedBox(
-                          width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                    )
-                  : Row(
-                      children: [
-                        Text('QRIS Only',
-                            style: textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: qrisOnly
-                                    ? GoldenityColors.primary
-                                    : GoldenityColors.muted)),
-                        Switch(
-                          value: qrisOnly,
-                          onChanged: _loading ? null : _toggleWebOrderQrisOnly,
-                        ),
-                      ],
-                    ),
             ],
           ),
+        ),
+        const SizedBox(height: GoldenitySpacing.md),
+        Text('PREVIEW TAMPILAN CHECKOUT PELANGGAN',
+            style: textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.4,
+                color: GoldenityColors.muted)),
+        const SizedBox(height: GoldenitySpacing.sm),
+        LayoutBuilder(builder: (context, c) {
+          final qrisOpt = _checkoutPreviewOption(
+            textTheme,
+            biz,
+            icon: Icons.qr_code_2_rounded,
+            title: 'Bayar via QRIS',
+            subtitle: 'Scan & bayar sekarang',
+            selected: true,
+          );
+          final cashierOpt = _checkoutPreviewOption(
+            textTheme,
+            biz,
+            icon: Icons.storefront_rounded,
+            title: 'Bayar di Kasir',
+            subtitle: 'Tunai saat di tempat',
+            selected: false,
+            disabled: !cashierAllowed,
+          );
+          if (c.maxWidth < 460) {
+            return Column(children: [
+              qrisOpt,
+              const SizedBox(height: GoldenitySpacing.sm),
+              cashierOpt,
+            ]);
+          }
+          return Row(
+            children: [
+              Expanded(child: qrisOpt),
+              const SizedBox(width: GoldenitySpacing.sm),
+              Expanded(child: cashierOpt),
+            ],
+          );
+        }),
+        if (cashierAllowed) ...[
           const SizedBox(height: GoldenitySpacing.sm),
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(GoldenitySpacing.md),
+            padding: const EdgeInsets.all(GoldenitySpacing.sm),
             decoration: BoxDecoration(
-              color: GoldenityColors.surface2,
+              color: const Color(0xFFFEFCE8),
               borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+              border: Border.all(color: const Color(0xFFFDE68A)),
             ),
-            child: Text(
-              qrisOnly
-                  ? 'Pelanggan hanya bisa membayar via scan QRIS. Opsi "Bayar di Kasir" disembunyikan di checkout.'
-                  : 'Pelanggan bisa memilih "Bayar di Kasir" (tunai saat di tempat) atau QRIS.',
-              style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(Icons.lightbulb_outline_rounded,
+                    size: 14, color: Color(0xFF854D0E)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Pelanggan yang memilih "Bayar di Kasir" akan muncul di antrian meja dan perlu diselesaikan oleh kasir.',
+                    style: textTheme.bodySmall
+                        ?.copyWith(color: const Color(0xFF854D0E), height: 1.35),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  Widget _checkoutPreviewOption(
+    TextTheme textTheme,
+    GoldenityBizColors biz, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool selected,
+    bool disabled = false,
+  }) {
+    final border = selected ? biz.base : GoldenityColors.border;
+    return Opacity(
+      opacity: disabled ? 0.45 : 1,
+      child: Container(
+        padding: const EdgeInsets.all(GoldenitySpacing.md),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(GoldenityRadius.md),
+          border: Border.all(color: border, width: selected ? 1.5 : 1),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: GoldenityColors.surface2,
+                borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, size: 16, color: GoldenityColors.text2),
+            ),
+            const SizedBox(width: GoldenitySpacing.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: textTheme.bodySmall
+                          ?.copyWith(fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 1),
+                  Text(subtitle,
+                      style: textTheme.labelSmall
+                          ?.copyWith(color: GoldenityColors.muted, fontSize: 11)),
+                ],
+              ),
+            ),
+            Icon(
+              selected
+                  ? Icons.radio_button_checked_rounded
+                  : Icons.radio_button_off_rounded,
+              size: 16,
+              color: selected ? biz.base : GoldenityColors.border,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1929,8 +2177,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       padding: const EdgeInsets.all(GoldenitySpacing.lg),
       children: [
         _buildWebOrderAutoCard(textTheme),
-        const SizedBox(height: GoldenitySpacing.md),
-        _buildWebOrderPaymentCard(textTheme),
         const SizedBox(height: GoldenitySpacing.lg),
         Container(
           decoration: BoxDecoration(

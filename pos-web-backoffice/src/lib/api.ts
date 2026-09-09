@@ -222,7 +222,11 @@ export interface StoreSettings {
   businessCategory: string;
   taxEnabled: boolean;
   taxRatePercentage: number;
+  pricesIncludeTax: boolean;
   allowPayAtCashier: boolean;
+  isPaymentProofMandatory: boolean;
+  blindShiftClose: boolean;
+  webOrderAutoAccept: boolean;
 }
 
 export interface DashboardSummary {
