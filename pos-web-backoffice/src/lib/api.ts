@@ -238,15 +238,29 @@ export interface StoreSettings {
 
 export interface DashboardSummary {
   range: string;
+  startDate: string;
+  endDate: string;
   totalRevenue: number;
   totalTransactions: number;
   avgTransaction: number;
   netRevenue: number;
   totalDiscount: number;
   totalTax: number;
-  paymentBreakdown: { method: string; total: number; percent: number }[];
-  topProducts: { productName: string; qty: number; revenue: number; category?: string | null }[];
-  categoryBreakdown: { category: string; total: number; percent: number }[];
+  totalServiceCharge: number;
+  totalRefund: number;
+  paymentBreakdown: { paymentMethod: string; total: number; count: number; percent: number }[];
+  topProducts: { productId: string | null; productName: string; qty: number; total: number }[];
+  categoryBreakdown: { categoryId: string | null; categoryName: string; total: number; percent: number }[];
+}
+
+export interface FinanceReport {
+  from: string;
+  to: string;
+  branchId: string | null;
+  branchName: string | null;
+  totals: { gross: number; discount: number; tax: number; serviceCharge: number; refund: number; net: number };
+  paymentBreakdown: { paymentMethod: string; total: number; count: number; percent: number }[];
+  dailyTrend: { date: string; grossRevenue: number; transactions: number; refund: number }[];
 }
 
 // ─────────────────────────── Endpoints ───────────────────────────
@@ -336,5 +350,9 @@ export const api = {
   dashboard: (range: 'today' | 'week' | 'month' = 'month', branchId?: string) =>
     req<DashboardSummary>(
       `/dashboard/summary?range=${range}` + (branchId ? `&branchId=${branchId}` : ''),
+    ),
+  financeReport: (from: string, to: string, branchId?: string) =>
+    req<FinanceReport>(
+      `/dashboard/finance/report?from=${from}&to=${to}` + (branchId ? `&branchId=${branchId}` : ''),
     ),
 };

@@ -37,7 +37,7 @@ export default function DashboardPage() {
   };
   useEffect(load, [range, branchId]);
 
-  const maxTop = data?.topProducts?.[0]?.revenue || 1;
+  const maxTop = data?.topProducts?.[0]?.total || 1;
 
   return (
     <Shell
@@ -84,9 +84,9 @@ export default function DashboardPage() {
               ) : (
                 <div className="flex flex-col gap-2.5">
                   {data.paymentBreakdown.map((p, i) => (
-                    <div key={p.method || i}>
+                    <div key={p.paymentMethod || i}>
                       <div className="flex justify-between text-[13px]">
-                        <span className="font-semibold text-ink2">{p.method}</span>
+                        <span className="font-semibold text-ink2">{p.paymentMethod}</span>
                         <span className="num text-muted">
                           {rupiah(p.total)} · {p.percent.toFixed(0)}%
                         </span>
@@ -107,9 +107,9 @@ export default function DashboardPage() {
               ) : (
                 <div className="flex flex-col gap-2.5">
                   {data.categoryBreakdown.slice(0, 6).map((c, i) => (
-                    <div key={c.category || i}>
+                    <div key={c.categoryName || i}>
                       <div className="flex justify-between text-[13px]">
-                        <span className="font-semibold text-ink2">{c.category || '—'}</span>
+                        <span className="font-semibold text-ink2">{c.categoryName || '—'}</span>
                         <span className="num text-muted">{rupiah(c.total)}</span>
                       </div>
                       <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface2">
@@ -133,10 +133,10 @@ export default function DashboardPage() {
                     <span className="num w-6 shrink-0 text-[12px] font-bold text-muted">#{i + 1}</span>
                     <span className="w-48 shrink-0 truncate text-[13px] font-semibold text-ink">{p.productName}</span>
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface2">
-                      <div className="h-full rounded-full bg-brand" style={{ width: `${(p.revenue / maxTop) * 100}%` }} />
+                      <div className="h-full rounded-full bg-brand" style={{ width: `${(p.total / maxTop) * 100}%` }} />
                     </div>
                     <span className="num w-14 shrink-0 text-right text-[12px] text-muted">{p.qty}×</span>
-                    <span className="num w-24 shrink-0 text-right text-[12px] font-bold text-ink">{rupiahShort(p.revenue)}</span>
+                    <span className="num w-24 shrink-0 text-right text-[12px] font-bold text-ink">{rupiahShort(p.total)}</span>
                   </div>
                 ))}
               </div>

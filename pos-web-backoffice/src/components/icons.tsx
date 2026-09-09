@@ -101,4 +101,10 @@ export const Icon = {
       <path d="M20 6 9 17l-5-5" />
     </svg>
   ),
+  chart: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...s(p)}>
+      <path d="M3 3v18h18" />
+      <path d="m7 14 4-4 3 3 5-6" />
+    </svg>
+  ),
 };
