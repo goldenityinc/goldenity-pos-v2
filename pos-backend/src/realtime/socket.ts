@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server, type Socket } from 'socket.io';
 import { verifyAuthToken } from '../config/jwt';
+import { parseCorsOrigin } from '../config/cors';
 import type { JwtAuthPayload } from '../config/types';
 
 /**
@@ -17,7 +18,7 @@ let io: Server | null = null;
 export function initSocket(httpServer: HttpServer): Server {
   io = new Server(httpServer, {
     path: '/socket.io',
-    cors: { origin: process.env.CORS_ORIGIN ?? '*', credentials: true },
+    cors: { origin: parseCorsOrigin(), credentials: true },
     // Ping longgar supaya koneksi tetap hidup walau app di-background.
     pingInterval: 25_000,
     pingTimeout: 60_000,

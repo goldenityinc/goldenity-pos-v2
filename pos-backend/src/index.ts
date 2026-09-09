@@ -21,6 +21,7 @@ import { notificationRoutes } from './modules/notification/notification.routes';
 import { staffRoutes } from './modules/staff/staff.routes';
 import { deviceRoutes } from './modules/device/device.routes';
 import { subscriptionRoutes } from './modules/subscription/subscription.routes';
+import { parseCorsOrigin } from './config/cors';
 
 (BigInt.prototype as any).toJSON = function (this: bigint): string {
   return this.toString();
@@ -49,7 +50,7 @@ const PORT = process.env.PORT ?? 3001;
 app.use(helmet());
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN ?? '*',
+    origin: parseCorsOrigin(),
     credentials: true,
   }),
 );
