@@ -117,6 +117,68 @@ async function main() {
     })),
   });
 
+  // ── Keuangan K1 — kategori pengeluaran bawaan + contoh ──
+  const expCats = [
+    { name: 'Operasional', group: 'OPERATING', sort: 10 },
+    { name: 'Gaji & Upah', group: 'OPERATING', sort: 20 },
+    { name: 'Sewa Tempat', group: 'OPERATING', sort: 30 },
+    { name: 'Utilitas (Listrik/Air/Internet)', group: 'OPERATING', sort: 40 },
+    { name: 'Bahan Habis Pakai', group: 'OPERATING', sort: 50 },
+    { name: 'Marketing', group: 'OPERATING', sort: 60 },
+    { name: 'Perbaikan & Perawatan', group: 'OPERATING', sort: 70 },
+    { name: 'Belanja Peralatan & Aset', group: 'INVESTING', sort: 80 },
+    { name: 'Lain-lain', group: 'OPERATING', sort: 999 },
+  ];
+  const slugify = (s: string) =>
+    s.toLowerCase().replace(/[()/]/g, ' ').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60);
+  await prisma.expenseCategory.createMany({
+    data: expCats.map((c) => ({
+      id: randomUUID(),
+      tenantId: tenant.id,
+      name: c.name,
+      slug: slugify(c.name),
+      cashflowGroup: c.group,
+      sortOrder: c.sort,
+    })),
+  });
+  const catRows = await prisma.expenseCategory.findMany({ where: { tenantId: tenant.id } });
+  const catId = (re: RegExp) => catRows.find((c) => re.test(c.name))!.id;
+  const adminUser = await prisma.user.findFirstOrThrow({
+    where: { tenantId: tenant.id, username: 'admin' },
+  });
+  const now = new Date();
+  const dISO = (offsetDays: number) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - offsetDays);
+    return d;
+  };
+  const demoExpenses = [
+    { title: 'Gaji karyawan bulan ini', amount: 8_000_000, cat: /Gaji/, pm: 'TRANSFER', off: 4 },
+    { title: 'Sewa outlet', amount: 8_000_000, cat: /Sewa/, pm: 'TRANSFER', off: 5 },
+    { title: 'Tagihan listrik & air', amount: 3_600_000, cat: /Utilitas/, pm: 'TRANSFER', off: 6 },
+    { title: 'Cup, sedotan, tissue', amount: 1_250_000, cat: /Bahan Habis/, pm: 'CASH', off: 7 },
+    { title: 'Iklan IG + promo GoFood', amount: 2_000_000, cat: /Marketing/, pm: 'CARD', off: 8 },
+    { title: 'Servis mesin kopi', amount: 750_000, cat: /Perbaikan/, pm: 'CASH', off: 8 },
+    { title: 'Beli galon & es batu', amount: 120_000, cat: /Operasional/, pm: 'CASH', off: 1 },
+    { title: 'Beli blender baru', amount: 1_400_000, cat: /Peralatan/, pm: 'CARD', off: 3 },
+  ];
+  let expSeq = 0;
+  for (const e of demoExpenses) {
+    await prisma.expense.create({
+      data: {
+        tenantId: tenant.id,
+        branchId: branchPusat.id,
+        expenseNumber: `EXP-${now.getFullYear()}-${String(++expSeq).padStart(6, '0')}`,
+        title: e.title,
+        amount: e.amount,
+        categoryId: catId(e.cat),
+        paymentMethod: e.pm as any,
+        expenseDate: dISO(e.off),
+        createdById: adminUser.id,
+      },
+    });
+  }
+
   console.log('[seed] ✅ SELESAI.');
   console.log('  tenantSlug : demo-fnb');
   console.log('  admin      : admin / admin123   (TENANT_ADMIN, bcrypt)');

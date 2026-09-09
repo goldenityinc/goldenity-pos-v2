@@ -23,7 +23,7 @@ const UploadSchema = z.object({
   mime: z.string().trim().optional(),
   // data URI ("data:image/png;base64,....") ATAU base64 murni.
   dataBase64: z.string().min(16, 'dataBase64 kosong / tidak valid'),
-  kind: z.enum(['logo', 'qris', 'product', 'other']).optional(),
+  kind: z.enum(['logo', 'qris', 'product', 'expense', 'other']).optional(),
 });
 
 const MAX_BYTES = 6 * 1024 * 1024; // ~6MB file (json limit 10MB, base64 +33%)

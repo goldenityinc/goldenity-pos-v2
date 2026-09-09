@@ -17,8 +17,8 @@ datasource db {
 // ─────────────────────────────────────────────────────────
 
 model Tenant {
-  id                      String       @id @default(uuid())
-  slug                    String       @unique
+  id                      String                @id @default(uuid())
+  slug                    String                @unique
   name                    String
   logoUrl                 String?
   address                 String?
@@ -26,21 +26,21 @@ model Tenant {
   receiptFooter           String?
   taxSettings             Json?
   qrisImageUrl            String?
-  allowPayAtCashier       Boolean      @default(true)
-  isPaymentProofMandatory Boolean      @default(false)
-  blindShiftClose         Boolean      @default(false)
-  taxEnabled              Boolean      @default(true)
-  taxRatePercentage       Int          @default(11)
-  pricesIncludeTax        Boolean      @default(false)
+  allowPayAtCashier       Boolean               @default(true)
+  isPaymentProofMandatory Boolean               @default(false)
+  blindShiftClose         Boolean               @default(false)
+  taxEnabled              Boolean               @default(true)
+  taxRatePercentage       Int                   @default(11)
+  pricesIncludeTax        Boolean               @default(false)
   // Terima + cetak web order (struk kasir + nota dapur) otomatis begitu masuk.
   // Off = kasir terima manual di POS, cetak menyusul saat diterima.
-  webOrderAutoAccept      Boolean      @default(false)
-  isActive                Boolean      @default(true)
+  webOrderAutoAccept      Boolean               @default(false)
+  isActive                Boolean               @default(true)
   // LEGACY string — dipertahankan utk kompat. Sumber kebenaran baru = Subscription.status.
   subscriptionStatus      String?
   allowedSolutions        String[]
   // Mode bisnis aktif (F&B / Retail / Bengkel). Di-mirror dari Admin Core; sisi tenant read-only.
-  businessCategory        BusinessCategory @default(RETAIL_FNB)
+  businessCategory        BusinessCategory      @default(RETAIL_FNB)
   subscription            Subscription?
   subscriptionEvents      SubscriptionEvent[]
   branches                Branch[]
@@ -55,35 +55,38 @@ model Tenant {
   webOrders               WebOrder[]
   notificationEvents      NotificationEvent[]
   devices                 Device[]
-  createdAt               DateTime     @default(now())
-  updatedAt               DateTime     @updatedAt
+  expenseCategories       ExpenseCategory[]
+  expenses                Expense[]
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
 }
 
 enum WebOrderPaymentMode {
-  QRIS_ONLY         // customer web order HANYA boleh QRIS statis
-  QRIS_AND_CASHIER  // QRIS statis + "Bayar di Kasir"
+  QRIS_ONLY // customer web order HANYA boleh QRIS statis
+  QRIS_AND_CASHIER // QRIS statis + "Bayar di Kasir"
 }
 
 model Branch {
-  id             String          @id @default(uuid())
-  tenantId       String
-  name           String
-  qrisImageUrl   String?
+  id                  String              @id @default(uuid())
+  tenantId            String
+  name                String
+  qrisImageUrl        String?
   // Pengaturan per-cabang (disimpan di DB per cabang, bukan tenant-level).
   webOrderPaymentMode WebOrderPaymentMode @default(QRIS_AND_CASHIER)
-  isActive       Boolean         @default(true)
-  tenant         Tenant          @relation(fields: [tenantId], references: [id])
-  users          User[]
-  products       Product[]
-  salesRecords   SalesRecord[]
-  printerConfigs PrinterConfig[]
-  cashierShifts  CashierShift[]
-  diningTables       DiningTable[]
-  webOrders          WebOrder[]
-  queueCounters      QueueCounter[]
-  notificationEvents NotificationEvent[]
-  devices            Device[]
-  createdAt      DateTime        @default(now())
+  isActive            Boolean             @default(true)
+  tenant              Tenant              @relation(fields: [tenantId], references: [id])
+  users               User[]
+  products            Product[]
+  salesRecords        SalesRecord[]
+  printerConfigs      PrinterConfig[]
+  cashierShifts       CashierShift[]
+  diningTables        DiningTable[]
+  webOrders           WebOrder[]
+  queueCounters       QueueCounter[]
+  notificationEvents  NotificationEvent[]
+  devices             Device[]
+  expenses            Expense[]
+  createdAt           DateTime            @default(now())
 
   @@index([tenantId])
 }
@@ -98,23 +101,23 @@ enum UserRole {
 }
 
 model User {
-  id           String      @id @default(uuid())
-  tenantId     String
-  branchId     String?
+  id            String         @id @default(uuid())
+  tenantId      String
+  branchId      String?
   // Nama tampilan karyawan (Data Karyawan di Back Office). Null → UI fallback ke username.
-  name         String?
-  email        String?
-  username     String
-  passwordHash String
-  role         UserRole
-  customRoleId String?
-  isActive     Boolean     @default(true)
-  tenant       Tenant      @relation(fields: [tenantId], references: [id])
-  branch       Branch?     @relation(fields: [branchId], references: [id])
-  customRole   CustomRole? @relation(fields: [customRoleId], references: [id])
-  salesRecords SalesRecord[] @relation("CashierSales")
+  name          String?
+  email         String?
+  username      String
+  passwordHash  String
+  role          UserRole
+  customRoleId  String?
+  isActive      Boolean        @default(true)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  branch        Branch?        @relation(fields: [branchId], references: [id])
+  customRole    CustomRole?    @relation(fields: [customRoleId], references: [id])
+  salesRecords  SalesRecord[]  @relation("CashierSales")
   cashierShifts CashierShift[]
-  createdAt    DateTime    @default(now())
+  createdAt     DateTime       @default(now())
 
   @@unique([tenantId, username])
   @@index([branchId])
@@ -213,8 +216,8 @@ model Category {
   id        String    @id @default(uuid())
   tenantId  String
   name      String
-  sortOrder Int      @default(0)
-  isActive  Boolean  @default(true)
+  sortOrder Int       @default(0)
+  isActive  Boolean   @default(true)
   tenant    Tenant    @relation(fields: [tenantId], references: [id])
   products  Product[]
   createdAt DateTime  @default(now())
@@ -225,30 +228,30 @@ model Category {
 }
 
 model Product {
-  id                String   @id @default(uuid())
-  tenantId          String
-  branchId          String?
-  clientReferenceId String?  @unique
-  name              String
-  categoryLegacy    String?  @map("category")  // LEGACY V1: DB column bernama "category" (string, 9 non-null values). Prisma field name = categoryLegacy agar TIDAK bentrok dengan relation object dibawah. Akan dimigrasikan normalize ke categoryId UUID mapping nanti.
-  categoryId        String?
-  price             Decimal
-  cost              Decimal?
-  barcode           String?
-  sku               String?
-  stock             Int?
-  isActive          Boolean  @default(true)
-  imageUrl          String?
-  variants          Json?
-  description       String?
-  tenant            Tenant   @relation(fields: [tenantId], references: [id])
-  branch            Branch?  @relation(fields: [branchId], references: [id])
-  category          Category? @relation(fields: [categoryId], references: [id])  // RELATION NAME TETAP "category" = 7 line BE code (product.service.ts/dashboard.service.ts) TIDAK perlu diubah 0 regression!
-  items             SalesRecordItem[]
+  id                   String                @id @default(uuid())
+  tenantId             String
+  branchId             String?
+  clientReferenceId    String?               @unique
+  name                 String
+  categoryLegacy       String?               @map("category") // LEGACY V1: DB column bernama "category" (string, 9 non-null values). Prisma field name = categoryLegacy agar TIDAK bentrok dengan relation object dibawah. Akan dimigrasikan normalize ke categoryId UUID mapping nanti.
+  categoryId           String?
+  price                Decimal
+  cost                 Decimal?
+  barcode              String?
+  sku                  String?
+  stock                Int?
+  isActive             Boolean               @default(true)
+  imageUrl             String?
+  variants             Json?
+  description          String?
+  tenant               Tenant                @relation(fields: [tenantId], references: [id])
+  branch               Branch?               @relation(fields: [branchId], references: [id])
+  category             Category?             @relation(fields: [categoryId], references: [id]) // RELATION NAME TETAP "category" = 7 line BE code (product.service.ts/dashboard.service.ts) TIDAK perlu diubah 0 regression!
+  items                SalesRecordItem[]
   productVariantStocks ProductVariantStock[]
-  webOrderItems     WebOrderItem[]
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  webOrderItems        WebOrderItem[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 
   @@index([tenantId, categoryId])
   @@index([barcode])
@@ -289,36 +292,36 @@ enum SaleStatus {
 }
 
 model SalesRecord {
-  id                     BigInt         @id @default(autoincrement())
-  referenceId            String         @unique
-  tenantId               String
-  branchId               String
-  cashierId              String
-  orderType              String
-  subtotal               Decimal
-  discountAmount         Decimal        @default(0)
-  taxAmount              Decimal        @default(0)
-  serviceChargeAmount    Decimal        @default(0)
+  id                      BigInt            @id @default(autoincrement())
+  referenceId             String            @unique
+  tenantId                String
+  branchId                String
+  cashierId               String
+  orderType               String
+  subtotal                Decimal
+  discountAmount          Decimal           @default(0)
+  taxAmount               Decimal           @default(0)
+  serviceChargeAmount     Decimal           @default(0)
   serviceChargePercentage Int?
-  total                  Decimal
-  paymentMethod          PaymentMethod  @default(CASH)
-  paymentReferenceNumber String?
-  cashReceived           Decimal?
-  cashChange             Decimal?
-  status                 SaleStatus     @default(COMPLETED)
-  voidedAt               DateTime?
-  voidedBy               String?
-  voidReason             String?
-  refundedAmount         Decimal?       @default(0)
-  cashierNote            String?        // catatan kasir (ditambah/diedit dari detail Riwayat Penjualan)
-  cashierShiftId         String?
-  tenant                 Tenant         @relation(fields: [tenantId], references: [id])
-  branch                 Branch         @relation(fields: [branchId], references: [id])
-  cashier                User           @relation("CashierSales", fields: [cashierId], references: [id])
-  cashierShift           CashierShift?  @relation(fields: [cashierShiftId], references: [id])
-  items                  SalesRecordItem[]
-  webOrder               WebOrder?
-  createdAt              DateTime       @default(now())
+  total                   Decimal
+  paymentMethod           PaymentMethod     @default(CASH)
+  paymentReferenceNumber  String?
+  cashReceived            Decimal?
+  cashChange              Decimal?
+  status                  SaleStatus        @default(COMPLETED)
+  voidedAt                DateTime?
+  voidedBy                String?
+  voidReason              String?
+  refundedAmount          Decimal?          @default(0)
+  cashierNote             String? // catatan kasir (ditambah/diedit dari detail Riwayat Penjualan)
+  cashierShiftId          String?
+  tenant                  Tenant            @relation(fields: [tenantId], references: [id])
+  branch                  Branch            @relation(fields: [branchId], references: [id])
+  cashier                 User              @relation("CashierSales", fields: [cashierId], references: [id])
+  cashierShift            CashierShift?     @relation(fields: [cashierShiftId], references: [id])
+  items                   SalesRecordItem[]
+  webOrder                WebOrder?
+  createdAt               DateTime          @default(now())
 
   @@index([tenantId, branchId, createdAt])
   @@index([status])
@@ -350,24 +353,24 @@ enum ShiftStatus {
 }
 
 model CashierShift {
-  id             String       @id @default(uuid())
-  tenantId       String
-  branchId       String
-  cashierId      String
-  openedAt       DateTime     @default(now())
-  closedAt       DateTime?
-  status         ShiftStatus  @default(OPEN)
-  openingCash    Decimal      @default(0)
-  expectedCash   Decimal?
-  actualCash     Decimal?
-  discrepancy    Decimal?
-  notes          String?
-  tenant         Tenant       @relation(fields: [tenantId], references: [id])
-  branch         Branch       @relation(fields: [branchId], references: [id])
-  cashier        User         @relation(fields: [cashierId], references: [id])
-  salesRecords   SalesRecord[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id           String        @id @default(uuid())
+  tenantId     String
+  branchId     String
+  cashierId    String
+  openedAt     DateTime      @default(now())
+  closedAt     DateTime?
+  status       ShiftStatus   @default(OPEN)
+  openingCash  Decimal       @default(0)
+  expectedCash Decimal?
+  actualCash   Decimal?
+  discrepancy  Decimal?
+  notes        String?
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  cashier      User          @relation(fields: [cashierId], references: [id])
+  salesRecords SalesRecord[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([tenantId, branchId, status])
   @@index([cashierId, status])
@@ -482,17 +485,17 @@ model DiningTable {
 }
 
 model TableReservation {
-  id          String                 @id @default(uuid())
-  tableId     String
-  name        String
-  phone       String
-  reservedAt  DateTime // tanggal + jam reservasi
-  guests      Int                    @default(1)
-  note        String?
-  status      TableReservationStatus @default(PENDING)
-  table       DiningTable            @relation(fields: [tableId], references: [id])
-  createdAt   DateTime               @default(now())
-  updatedAt   DateTime               @updatedAt
+  id         String                 @id @default(uuid())
+  tableId    String
+  name       String
+  phone      String
+  reservedAt DateTime // tanggal + jam reservasi
+  guests     Int                    @default(1)
+  note       String?
+  status     TableReservationStatus @default(PENDING)
+  table      DiningTable            @relation(fields: [tableId], references: [id])
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
 
   @@index([tableId, status])
 }
@@ -520,31 +523,31 @@ model TableSession {
 }
 
 model WebOrder {
-  id              String   @id @default(uuid())
+  id              String              @id @default(uuid())
   tenantId        String
   branchId        String
   tableSessionId  String?
-  salesRecordId   BigInt?  @unique // terisi setelah ACCEPTED & masuk pipeline SalesRecord
-  orderType       String   @default("DINE_IN_QR") // string bebas, validasi awal cuma DINE_IN_QR
+  salesRecordId   BigInt?             @unique // terisi setelah ACCEPTED & masuk pipeline SalesRecord
+  orderType       String              @default("DINE_IN_QR") // string bebas, validasi awal cuma DINE_IN_QR
   queueNumber     Int
-  status          String   @default("SUBMITTED") // SUBMITTED|ACCEPTED|PREPARING|READY|SERVED|COMPLETED|CANCELLED (CART tidak dipersist di iterasi awal)
+  status          String              @default("SUBMITTED") // SUBMITTED|ACCEPTED|PREPARING|READY|SERVED|COMPLETED|CANCELLED (CART tidak dipersist di iterasi awal)
   subtotal        Decimal
-  discountAmount  Decimal  @default(0)
-  taxAmount       Decimal  @default(0)
+  discountAmount  Decimal             @default(0)
+  taxAmount       Decimal             @default(0)
   total           Decimal
-  paymentMethod   String   @default("PAY_AT_CASHIER") // QRIS_STATIC | PAY_AT_CASHIER
-  paymentStatus   String   @default("UNPAID") // UNPAID | PENDING_VERIFICATION | PAID
-  paymentProofUrl String?  // bukti transfer QRIS yang di-upload customer (untuk dicek kasir)
+  paymentMethod   String              @default("PAY_AT_CASHIER") // QRIS_STATIC | PAY_AT_CASHIER
+  paymentStatus   String              @default("UNPAID") // UNPAID | PENDING_VERIFICATION | PAID
+  paymentProofUrl String? // bukti transfer QRIS yang di-upload customer (untuk dicek kasir)
   customerNote    String?
   rejectionReason String?
-  tenant          Tenant             @relation(fields: [tenantId], references: [id])
-  branch          Branch             @relation(fields: [branchId], references: [id])
-  tableSession    TableSession?      @relation(fields: [tableSessionId], references: [id])
-  salesRecord     SalesRecord?       @relation(fields: [salesRecordId], references: [id])
+  tenant          Tenant              @relation(fields: [tenantId], references: [id])
+  branch          Branch              @relation(fields: [branchId], references: [id])
+  tableSession    TableSession?       @relation(fields: [tableSessionId], references: [id])
+  salesRecord     SalesRecord?        @relation(fields: [salesRecordId], references: [id])
   items           WebOrderItem[]
   notifications   NotificationEvent[]
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   @@index([branchId, status, createdAt])
   @@index([tableSessionId])
@@ -593,4 +596,81 @@ model NotificationEvent {
   createdAt  DateTime  @default(now())
 
   @@index([branchId, delivered, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────
+// EPIC 7 — Keuangan: Pencatatan Pengeluaran (Expense) — Fase K1
+// Laporan turunan (Laba Rugi, Buku Besar sintesis, Arus Kas) dihitung on-the-fly
+// dari SalesRecord + Expense (+ Product.cost utk HPP). Jurnal manual & COA
+// tersimpan = fase berikutnya.
+// ─────────────────────────────────────────────────────────
+
+enum ExpenseStatus {
+  ACTIVE
+  VOIDED
+}
+
+enum ExpensePayMethod {
+  CASH
+  TRANSFER
+  QRIS
+  CARD
+}
+
+model ExpenseCategory {
+  id            String    @id @default(uuid())
+  tenantId      String
+  name          String
+  slug          String
+  // Kelompok arus kas: OPERATING (default) | INVESTING (belanja aset) | FINANCING.
+  cashflowGroup String    @default("OPERATING")
+  isArchived    Boolean   @default(false)
+  sortOrder     Int       @default(0)
+  tenant        Tenant    @relation(fields: [tenantId], references: [id])
+  expenses      Expense[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+model Expense {
+  id            String              @id @default(uuid())
+  tenantId      String
+  branchId      String
+  expenseNumber String
+  title         String
+  amount        Int
+  categoryId    String
+  paymentMethod ExpensePayMethod    @default(CASH)
+  note          String?
+  expenseDate   DateTime
+  status        ExpenseStatus       @default(ACTIVE)
+  voidReason    String?
+  voidedAt      DateTime?
+  voidedById    String?
+  createdById   String
+  // idempotensi sync offline (uuid dari device).
+  clientRef     String?             @unique
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  branch        Branch              @relation(fields: [branchId], references: [id])
+  category      ExpenseCategory     @relation(fields: [categoryId], references: [id])
+  attachments   ExpenseAttachment[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([tenantId, expenseNumber])
+  @@index([tenantId, branchId, expenseDate])
+  @@index([tenantId, status])
+}
+
+model ExpenseAttachment {
+  id        String   @id @default(uuid())
+  expenseId String
+  url       String
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([expenseId])
 }
