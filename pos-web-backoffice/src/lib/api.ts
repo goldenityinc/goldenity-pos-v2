@@ -168,8 +168,15 @@ export interface CustomRole {
   userCount: number;
 }
 
+export interface BuiltInRole {
+  key: string;
+  label: string;
+  permissions: PermissionMap;
+  fullAccess: boolean;
+}
+
 export interface RolesResp {
-  builtInRoles: { key: string; label: string }[];
+  builtInRoles: BuiltInRole[];
   modules: PermissionModule[];
   customRbacEnabled: boolean;
   customRoles: CustomRole[];

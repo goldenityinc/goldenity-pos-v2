@@ -11,7 +11,7 @@ import CategoriesPage from './pages/CategoriesPage';
 import UsersPage from './pages/UsersPage';
 import RolesPage from './pages/RolesPage';
 import SubscriptionPage from './pages/SubscriptionPage';
-import SettingsPage from './pages/SettingsPage';
+import BranchesPage from './pages/BranchesPage';
 
 function Gate({ children }: { children: ReactNode }) {
   const { me, loading, bootstrap } = useAuth();
@@ -36,7 +36,9 @@ const router = createBrowserRouter([
   { path: '/karyawan', element: <Gate><UsersPage /></Gate> },
   { path: '/role', element: <Gate><RolesPage /></Gate> },
   { path: '/langganan', element: <Gate><SubscriptionPage /></Gate> },
-  { path: '/pengaturan', element: <Gate><SettingsPage /></Gate> },
+  { path: '/cabang', element: <Gate><BranchesPage /></Gate> },
+  // Redirect rute lama.
+  { path: '/pengaturan', element: <Navigate to="/cabang" replace /> },
   { path: '*', element: <Navigate to="/" replace /> },
 ]);
 

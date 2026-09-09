@@ -96,4 +96,9 @@ export const Icon = {
       <path d="m9 18 6-6-6-6" />
     </svg>
   ),
+  check: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...s(p)}>
+      <path d="M20 6 9 17l-5-5" />
+    </svg>
+  ),
 };

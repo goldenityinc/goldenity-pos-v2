@@ -11,9 +11,9 @@ const NAV = [
   { to: '/inventaris', label: 'Inventaris', icon: Icon.box, cap: 'canManageInventory' as const },
   { to: '/kategori', label: 'Kategori', icon: Icon.tag, cap: 'canManageCategories' as const },
   { to: '/karyawan', label: 'Data Karyawan', icon: Icon.users, cap: 'canManageUsers' as const },
-  { to: '/role', label: 'Manajemen Role', icon: Icon.shield, cap: 'canManageRoles' as const },
+  { to: '/role', label: 'Roles & Akses', icon: Icon.shield, cap: 'canManageRoles' as const },
   { to: '/langganan', label: 'Langganan', icon: Icon.crown, cap: 'canViewSubscription' as const },
-  { to: '/pengaturan', label: 'Pengaturan', icon: Icon.cog, cap: 'canOpenBackOffice' as const },
+  { to: '/cabang', label: 'Cabang', icon: Icon.home, cap: 'canManageBranches' as const },
 ];
 
 function SubscriptionBanner() {

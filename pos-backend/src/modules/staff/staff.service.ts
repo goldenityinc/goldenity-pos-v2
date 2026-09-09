@@ -339,6 +339,10 @@ export class StaffService {
       builtInRoles: ['TENANT_ADMIN', ...ASSIGNABLE_ROLES.filter((r) => r !== 'TENANT_ADMIN')].map((r) => ({
         key: r,
         label: ROLE_LABEL[r] ?? r,
+        // Matriks izin bawaan (read-only di UI) — dipakai Back Office untuk
+        // menampilkan hak akses tiap peran bawaan tanpa perlu endpoint lain.
+        permissions: defaultMatrixForRole(r),
+        fullAccess: r === 'TENANT_ADMIN' || r === 'SUPER_ADMIN',
       })),
       modules: PERMISSION_MODULES,
       customRbacEnabled: await customRbacEnabled(tenantId),
