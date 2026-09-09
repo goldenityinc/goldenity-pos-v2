@@ -162,7 +162,11 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
       return;
     }
     try {
-      final uri = ApiConstants.salesEndpoint();
+      // POS di-scope ke cabang login (slice "semua cabang" hanya di Back Office).
+      final branchId = session.selectedBranchId ?? session.user.branchId;
+      final uri = ApiConstants.salesEndpoint(
+        branchId != null && branchId.isNotEmpty ? {'branchId': branchId} : null,
+      );
       final res = await http.get(
         uri,
         headers: <String, String>{

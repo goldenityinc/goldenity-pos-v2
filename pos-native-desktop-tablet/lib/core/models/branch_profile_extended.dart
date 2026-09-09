@@ -5,6 +5,9 @@ class BranchWithPrintersProfile extends BranchProfile {
   final String tenantId;
   final List<PrinterConfigProfile> printerConfigs;
   final DateTime? createdAt;
+  // 'QRIS_ONLY' | 'QRIS_AND_CASHIER' — pengaturan per-cabang di DB.
+  final String webOrderPaymentMode;
+  final bool isActive;
 
   const BranchWithPrintersProfile({
     required super.id,
@@ -13,6 +16,8 @@ class BranchWithPrintersProfile extends BranchProfile {
     super.qrisImageUrl,
     required this.printerConfigs,
     this.createdAt,
+    this.webOrderPaymentMode = 'QRIS_AND_CASHIER',
+    this.isActive = true,
   });
 
   factory BranchWithPrintersProfile.fromJson(Map<String, dynamic> json) {
@@ -31,6 +36,9 @@ class BranchWithPrintersProfile extends BranchProfile {
       createdAt: createdAtRaw != null
           ? DateTime.tryParse(createdAtRaw.toString())
           : null,
+      webOrderPaymentMode:
+          json['webOrderPaymentMode'] as String? ?? 'QRIS_AND_CASHIER',
+      isActive: json['isActive'] as bool? ?? true,
     );
   }
 

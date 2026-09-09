@@ -51,9 +51,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       final auth = ref.read(authNotifierProvider.notifier);
       final token = auth.session?.token;
       if (token == null) throw Exception('Sesi tidak ditemukan');
+      final branchId = auth.session?.selectedBranchId ?? auth.session?.user.branchId;
       final dashboardApi = ref.read(dashboardApiServiceProvider);
-      final summary =
-          await dashboardApi.getSummary(authToken: token, range: _range);
+      final summary = await dashboardApi.getSummary(
+        authToken: token,
+        range: _range,
+        branchId: branchId,
+      );
       if (mounted) setState(() => _summary = summary);
       // Shift aktif (badge) — best effort.
       try {
@@ -62,7 +66,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       } catch (_) {}
       // Penjualan per jam hari ini — hitung dari daftar penjualan (best effort).
       try {
-        final r = await http.get(ApiConstants.salesEndpoint(),
+        final r = await http.get(
+            ApiConstants.salesEndpoint(
+                branchId != null && branchId.isNotEmpty ? {'branchId': branchId} : null),
             headers: {'Authorization': 'Bearer $token', 'Accept': 'application/json'});
         final body = jsonDecode(r.body) as Map<String, dynamic>;
         final sales = (body['data']?['sales'] as List<dynamic>?) ?? const [];

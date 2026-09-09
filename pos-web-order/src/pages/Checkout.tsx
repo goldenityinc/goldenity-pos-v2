@@ -11,7 +11,12 @@ export default function Checkout() {
   const clearCart = useStore((s) => s.clearCart);
   const total = useStore((s) => s.cartTotal());
 
-  const [method, setMethod] = useState<'PAY_AT_CASHIER' | 'QRIS_STATIC'>('PAY_AT_CASHIER');
+  const modes = session.paymentModes ?? ['QRIS_STATIC', 'PAY_AT_CASHIER'];
+  const cashierAllowed = modes.includes('PAY_AT_CASHIER');
+  // Default: kalau cabang QRIS-only, langsung QRIS. Selain itu tetap "Bayar di Kasir".
+  const [method, setMethod] = useState<'PAY_AT_CASHIER' | 'QRIS_STATIC'>(
+    cashierAllowed ? 'PAY_AT_CASHIER' : 'QRIS_STATIC',
+  );
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -98,12 +103,14 @@ export default function Checkout() {
             <div className="mt-4">
               <div className="mb-1.5 text-[13px] font-bold text-ink">Metode Pembayaran</div>
               <div className="space-y-2">
-                <PayOpt
-                  active={method === 'PAY_AT_CASHIER'}
-                  onClick={() => setMethod('PAY_AT_CASHIER')}
-                  title="Bayar di Kasir"
-                  sub="Bayar tunai / kartu saat pesanan diantar"
-                />
+                {cashierAllowed && (
+                  <PayOpt
+                    active={method === 'PAY_AT_CASHIER'}
+                    onClick={() => setMethod('PAY_AT_CASHIER')}
+                    title="Bayar di Kasir"
+                    sub="Bayar tunai / kartu saat pesanan diantar"
+                  />
+                )}
                 <PayOpt
                   active={method === 'QRIS_STATIC'}
                   onClick={() => setMethod('QRIS_STATIC')}
@@ -111,6 +118,11 @@ export default function Checkout() {
                   sub="Scan QRIS toko, lalu konfirmasi & upload bukti"
                 />
               </div>
+              {!cashierAllowed && (
+                <p className="mt-1.5 text-[11px] text-muted">
+                  Cabang ini hanya menerima pembayaran QRIS untuk pesanan online.
+                </p>
+              )}
             </div>
 
             <div className="mt-4">

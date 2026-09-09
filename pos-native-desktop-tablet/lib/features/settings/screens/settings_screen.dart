@@ -49,6 +49,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   // Terima + cetak web order otomatis (toggle di tab "Printer per Cabang").
   bool _webOrderAutoAccept = false;
   bool _savingAutoAccept = false;
+  // Per-cabang: metode bayar web order. true = QRIS saja (sembunyikan "Bayar di Kasir").
+  bool _webOrderQrisOnly = false;
+  bool _savingPaymentMode = false;
   final GlobalKey<FormState> _storeFormKey = GlobalKey<FormState>();
 
   List<BranchWithPrintersProfile> _branches = [];
@@ -232,7 +235,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       final settingsApi = ref.read(settingsApiServiceProvider);
       final list = await settingsApi.listBranches(authToken: token);
       if (mounted) {
-        setState(() => _branches = list);
+        final lb = _loginBranchId;
+        BranchWithPrintersProfile? loginBranch;
+        for (final b in list) {
+          if (b.id == lb) loginBranch = b;
+        }
+        setState(() {
+          _branches = list;
+          if (loginBranch != null) {
+            _webOrderQrisOnly = loginBranch.webOrderPaymentMode == 'QRIS_ONLY';
+          }
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -1528,6 +1541,126 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     return '${d.inDays} hari lalu';
   }
 
+  /// Toggle "Metode Pembayaran Web Order" per-cabang — simpan ke /settings/branches/:id.
+  Future<void> _toggleWebOrderQrisOnly(bool value) async {
+    final branchId = _loginBranchId;
+    if (branchId == null || branchId.isEmpty) return;
+    final prev = _webOrderQrisOnly;
+    setState(() {
+      _webOrderQrisOnly = value;
+      _savingPaymentMode = true;
+    });
+    try {
+      final token = ref.read(authNotifierProvider.notifier).session?.token;
+      if (token == null) throw Exception('Sesi tidak ditemukan');
+      await ref.read(settingsApiServiceProvider).updateBranch(
+            authToken: token,
+            branchId: branchId,
+            data: {'webOrderPaymentMode': value ? 'QRIS_ONLY' : 'QRIS_AND_CASHIER'},
+          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor: GoldenityColors.success,
+          content: Text(value
+              ? 'Web order cabang ini hanya menerima QRIS.'
+              : 'Web order cabang ini: QRIS + Bayar di Kasir.'),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _webOrderQrisOnly = prev);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          backgroundColor: GoldenityColors.error,
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _savingPaymentMode = false);
+    }
+  }
+
+  Widget _buildWebOrderPaymentCard(TextTheme textTheme) {
+    final qrisOnly = _webOrderQrisOnly;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        border: Border.all(color: GoldenityColors.border),
+      ),
+      padding: const EdgeInsets.all(GoldenitySpacing.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: GoldenityColors.primaryLight,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                ),
+                alignment: Alignment.center,
+                child: const Icon(Icons.qr_code_2_rounded,
+                    size: 20, color: GoldenityColors.primary),
+              ),
+              const SizedBox(width: GoldenitySpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Metode Pembayaran Web Order',
+                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text(
+                        'Cabang ${_branchNameFor(_loginBranchId)} · cara pelanggan menyelesaikan pembayaran',
+                        style: textTheme.bodySmall?.copyWith(color: GoldenityColors.muted)),
+                  ],
+                ),
+              ),
+              _savingPaymentMode
+                  ? const Padding(
+                      padding: EdgeInsets.all(8),
+                      child: SizedBox(
+                          width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                    )
+                  : Row(
+                      children: [
+                        Text('QRIS Only',
+                            style: textTheme.bodySmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: qrisOnly
+                                    ? GoldenityColors.primary
+                                    : GoldenityColors.muted)),
+                        Switch(
+                          value: qrisOnly,
+                          onChanged: _loading ? null : _toggleWebOrderQrisOnly,
+                        ),
+                      ],
+                    ),
+            ],
+          ),
+          const SizedBox(height: GoldenitySpacing.sm),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(GoldenitySpacing.md),
+            decoration: BoxDecoration(
+              color: GoldenityColors.surface2,
+              borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+            ),
+            child: Text(
+              qrisOnly
+                  ? 'Pelanggan hanya bisa membayar via scan QRIS. Opsi "Bayar di Kasir" disembunyikan di checkout.'
+                  : 'Pelanggan bisa memilih "Bayar di Kasir" (tunai saat di tempat) atau QRIS.',
+              style: textTheme.bodySmall?.copyWith(color: GoldenityColors.text2),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Toggle "Penerimaan Web Order Otomatis" — simpan langsung ke /settings/store.
   Future<void> _toggleWebOrderAutoAccept(bool value) async {
     final prev = _webOrderAutoAccept;
@@ -1745,6 +1878,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       padding: const EdgeInsets.all(GoldenitySpacing.lg),
       children: [
         _buildWebOrderAutoCard(textTheme),
+        const SizedBox(height: GoldenitySpacing.md),
+        _buildWebOrderPaymentCard(textTheme),
         const SizedBox(height: GoldenitySpacing.lg),
         Container(
           decoration: BoxDecoration(

@@ -8,6 +8,7 @@ export default function Menu() {
   const nav = useNavigate();
   const session = useStore((s) => s.session)!;
   const addLine = useStore((s) => s.addLine);
+  const syncPaymentModes = useStore((s) => s.syncPaymentModes);
   const cartCount = useStore((s) => s.cartCount());
   const cartTotal = useStore((s) => s.cartTotal());
 
@@ -20,9 +21,12 @@ export default function Menu() {
   useEffect(() => {
     api
       .getMenu(session.sessionToken)
-      .then(setMenu)
+      .then((m) => {
+        setMenu(m);
+        syncPaymentModes(m.paymentModes);
+      })
       .catch((e) => setErr(e.message));
-  }, [session.sessionToken]);
+  }, [session.sessionToken, syncPaymentModes]);
 
   const filtered = useMemo(() => {
     if (!menu) return [];

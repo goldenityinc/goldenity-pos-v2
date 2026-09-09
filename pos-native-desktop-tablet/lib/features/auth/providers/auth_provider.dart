@@ -17,9 +17,21 @@ enum AuthState {
 class AuthNotifier extends Notifier<AuthState> {
   AuthSession? _session;
   String? _lastExpiredMessage;
+  // true = user BARU login dgn password (skip gerbang PIN unlock).
+  bool _freshLogin = false;
+  // true = gerbang PIN sudah dilewati / dibuka utk sesi run ini.
+  bool _pinUnlocked = false;
 
   AuthSession? get session => _session;
   String? get lastExpiredMessage => _lastExpiredMessage;
+  bool get freshLogin => _freshLogin;
+  bool get pinUnlocked => _pinUnlocked;
+
+  void markPinUnlocked() {
+    _pinUnlocked = true;
+    // updateShouldNotify() selalu true → assign ulang state memicu rebuild.
+    state = AuthState.authenticated;
+  }
 
   @override
   bool updateShouldNotify(AuthState previous, AuthState next) {
@@ -51,6 +63,8 @@ class AuthNotifier extends Notifier<AuthState> {
 
     _session = loaded;
     _lastExpiredMessage = null;
+    _freshLogin = false; // restore dari storage → gerbang PIN unlock berlaku
+    _pinUnlocked = false;
     _applyState(AuthState.authenticated);
   }
 
@@ -91,6 +105,8 @@ class AuthNotifier extends Notifier<AuthState> {
     final reloaded = repo.loadSession();
     _session = reloaded;
     _lastExpiredMessage = null;
+    _freshLogin = true; // baru isi password → skip gerbang PIN unlock, tawarkan setup
+    _pinUnlocked = false;
     _applyState(AuthState.authenticated);
     return (true, null);
   }
@@ -111,6 +127,8 @@ class AuthNotifier extends Notifier<AuthState> {
     final repo = ref.read(authRepositoryProvider);
     await repo.clearSession();
     _session = null;
+    _freshLogin = false;
+    _pinUnlocked = false;
     if (markExpired) {
       _lastExpiredMessage = message ??
           'Sesi login telah habis. Silakan login kembali untuk keamanan akun Anda.';

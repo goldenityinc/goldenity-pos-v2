@@ -31,7 +31,7 @@ function extractStatusFromError(err: string, code?: string): number {
 
 salesRoutes.get('/', async (req: Request, res: Response) => {
   try {
-    const result = await SalesService.list(req.user!);
+    const result = await SalesService.list(req.user!, req.query as Record<string, any>);
     if (result.success) {
       return res.status(200).json(result);
     }

@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import './index.css';
+import { ErrorBoundary } from './ErrorBoundary';
 import { useStore } from './store';
 import SessionGate from './pages/SessionGate';
 import Menu from './pages/Menu';
@@ -47,8 +48,10 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <div className="app-shell">
-      <RouterProvider router={router} />
-    </div>
+    <ErrorBoundary>
+      <div className="app-shell">
+        <RouterProvider router={router} />
+      </div>
+    </ErrorBoundary>
   </StrictMode>,
 );

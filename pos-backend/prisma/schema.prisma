@@ -59,11 +59,19 @@ model Tenant {
   updatedAt               DateTime     @updatedAt
 }
 
+enum WebOrderPaymentMode {
+  QRIS_ONLY         // customer web order HANYA boleh QRIS statis
+  QRIS_AND_CASHIER  // QRIS statis + "Bayar di Kasir"
+}
+
 model Branch {
   id             String          @id @default(uuid())
   tenantId       String
   name           String
   qrisImageUrl   String?
+  // Pengaturan per-cabang (disimpan di DB per cabang, bukan tenant-level).
+  webOrderPaymentMode WebOrderPaymentMode @default(QRIS_AND_CASHIER)
+  isActive       Boolean         @default(true)
   tenant         Tenant          @relation(fields: [tenantId], references: [id])
   users          User[]
   products       Product[]

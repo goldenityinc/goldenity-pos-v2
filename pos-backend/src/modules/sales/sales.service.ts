@@ -191,9 +191,14 @@ const mapSalesRecord = (
 };
 
 export class SalesService {
-  static async list(user: JwtAuthPayload): Promise<ApiResponse<{ sales: SalesRecordWithItems[] }>> {
+  static async list(
+    user: JwtAuthPayload,
+    query: Record<string, any> = {},
+  ): Promise<ApiResponse<{ sales: SalesRecordWithItems[] }>> {
     try {
-      const scope = resolveEffectiveBranchFilter(user);
+      // `?branchId=` di-honor utk role lintas-cabang (TENANT_ADMIN/ACCOUNTANT).
+      // POS mengirim branchId cabang login; Back Office bisa kosongkan = semua cabang.
+      const scope = resolveEffectiveBranchFilter(user, query);
 
       const where: Record<string, any> = {};
       if (scope.tenantId) where.tenantId = scope.tenantId;

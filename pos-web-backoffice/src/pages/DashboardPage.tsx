@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Shell } from '../components/Shell';
 import { MetricCard } from '../components/MetricCard';
 import { ErrorBanner, Spinner, Tabs } from '../components/ui';
-import { api, type DashboardSummary } from '../lib/api';
+import { api, type Branch, type DashboardSummary } from '../lib/api';
 import { rupiah, rupiahShort } from '../lib/format';
 
 const RANGES = [
@@ -13,28 +13,53 @@ const RANGES = [
 
 export default function DashboardPage() {
   const [range, setRange] = useState<'today' | 'week' | 'month'>('month');
+  const [branchId, setBranchId] = useState('');
+  const [branches, setBranches] = useState<Branch[]>([]);
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .listBranches()
+      .then((b) => setBranches(b.branches))
+      .catch(() => {});
+  }, []);
 
   const load = () => {
     setLoading(true);
     setErr(null);
     api
-      .dashboard(range)
+      .dashboard(range, branchId || undefined)
       .then(setData)
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
   };
-  useEffect(load, [range]);
+  useEffect(load, [range, branchId]);
 
   const maxTop = data?.topProducts?.[0]?.revenue || 1;
 
   return (
     <Shell
       title="Dashboard"
-      subtitle="Ringkasan penjualan toko Anda"
-      actions={<Tabs tabs={RANGES} active={range} onChange={(k) => setRange(k as any)} />}
+      subtitle="Ringkasan penjualan — semua cabang atau per cabang"
+      actions={
+        <div className="flex items-center gap-2">
+          <select
+            value={branchId}
+            onChange={(e) => setBranchId(e.target.value)}
+            className="h-9 rounded-md border border-line bg-white px-3 text-[13px] outline-none focus:border-brand"
+          >
+            <option value="">Semua cabang</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          <Tabs tabs={RANGES} active={range} onChange={(k) => setRange(k as any)} />
+        </div>
+      }
     >
       {err && <ErrorBanner message={err} onRetry={load} />}
 

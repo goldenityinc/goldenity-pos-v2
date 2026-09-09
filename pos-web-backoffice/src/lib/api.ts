@@ -175,10 +175,14 @@ export interface RolesResp {
   customRoles: CustomRole[];
 }
 
+export type WebOrderPaymentMode = 'QRIS_ONLY' | 'QRIS_AND_CASHIER';
+
 export interface Branch {
   id: string;
   name: string;
   qrisImageUrl: string | null;
+  webOrderPaymentMode?: WebOrderPaymentMode;
+  isActive?: boolean;
 }
 
 export interface Product {
@@ -318,6 +322,8 @@ export const api = {
   deleteBranch: (id: string) => req<any>(`/settings/branches/${id}`, { method: 'DELETE' }),
 
   // dashboard
-  dashboard: (range: 'today' | 'week' | 'month' = 'month') =>
-    req<DashboardSummary>(`/dashboard/summary?range=${range}`),
+  dashboard: (range: 'today' | 'week' | 'month' = 'month', branchId?: string) =>
+    req<DashboardSummary>(
+      `/dashboard/summary?range=${range}` + (branchId ? `&branchId=${branchId}` : ''),
+    ),
 };

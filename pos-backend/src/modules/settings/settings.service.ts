@@ -24,8 +24,11 @@ const UpdateStoreSchema = z.object({
 const CreateBranchSchema = z.object({
   name: z.string().min(2).max(100),
   qrisImageUrl: z.string().url().optional().nullable(),
+  webOrderPaymentMode: z.enum(['QRIS_ONLY', 'QRIS_AND_CASHIER']).optional(),
 });
-const UpdateBranchSchema = CreateBranchSchema.partial();
+const UpdateBranchSchema = CreateBranchSchema.partial().extend({
+  isActive: z.boolean().optional(),
+});
 
 const UpsertPrinterSchema = z.object({
   slot: z.nativeEnum({ defaultPrinter: 'defaultPrinter', kitchen: 'kitchen', cashier: 'cashier' } as Record<PrinterSlot, PrinterSlot>),
@@ -218,6 +221,7 @@ export class SettingsService {
           tenantId: user.tenantId,
           name: parsed.data.name,
           qrisImageUrl: parsed.data.qrisImageUrl ?? null,
+          webOrderPaymentMode: parsed.data.webOrderPaymentMode ?? 'QRIS_AND_CASHIER',
         },
       });
       return ok<Branch>(created);
@@ -268,10 +272,14 @@ export class SettingsService {
     });
 
     if (affectedSales > 0) {
+      await prisma.branch.update({
+        where: { id: branchId, tenantId: user.tenantId },
+        data: { isActive: false },
+      });
       return ok<BranchRemoveResult>({
-        softDeleted: false,
+        softDeleted: true,
         affectedSales,
-        message: `Cabang tidak bisa dihapus permanen, masih digunakan transaksi sebanyak ${affectedSales}. Di non-aktifkan secara virtual saja.`,
+        message: `Cabang masih dipakai ${affectedSales} transaksi — dinonaktifkan (tidak dihapus permanen).`,
       });
     }
 

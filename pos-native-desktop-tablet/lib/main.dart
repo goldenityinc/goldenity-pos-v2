@@ -11,9 +11,12 @@ import 'core/design/goldenity_colors.dart';
 import 'core/design/goldenity_radius.dart';
 import 'core/design/goldenity_spacing.dart';
 import 'core/design/goldenity_theme.dart';
+import 'core/services/pin_service.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/branch_selection_screen.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'features/auth/screens/pin_setup_screen.dart';
+import 'features/auth/screens/pin_unlock_screen.dart';
 import 'features/inventory/providers/product_list_provider.dart';
 import 'features/inventory/repositories/inventory_hive_repository.dart';
 import 'features/sales/providers/cart_provider.dart';
@@ -151,6 +154,27 @@ class _AuthGateState extends ConsumerState<_AuthGate> {
           _bootstrapFuture = null;
           return const BranchSelectionScreen();
         }
+
+        // ── Gerbang PIN Offline (blueprint §2.2) ──
+        final notifier = ref.read(authNotifierProvider.notifier);
+        final userId = session?.user.id;
+        if (userId != null) {
+          final pin = ref.read(pinServiceProvider);
+          if (pin.isSet(userId)) {
+            // Sesi di-restore dari storage (bukan login baru) → minta PIN.
+            if (!notifier.freshLogin && !notifier.pinUnlocked) {
+              _bootstrapFuture = null;
+              return const PinUnlockScreen();
+            }
+          } else if (notifier.freshLogin &&
+              !notifier.pinUnlocked &&
+              !pin.wasSkipped(userId)) {
+            // Login pertama & belum punya PIN → tawarkan buat (bisa dilewati).
+            _bootstrapFuture = null;
+            return const PinSetupScreen();
+          }
+        }
+
         _bootstrapFuture ??= _ensureBootstrap(ref);
         return FutureBuilder<void>(
           future: _bootstrapFuture,

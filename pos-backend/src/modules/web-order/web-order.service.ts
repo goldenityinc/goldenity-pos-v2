@@ -58,6 +58,13 @@ function priceDeltaForSelections(variants: unknown, selections: unknown): number
   return total;
 }
 
+/** Metode bayar web order yang diizinkan cabang (urutan = urutan tampil). */
+function paymentModesFor(mode: 'QRIS_ONLY' | 'QRIS_AND_CASHIER' | null | undefined): Array<'QRIS_STATIC' | 'PAY_AT_CASHIER'> {
+  return mode === 'QRIS_ONLY'
+    ? ['QRIS_STATIC']
+    : ['QRIS_STATIC', 'PAY_AT_CASHIER'];
+}
+
 // ── Schemas (customer) ─────────────────────────────────────
 const StartSessionSchema = z.object({
   qrToken: z.string().trim().min(8, 'qrToken tidak valid'),
@@ -136,7 +143,14 @@ export class WebOrderService {
   private static async requireActiveSession(sessionToken: string) {
     const session = await prisma.tableSession.findUnique({
       where: { sessionToken },
-      include: { table: { select: { id: true, code: true, branchId: true, status: true, branch: { select: { tenantId: true } } } } },
+      include: {
+        table: {
+          select: {
+            id: true, code: true, branchId: true, status: true,
+            branch: { select: { tenantId: true, webOrderPaymentMode: true } },
+          },
+        },
+      },
     });
     if (!session) {
       return { ok: false as const, response: fail('Sesi tidak ditemukan. Scan ulang QR meja.', 'NOT_FOUND') };
@@ -157,7 +171,14 @@ export class WebOrderService {
 
     const table = await prisma.diningTable.findUnique({
       where: { qrToken: parsed.data.qrToken },
-      include: { branch: { select: { id: true, name: true, tenantId: true, tenant: { select: { slug: true, name: true } } } } },
+      include: {
+        branch: {
+          select: {
+            id: true, name: true, tenantId: true, webOrderPaymentMode: true, isActive: true,
+            tenant: { select: { slug: true, name: true } },
+          },
+        },
+      },
     });
     if (!table) return fail('QR meja tidak valid atau sudah diganti. Minta QR terbaru ke kasir.', 'NOT_FOUND');
     if (table.status === 'INACTIVE') return fail('Meja ini sedang tidak aktif.', 'TABLE_INACTIVE');
@@ -205,6 +226,8 @@ export class WebOrderService {
       table: { id: table.id, code: table.code },
       branch: { id: table.branch.id, name: table.branch.name },
       tenant: { slug: table.branch.tenant.slug, name: table.branch.tenant.name },
+      // Metode bayar yang diizinkan cabang ini (customer web app hanya tampilkan ini).
+      paymentModes: paymentModesFor(table.branch.webOrderPaymentMode),
     });
   }
 
@@ -256,6 +279,7 @@ export class WebOrderService {
         variants: p.variants,
         outOfStock: p.stock != null && p.stock <= 0,
       })),
+      paymentModes: paymentModesFor(check.session.table.branch.webOrderPaymentMode),
     });
   }
 
@@ -289,6 +313,15 @@ export class WebOrderService {
     const { session } = check;
     const branchId = session.table.branchId;
     const tenantId = session.table.branch.tenantId;
+
+    // Cabang QRIS_ONLY tidak mengizinkan "Bayar di Kasir".
+    const allowedModes = paymentModesFor(session.table.branch.webOrderPaymentMode);
+    if (!allowedModes.includes(parsed.data.paymentMethod)) {
+      return fail(
+        'Cabang ini hanya menerima pembayaran QRIS untuk pesanan online.',
+        'PAYMENT_METHOD_NOT_ALLOWED',
+      );
+    }
 
     // Snapshot harga & nama produk dari DB (JANGAN percaya harga dari client).
     const productIds = [...new Set(parsed.data.items.map((it) => it.productId))];

@@ -14,7 +14,9 @@ export default function SettingsPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingStore, setSavingStore] = useState(false);
-  const [branchDraft, setBranchDraft] = useState<{ id?: string; name: string } | null>(null);
+  const [branchDraft, setBranchDraft] = useState<
+    { id?: string; name: string; webOrderPaymentMode: 'QRIS_ONLY' | 'QRIS_AND_CASHIER' } | null
+  >(null);
   const [savingBranch, setSavingBranch] = useState(false);
   const [toDelete, setToDelete] = useState<Branch | null>(null);
 
@@ -56,8 +58,12 @@ export default function SettingsPage() {
     if (!branchDraft) return;
     setSavingBranch(true);
     try {
-      if (branchDraft.id) await api.updateBranch(branchDraft.id, { name: branchDraft.name.trim() });
-      else await api.createBranch({ name: branchDraft.name.trim() });
+      const payload = {
+        name: branchDraft.name.trim(),
+        webOrderPaymentMode: branchDraft.webOrderPaymentMode,
+      };
+      if (branchDraft.id) await api.updateBranch(branchDraft.id, payload);
+      else await api.createBranch(payload as any);
       toast.push('Cabang disimpan', 'ok');
       setBranchDraft(null);
       load();
@@ -144,7 +150,7 @@ export default function SettingsPage() {
       ) : (
         <div className="max-w-2xl">
           <div className="mb-3">
-            <Button onClick={() => setBranchDraft({ name: '' })}>
+            <Button onClick={() => setBranchDraft({ name: '', webOrderPaymentMode: 'QRIS_AND_CASHIER' })}>
               <Icon.plus width={16} height={16} />
               Tambah Cabang
             </Button>
@@ -154,7 +160,17 @@ export default function SettingsPage() {
               <div key={b.id} className="flex items-center justify-between rounded-card border border-line bg-white p-4 shadow-card">
                 <span className="text-[14px] font-semibold text-ink">{b.name}</span>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setBranchDraft({ id: b.id, name: b.name })}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setBranchDraft({
+                        id: b.id,
+                        name: b.name,
+                        webOrderPaymentMode: b.webOrderPaymentMode ?? 'QRIS_AND_CASHIER',
+                      })
+                    }
+                  >
                     Edit
                   </Button>
                   <Button size="sm" variant="danger" onClick={() => setToDelete(b)}>
@@ -184,7 +200,30 @@ export default function SettingsPage() {
         }
       >
         {branchDraft && (
-          <Input label="Nama Cabang" autoFocus value={branchDraft.name} onChange={(e) => setBranchDraft({ ...branchDraft, name: e.target.value })} />
+          <div className="flex flex-col gap-3">
+            <Input
+              label="Nama Cabang"
+              autoFocus
+              value={branchDraft.name}
+              onChange={(e) => setBranchDraft({ ...branchDraft, name: e.target.value })}
+            />
+            <label className="block">
+              <span className="mb-1 block text-[12px] font-semibold text-ink2">Metode Pembayaran Web Order</span>
+              <select
+                value={branchDraft.webOrderPaymentMode}
+                onChange={(e) =>
+                  setBranchDraft({ ...branchDraft, webOrderPaymentMode: e.target.value as any })
+                }
+                className="h-11 w-full rounded-md border border-line bg-white px-3 text-[14px] outline-none focus:border-brand"
+              >
+                <option value="QRIS_AND_CASHIER">QRIS + Bayar di Kasir</option>
+                <option value="QRIS_ONLY">QRIS saja</option>
+              </select>
+              <span className="mt-1 block text-[12px] text-muted">
+                "QRIS saja" menyembunyikan opsi "Bayar di Kasir" di halaman checkout customer cabang ini.
+              </span>
+            </label>
+          </div>
         )}
       </Modal>
 

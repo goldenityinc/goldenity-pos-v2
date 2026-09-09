@@ -13,12 +13,15 @@ async function j<T>(res: Response): Promise<T> {
   return (body?.data ?? body) as T;
 }
 
+export type WebOrderPaymentMethod = 'QRIS_STATIC' | 'PAY_AT_CASHIER';
+
 export interface StartSessionResp {
   sessionToken: string;
   expiresAt: string;
   table: { id: string; code: string };
   branch: { id: string; name: string };
   tenant: { slug: string; name: string };
+  paymentModes?: WebOrderPaymentMethod[];
 }
 
 export interface MenuCategory {
@@ -47,6 +50,7 @@ export interface MenuResp {
   };
   categories: MenuCategory[];
   products: MenuProduct[];
+  paymentModes?: WebOrderPaymentMethod[];
 }
 
 export interface OrderItemLine {

@@ -1,6 +1,58 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import type { StartSessionResp } from './api';
+
+/**
+ * Safari (mode Private / cookie diblokir) melempar saat akses localStorage —
+ * di V1 ini bikin Web Order white-screen total. Adapter aman: coba
+ * localStorage, kalau gagal jatuh ke Map di memori (sesi tetap jalan,
+ * cuma tidak persist antar refresh).
+ */
+const memoryFallback = new Map<string, string>();
+const safeStorage: Storage = {
+  get length() {
+    try {
+      return window.localStorage.length;
+    } catch {
+      return memoryFallback.size;
+    }
+  },
+  clear() {
+    try {
+      window.localStorage.clear();
+    } catch {
+      memoryFallback.clear();
+    }
+  },
+  key(i: number) {
+    try {
+      return window.localStorage.key(i);
+    } catch {
+      return [...memoryFallback.keys()][i] ?? null;
+    }
+  },
+  getItem(k: string) {
+    try {
+      return window.localStorage.getItem(k);
+    } catch {
+      return memoryFallback.get(k) ?? null;
+    }
+  },
+  setItem(k: string, v: string) {
+    try {
+      window.localStorage.setItem(k, v);
+    } catch {
+      memoryFallback.set(k, v);
+    }
+  },
+  removeItem(k: string) {
+    try {
+      window.localStorage.removeItem(k);
+    } catch {
+      memoryFallback.delete(k);
+    }
+  },
+};
 
 export interface CartLine {
   key: string; // unik per (produk + varian + note)
@@ -13,6 +65,8 @@ export interface CartLine {
   variantLabel?: string; // "Es · Large" utk tampilan
 }
 
+export type WebOrderPaymentMethod = 'QRIS_STATIC' | 'PAY_AT_CASHIER';
+
 interface SessionInfo {
   sessionToken: string;
   tableCode: string;
@@ -20,12 +74,14 @@ interface SessionInfo {
   tenantName: string;
   expiresAt: string;
   customerName?: string;
+  paymentModes: WebOrderPaymentMethod[];
 }
 
 interface State {
   session: SessionInfo | null;
   cart: CartLine[];
   setSession: (s: StartSessionResp, customerName?: string) => void;
+  syncPaymentModes: (modes: WebOrderPaymentMethod[] | undefined) => void;
   clearSession: () => void;
   addLine: (l: Omit<CartLine, 'key'> & { key?: string }) => void;
   setQty: (key: string, qty: number) => void;
@@ -49,9 +105,19 @@ export const useStore = create<State>()(
             tenantName: s.tenant.name,
             expiresAt: s.expiresAt,
             customerName,
+            paymentModes:
+              Array.isArray(s.paymentModes) && s.paymentModes.length
+                ? s.paymentModes
+                : ['QRIS_STATIC', 'PAY_AT_CASHIER'],
           },
           cart: [],
         }),
+      syncPaymentModes: (modes) =>
+        set((st) =>
+          st.session && Array.isArray(modes) && modes.length
+            ? { session: { ...st.session, paymentModes: modes } }
+            : {},
+        ),
       clearSession: () => set({ session: null, cart: [] }),
       addLine: (l) =>
         set((st) => {
@@ -80,6 +146,9 @@ export const useStore = create<State>()(
       cartCount: () => get().cart.reduce((s, c) => s + c.qty, 0),
       cartTotal: () => get().cart.reduce((s, c) => s + c.unitPrice * c.qty, 0),
     }),
-    { name: 'goldenity-weborder' },
+    {
+      name: 'goldenity-weborder',
+      storage: createJSONStorage(() => safeStorage),
+    },
   ),
 );

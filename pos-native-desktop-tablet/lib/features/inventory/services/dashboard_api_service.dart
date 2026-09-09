@@ -37,9 +37,13 @@ class DashboardApiService {
   Future<DashboardSummaryProfile> getSummary({
     required String authToken,
     String range = 'today',
+    String? branchId,
   }) async {
     final q = <String, String>{
       'range': range,
+      // POS selalu di-scope ke cabang login (walau user TENANT_ADMIN). Slice
+      // "semua cabang" hanya ada di Web Back Office.
+      if (branchId != null && branchId.isNotEmpty) 'branchId': branchId,
     };
     final uri = ApiConstants.dashboardSummaryEndpoint(q);
     final resp = await _client

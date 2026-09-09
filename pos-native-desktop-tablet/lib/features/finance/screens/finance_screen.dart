@@ -56,11 +56,13 @@ class _FinanceScreenState extends ConsumerState<FinanceScreen> {
       final auth = ref.read(authNotifierProvider.notifier);
       final token = auth.session?.token;
       if (token == null) throw Exception('Sesi tidak ditemukan');
+      final branchId = auth.session?.selectedBranchId ?? auth.session?.user.branchId;
       final r = _rangeFor(_range);
       final report = await ref.read(dashboardApiServiceProvider).getFinanceReport(
             authToken: token,
             from: r.start.toIso8601String(),
             to: r.end.toIso8601String(),
+            branchId: branchId,
           );
       if (mounted) setState(() => _report = report);
     } catch (e) {
