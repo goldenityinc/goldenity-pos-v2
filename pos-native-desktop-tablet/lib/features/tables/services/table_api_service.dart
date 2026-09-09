@@ -186,4 +186,28 @@ class TableApiService {
         .timeout(ApiConstants.defaultReceiveTimeout);
     return _ok(r)['url']?.toString() ?? '';
   }
+
+  /// Unduh PDF QR meja. `tableId` diisi → 1 meja; kosong → semua meja cabang.
+  Future<List<int>> downloadQrPdf({
+    required String token,
+    String? tableId,
+    String? branchId,
+  }) async {
+    final uri = tableId != null && tableId.isNotEmpty
+        ? ApiConstants.tableQrPdfEndpoint(tableId)
+        : ApiConstants.tablesQrPdfEndpoint(branchId);
+    final r = await _client.get(uri, headers: {
+      HttpHeaders.authorizationHeader: 'Bearer $token',
+      HttpHeaders.acceptHeader: 'application/pdf',
+    }).timeout(const Duration(seconds: 30));
+    if (r.statusCode != 200) {
+      String msg = 'Gagal mengunduh PDF (HTTP ${r.statusCode})';
+      try {
+        final j = jsonDecode(r.body) as Map<String, dynamic>;
+        msg = j['error']?.toString() ?? msg;
+      } catch (_) {}
+      throw Exception(msg);
+    }
+    return r.bodyBytes;
+  }
 }

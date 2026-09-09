@@ -119,6 +119,19 @@ class ApiConstants {
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
 
+  // ===== Keuangan K1: Pengeluaran =====
+  static Uri expensesEndpoint([Map<String, String>? queryParams]) {
+    const base = '$devBaseUrl$apiV1Prefix/expenses';
+    if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
+    return Uri.parse(base).replace(queryParameters: queryParams);
+  }
+
+  static Uri expenseCategoriesEndpoint() =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/expenses/categories');
+
+  static Uri expenseVoidEndpoint(String id) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/expenses/$id/void');
+
   // ===== FASE 2: Manajemen Meja =====
   static Uri tablesEndpoint([Map<String, String>? queryParams]) {
     const base = '$devBaseUrl$apiV1Prefix/tables';
@@ -134,6 +147,15 @@ class ApiConstants {
 
   static Uri tableQrEndpoint(String tableId) =>
       Uri.parse('$devBaseUrl$apiV1Prefix/tables/$tableId/qr');
+
+  static Uri tableQrPdfEndpoint(String tableId) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/tables/$tableId/qr.pdf');
+
+  static Uri tablesQrPdfEndpoint([String? branchId]) {
+    const base = '$devBaseUrl$apiV1Prefix/tables/qr.pdf';
+    if (branchId == null || branchId.isEmpty) return Uri.parse(base);
+    return Uri.parse(base).replace(queryParameters: {'branchId': branchId});
+  }
 
   static Uri tableRotateTokenEndpoint(String tableId) =>
       Uri.parse('$devBaseUrl$apiV1Prefix/tables/$tableId/rotate-token');

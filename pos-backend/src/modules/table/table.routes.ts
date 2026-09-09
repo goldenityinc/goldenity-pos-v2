@@ -2,9 +2,34 @@ import { Router, type Request, type Response } from 'express';
 import { authenticateJWT } from '../../middleware/auth.middleware';
 import type { ApiResponse, JwtAuthPayload } from '../../config/types';
 import { TableService } from './table.service';
+import { buildTableQrPdf } from './table-qr-pdf';
 
 export const tableRoutes = Router();
 tableRoutes.use(authenticateJWT);
+
+/** Stream PDF QR meja (1 halaman per meja). `?branchId=` opsional utk admin. */
+async function streamQrPdf(req: Request, res: Response, tableId?: string) {
+  const data = await TableService.qrPdfData(req.user as JwtAuthPayload, {
+    tableId,
+    branchId: typeof req.query.branchId === 'string' ? req.query.branchId : undefined,
+  });
+  if (!data.ok) {
+    res.status(data.status).json({ success: false, error: data.error });
+    return;
+  }
+  try {
+    const pdf = await buildTableQrPdf(data.tables, data.meta);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${data.filename}"`);
+    res.send(pdf);
+  } catch (e: any) {
+    res.status(500).json({ success: false, error: `Gagal membuat PDF: ${e?.message ?? 'unknown'}` });
+  }
+}
+
+// Semua meja cabang (harus di atas `/:id/...`).
+tableRoutes.get('/qr.pdf', (req, res) => streamQrPdf(req, res));
+tableRoutes.get('/:id/qr.pdf', (req, res) => streamQrPdf(req, res, req.params.id));
 
 function statusFor(result: ApiResponse<any>, okStatus = 200): number {
   if (result.success) return okStatus;

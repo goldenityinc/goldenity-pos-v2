@@ -225,6 +225,46 @@ export class TableService {
     });
   }
 
+  /**
+   * Data untuk PDF QR meja. `tableId` diisi → 1 meja; kosong → semua meja
+   * (branch scope). Route yang meng-stream PDF-nya (bukan JSON).
+   */
+  static async qrPdfData(
+    user: JwtAuthPayload,
+    opts: { tableId?: string; branchId?: string },
+  ): Promise<
+    | { ok: true; tables: { code: string; capacity: number; url: string }[]; meta: { storeName: string; branchName: string; address: string | null }; filename: string }
+    | { ok: false; status: number; error: string }
+  > {
+    const branchId = await TableService.resolveBranchId(user, { branchId: opts.branchId });
+    if (!branchId) return { ok: false, status: 400, error: 'branchId wajib untuk role ini.' };
+    const branch = await prisma.branch.findFirst({
+      where: { id: branchId, ...(user.role === UserRole.SUPER_ADMIN ? {} : { tenantId: user.tenantId }) },
+      select: { id: true, name: true, tenant: { select: { slug: true, name: true, address: true } } },
+    });
+    if (!branch) return { ok: false, status: 404, error: 'Cabang tidak ditemukan.' };
+
+    const rows = await prisma.diningTable.findMany({
+      where: { branchId, ...(opts.tableId ? { id: opts.tableId } : {}) },
+      orderBy: { code: 'asc' },
+      select: { id: true, code: true, capacity: true, qrToken: true },
+    });
+    if (opts.tableId && rows.length === 0) return { ok: false, status: 404, error: 'Meja tidak ditemukan.' };
+
+    return {
+      ok: true,
+      tables: rows.map((t) => ({
+        code: t.code,
+        capacity: t.capacity ?? 0,
+        url: qrUrl(branch.tenant.slug, branch.id, t.qrToken),
+      })),
+      meta: { storeName: branch.tenant.name, branchName: branch.name, address: branch.tenant.address ?? null },
+      filename: opts.tableId
+        ? `qr-meja-${rows[0]?.code ?? 'x'}.pdf`
+        : `qr-meja-${branch.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.pdf`,
+    };
+  }
+
   static async create(user: JwtAuthPayload, raw: unknown): Promise<ApiResponse<any>> {
     if (!isAdmin(user.role)) return fail('Butuh TENANT_ADMIN untuk membuat meja.', 'FORBIDDEN_ROLE');
     const parsed = CreateTableSchema.safeParse(raw);

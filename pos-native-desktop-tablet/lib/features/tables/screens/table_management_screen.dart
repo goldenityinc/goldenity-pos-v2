@@ -18,6 +18,7 @@ import '../../../shared/widgets/goldenity_buttons.dart';
 import '../../../shared/widgets/goldenity_modal.dart';
 import '../models/dining_table.dart';
 import '../providers/table_provider.dart';
+import '../utils/save_open_pdf.dart';
 
 /// Manajemen Meja — grid meja + QR + sesi pesanan (Figma arch-sleek `TableManager`).
 class TableManagementScreen extends ConsumerWidget {
@@ -84,6 +85,14 @@ class TableManagementScreen extends ConsumerWidget {
                             onTap: () => notifier.load(),
                           ),
                           const SizedBox(width: 8),
+                          if (state.tables.isNotEmpty) ...[
+                            GoldenityIconAction(
+                              icon: Icons.print_rounded,
+                              tooltip: 'Cetak / unduh PDF QR semua meja',
+                              onTap: () => _printAllQr(context, ref),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                           GoldenityAddButton(
                             label: 'Tambah Meja',
                             onTap: () => _showAddTable(context, ref),
@@ -492,21 +501,18 @@ class TableManagementScreen extends ConsumerWidget {
               Row(
                 children: [
                   Expanded(
-                    child: GoldenityOutlineButton(
-                      label: 'Ganti Token (rotate)',
-                      color: GoldenityColors.error,
-                      borderColor: const Color(0xFFFECACA),
-                      onTap: () async {
+                    child: GoldenityFillButton(
+                      label: 'Unduh / Cetak PDF',
+                      icon: Icons.picture_as_pdf_rounded,
+                      onTap: () {
                         Navigator.of(ctx).pop();
-                        // rotate hanya endpoint admin; reuse updateTable? -> pakai closeSession bila perlu.
-                        // Sederhana: panggil ulang list; token rotate tersedia bila status kembali AVAILABLE.
-                        _ok(context, 'Gunakan "Tutup Sesi" untuk memutar token QR.');
+                        _downloadTableQrPdf(context, ref, table);
                       },
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: GoldenityFillButton(
+                    child: GoldenityOutlineButton(
                       label: 'Tutup',
                       onTap: () => Navigator.of(ctx).pop(),
                     ),
@@ -552,6 +558,35 @@ class TableManagementScreen extends ConsumerWidget {
     if (!c.mounted) return;
     ScaffoldMessenger.of(c).showSnackBar(
         SnackBar(backgroundColor: GoldenityColors.success, content: Text(m)));
+  }
+
+  // ─────────────── PDF QR meja ───────────────
+  Future<void> _downloadTableQrPdf(
+      BuildContext context, WidgetRef ref, DiningTable table) async {
+    _ok(context, 'Menyiapkan PDF QR Meja ${table.code}…');
+    try {
+      final bytes = await ref.read(tableApiServiceProvider).downloadQrPdf(
+            token: ref.read(authTokenProvider),
+            tableId: table.id,
+          );
+      final path = await savePdfAndOpen(bytes, 'qr-meja-${table.code}.pdf');
+      _ok(context, 'PDF tersimpan: $path');
+    } catch (e) {
+      _err(context, e);
+    }
+  }
+
+  Future<void> _printAllQr(BuildContext context, WidgetRef ref) async {
+    _ok(context, 'Menyiapkan PDF QR semua meja…');
+    try {
+      final bytes = await ref
+          .read(tableApiServiceProvider)
+          .downloadQrPdf(token: ref.read(authTokenProvider));
+      final path = await savePdfAndOpen(bytes, 'qr-semua-meja.pdf');
+      _ok(context, 'PDF tersimpan: $path');
+    } catch (e) {
+      _err(context, e);
+    }
   }
 
   void _err(BuildContext c, Object e) {

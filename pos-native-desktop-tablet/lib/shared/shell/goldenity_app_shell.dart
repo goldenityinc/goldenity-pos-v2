@@ -6,6 +6,7 @@ import '../../../core/design/goldenity_spacing.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/cashier_shift/screens/cashier_shift_screen.dart';
 import '../../../features/dashboard/screens/dashboard_screen.dart';
+import '../../../features/expenses/screens/expenses_screen.dart';
 import '../../../features/finance/screens/finance_screen.dart';
 import '../../../features/inventory/screens/category_management_screen.dart';
 import '../../../features/inventory/screens/product_list_screen.dart';
@@ -40,6 +41,7 @@ class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
     GoldenitySidebarTab.dashboard,
     GoldenitySidebarTab.salesHistory,
     GoldenitySidebarTab.finance,
+    GoldenitySidebarTab.expenses,
     GoldenitySidebarTab.inventory,
     GoldenitySidebarTab.categories,
     GoldenitySidebarTab.tables,
@@ -73,6 +75,7 @@ class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
                       DashboardScreen(),
                       SalesHistoryScreen(),
                       FinanceScreen(),
+                      ExpensesScreen(),
                       ProductManagementListScreen(),
                       CategoryManagementScreen(),
                       TableManagementScreen(),
