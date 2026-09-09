@@ -7,6 +7,7 @@ import { Spinner, ToastHost } from './components/ui';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import SalesReportPage from './pages/SalesReportPage';
+import FinancePage from './pages/FinancePage';
 import InventoryPage from './pages/InventoryPage';
 import CategoriesPage from './pages/CategoriesPage';
 import UsersPage from './pages/UsersPage';
@@ -33,6 +34,7 @@ const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   { path: '/', element: <Gate><DashboardPage /></Gate> },
   { path: '/penjualan', element: <Gate><SalesReportPage /></Gate> },
+  { path: '/keuangan', element: <Gate><FinancePage /></Gate> },
   { path: '/inventaris', element: <Gate><InventoryPage /></Gate> },
   { path: '/kategori', element: <Gate><CategoriesPage /></Gate> },
   { path: '/karyawan', element: <Gate><UsersPage /></Gate> },

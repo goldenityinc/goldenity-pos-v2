@@ -107,4 +107,10 @@ export const Icon = {
       <path d="m7 14 4-4 3 3 5-6" />
     </svg>
   ),
+  wallet: (p: SVGProps<SVGSVGElement>) => (
+    <svg {...s(p)}>
+      <path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2" />
+      <path d="M21 12v.01M18 12a3 3 0 0 0 0 6h4v-6z" />
+    </svg>
+  ),
 };

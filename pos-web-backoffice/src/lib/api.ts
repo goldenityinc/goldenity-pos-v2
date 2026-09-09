@@ -263,6 +263,89 @@ export interface FinanceReport {
   dailyTrend: { date: string; grossRevenue: number; transactions: number; refund: number }[];
 }
 
+// ── Keuangan K1 ──
+export type ExpensePayMethod = 'CASH' | 'TRANSFER' | 'QRIS' | 'CARD';
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  slug: string;
+  cashflowGroup: 'OPERATING' | 'INVESTING' | 'FINANCING';
+  isArchived: boolean;
+  sortOrder: number;
+}
+export interface Expense {
+  id: string;
+  branchId: string;
+  branchName: string | null;
+  expenseNumber: string;
+  title: string;
+  amount: number;
+  categoryId: string;
+  categoryName: string | null;
+  cashflowGroup: string;
+  paymentMethod: ExpensePayMethod;
+  note: string | null;
+  expenseDate: string;
+  status: 'ACTIVE' | 'VOIDED';
+  voidReason: string | null;
+  createdByName: string | null;
+  attachments: string[];
+  createdAt: string;
+}
+export interface ExpenseListResp {
+  items: Expense[];
+  summary: {
+    total: number;
+    count: number;
+    avgPerDay: number;
+    biggestCategory: { categoryId: string; categoryName: string; total: number; percent: number } | null;
+    byCategory: { categoryId: string; categoryName: string; total: number; percent: number }[];
+  };
+}
+export interface FinancePnl {
+  from: string;
+  to: string;
+  branchId: string | null;
+  statement: {
+    grossRevenue: number; discount: number; tax: number; serviceCharge: number; refund: number;
+    netRevenue: number; cogs: number; grossProfit: number; opex: number;
+    opexRows: { name: string; total: number }[];
+    ebit: number; other: number; netProfit: number;
+  };
+  ratios: {
+    grossMargin: number; operatingMargin: number; netMargin: number; expenseRatio: number;
+    grossMarginDelta: number | null; operatingMarginDelta: number | null;
+    netMarginDelta: number | null; expenseRatioDelta: number | null;
+  };
+  months: { label: string; revenue: number; expense: number; profit: number }[];
+  cogsNote: string | null;
+}
+export interface LedgerAccount { code: string; name: string; type: string; balance: number }
+export interface LedgerEntry {
+  id: string; entryNumber: string; date: string; memo: string; source: string; isAuto: boolean;
+  lines: { account: { code: string; name: string; type: string }; debit: number; credit: number }[];
+}
+export interface FinanceLedger {
+  from: string; to: string; branchId: string | null;
+  entries: LedgerEntry[];
+  truncated: boolean;
+  trialBalance: { debit: number; credit: number; balanced: boolean };
+  accounts: LedgerAccount[];
+  note: string;
+}
+export interface FinanceCashflow {
+  from: string; to: string; branchId: string | null;
+  cards: { saldoAwal: number; kasMasuk: number; kasKeluar: number; saldoAkhir: number; netChange: number };
+  statement: {
+    operating: { name: string; amount: number }[]; operatingSubtotal: number;
+    investing: { name: string; amount: number }[]; investingSubtotal: number;
+    financing: { name: string; amount: number }[]; financingSubtotal: number;
+    financingNote: string;
+  };
+  dailyBalance: { date: string; balance: number }[];
+  shiftReconciliation: { date: string; cashier: string; branchName: string; expected: number; actual: number; diff: number }[];
+}
+
 // ─────────────────────────── Endpoints ───────────────────────────
 
 export const api = {
@@ -355,4 +438,25 @@ export const api = {
     req<FinanceReport>(
       `/dashboard/finance/report?from=${from}&to=${to}` + (branchId ? `&branchId=${branchId}` : ''),
     ),
+
+  // ── Keuangan K1 ──
+  listExpenses: (p: { from?: string; to?: string; branchId?: string; categoryId?: string; status?: string; q?: string } = {}) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(p)) if (v) qs.set(k, String(v));
+    return req<ExpenseListResp>(`/expenses${qs.toString() ? `?${qs}` : ''}`);
+  },
+  createExpense: (b: Record<string, unknown>) => req<Expense>('/expenses', { method: 'POST', body: b }),
+  updateExpense: (id: string, b: Record<string, unknown>) => req<Expense>(`/expenses/${id}`, { method: 'PATCH', body: b }),
+  voidExpense: (id: string, reason: string) => req<Expense>(`/expenses/${id}/void`, { method: 'POST', body: { reason } }),
+  listExpenseCategories: () => req<ExpenseCategory[]>('/expenses/categories'),
+  createExpenseCategory: (b: { name: string; cashflowGroup?: string }) =>
+    req<ExpenseCategory>('/expenses/categories', { method: 'POST', body: b }),
+  financePnl: (from: string, to: string, branchId?: string) =>
+    req<FinancePnl>(`/finance/pnl?from=${from}&to=${to}` + (branchId ? `&branchId=${branchId}` : '')),
+  financeLedger: (from: string, to: string, branchId?: string) =>
+    req<FinanceLedger>(`/finance/ledger?from=${from}&to=${to}` + (branchId ? `&branchId=${branchId}` : '')),
+  financeCashflow: (from: string, to: string, branchId?: string) =>
+    req<FinanceCashflow>(`/finance/cashflow?from=${from}&to=${to}` + (branchId ? `&branchId=${branchId}` : '')),
+  uploadFile: (dataBase64: string, kind = 'expense') =>
+    req<{ url: string }>('/uploads', { method: 'POST', body: { dataBase64, kind } }),
 };

@@ -9,6 +9,7 @@ import { businessLabel, fmtDate, relativeDays } from '../lib/format';
 const NAV = [
   { to: '/', label: 'Dashboard', icon: Icon.dashboard, cap: 'canOpenBackOffice' as const, end: true },
   { to: '/penjualan', label: 'Penjualan', icon: Icon.chart, cap: 'canViewFinance' as const },
+  { to: '/keuangan', label: 'Keuangan', icon: Icon.wallet, cap: 'canViewFinance' as const },
   { to: '/inventaris', label: 'Inventaris', icon: Icon.box, cap: 'canManageInventory' as const },
   { to: '/kategori', label: 'Kategori', icon: Icon.tag, cap: 'canManageCategories' as const },
   { to: '/karyawan', label: 'Data Karyawan', icon: Icon.users, cap: 'canManageUsers' as const },
