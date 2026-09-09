@@ -1,14 +1,19 @@
-# Prompt Figma Make — Halaman "Keuangan" (Back Office, detail + ledger)
+# Prompt Figma Make — Modul Keuangan V2 (Back Office + POS)
 
-Tempel teks di bawah ini ke Figma Make (file "POS System Design System"), sebagai halaman baru
-di dalam view **BackOffice** (di antara "Penjualan" dan "Staf" pada sidebar). Tujuannya: laporan
-keuangan yang lebih dalam dari halaman Penjualan — mencakup **pengeluaran (expenses)**,
-**buku besar / jurnal (ledger)**, dan **arus kas**, siap dipakai saat modul HPP & pengeluaran
-sudah jalan di backend.
+Modul ini pernah ada & dipakai di V1 (screen `AccountingReportScreen` tab Laba/Rugi + Neraca dari
+jurnal admin-core; `MobileExpenseScreen` untuk catat pengeluaran). V2 membangun ulang lebih rapi.
+File ini berisi **dua prompt** untuk Figma Make (file "POS System Design System"):
+
+- **PROMPT A** — halaman **"Keuangan"** di view **BackOffice** (di antara "Penjualan" dan "Staf"):
+  Laba Rugi (P&L) · Pengeluaran · Buku Besar · Arus Kas.
+- **PROMPT B** — layar **"Catat Pengeluaran" / "Pengeluaran"** di view **POS** (tablet & mobile):
+  kasir/manajer mencatat pengeluaran harian di tempat, terikat cabang login, dukung offline.
+
+Spec teknis (ERD, endpoint, integrasi, migrasi) ada di `SPEC_MODUL_KEUANGAN_V2.md`.
 
 ---
 
-## PROMPT (salin mulai baris ini)
+## PROMPT A — Halaman "Keuangan" (Back Office) — (salin mulai baris ini)
 
 Buatkan halaman **"Keuangan"** untuk Back Office admin dashboard sistem POS F&B (Bahasa Indonesia).
 Ikuti design system yang sudah ada di file ini: sidebar navy gelap, warna brand biru (#1D4ED8),
@@ -97,15 +102,67 @@ Tampilan jurnal umum berpasangan debit–kredit, siap untuk akuntansi kas/akrual
 
 ---
 
+## PROMPT B — Layar "Pengeluaran" di POS (Flutter, tablet & mobile) — (salin mulai baris ini)
+
+Buatkan layar **"Pengeluaran"** untuk aplikasi POS (Flutter, tablet landscape + mobile portrait),
+Bahasa Indonesia. Ikuti design system POS yang sudah ada di file ini (bukan style Back Office):
+warna brand mengikuti mode bisnis aktif, kartu putih rounded, tombol besar ramah sentuh, header
+halaman `GoldenityPageHeader` (judul + subjudul). Layar ini diakses dari menu POS "Pengeluaran"
+(atau dari halaman Shift Kasir). **Terikat cabang tempat kasir login** — tidak ada pemilih cabang.
+
+### Struktur layar (daftar)
+- Header: judul "Pengeluaran", subjudul "Catat & pantau pengeluaran kas — Cabang <nama>".
+- Baris ringkas di atas: 3 kartu kecil → **Pengeluaran Hari Ini**, **Pengeluaran Bulan Ini**,
+  **Jumlah Catatan** (periode berjalan). Angka mono.
+- Filter: chip rentang (Hari Ini / 7 Hari / Bulan Ini) + dropdown kategori + kotak cari.
+- Tombol primary besar **"+ Catat Pengeluaran"** (kanan atas / FAB di mobile).
+- **Daftar pengeluaran** (kartu, bukan tabel — ramah sentuh): tiap baris tampilkan
+  ikon kategori dalam kotak warna + judul pengeluaran (tebal) + kategori (chip kecil) +
+  metode bayar + waktu ("hari ini 14:20" / tanggal) + nominal besar warna merah di kanan +
+  ikon lampiran kalau ada foto bukti. Tap baris → sheet detail (semua field + foto bukti besar +
+  tombol "Batalkan" dengan alasan, kalau belum di-void). Baris yang sudah dibatalkan tampil
+  redup + label "DIBATALKAN".
+- State kosong: ilustrasi + "Belum ada pengeluaran dicatat hari ini." + tombol.
+- Indikator kecil "menunggu sinkron" pada baris yang belum ter-upload (mode offline).
+
+### Sheet / dialog "Catat Pengeluaran"
+Form field (urut):
+1. **Judul Pengeluaran** (teks, wajib) — mis. "Beli galon & es batu".
+2. **Jumlah (Rp)** (angka, wajib) — input besar, format ribuan otomatis.
+3. **Kategori** (pilihan, wajib) — Operasional, Gaji & Upah, Sewa, Utilitas (Listrik/Air/Internet),
+   Bahan Habis Pakai, Marketing, Perbaikan & Perawatan, Lain-lain. (Daftar dari server, bisa
+   ditambah admin di Back Office.)
+4. **Metode Pembayaran** — Tunai (Kas) / Transfer / QRIS / Kartu. Default Tunai.
+5. **Tanggal** — default hari ini, bisa mundur (tidak bisa maju).
+6. **Catatan** (teks panjang, opsional).
+7. **Foto Bukti** (opsional) — tombol "Ambil Foto" / "Pilih dari Galeri", preview thumbnail,
+   bisa hapus. (Boleh lebih dari 1.)
+Tombol: **Batal** + **Simpan** (primary). Validasi inline (judul & jumlah wajib, jumlah > 0).
+Setelah simpan: toast "Pengeluaran dicatat", kembali ke daftar, saldo kartu ringkas ikut naik.
+Kalau offline: tetap tersimpan lokal + tampil di daftar dengan badge "menunggu sinkron".
+
+### Sheet "Detail Pengeluaran"
+Semua field read-only + foto bukti tampil penuh (bisa di-zoom) + metadata "Dicatat oleh <nama>
+· <waktu>" + tombol **"Batalkan Pengeluaran"** (buka dialog alasan wajib). Setelah dibatalkan,
+tetap ada di daftar (redup, label DIBATALKAN) — tidak dihapus.
+
+### Catatan
+- Nominal selalu bilangan bulat Rupiah, ditampilkan merah dengan prefix "−" di daftar.
+- Layar ini TIDAK menampilkan laporan/laba-rugi — itu ada di Back Office. Fokus: input cepat +
+  lihat riwayat pengeluaran cabang sendiri.
+- Sertakan varian tablet (daftar 2 kolom + panel detail di kanan) dan mobile (1 kolom + FAB + sheet).
+
+(salin sampai baris ini)
+
+---
+
 ## Catatan implementasi (setelah desain jadi)
 
-Backend `pos-backend` belum punya: model `Expense`, `ExpenseCategory`, `LedgerEntry`/`JournalLine`,
-`Account`, dan angka HPP/COGS per produk. Halaman "Penjualan" yang sudah dibuat hanya pakai
-`SalesRecord` (revenue, diskon, pajak, refund). Untuk Keuangan detail perlu:
-- migrasi Prisma: `Account`, `ExpenseCategory`, `Expense` (+ lampiran), `JournalEntry` + `JournalLine`
-  (double-entry), `Product.costPrice` untuk HPP.
-- posting otomatis: setiap `SalesRecord COMPLETED` → jurnal (D: Kas/Bank, K: Pendapatan + Utang Pajak);
-  setiap `Expense` → jurnal (D: Beban X, K: Kas/Bank); refund & shift reconciliation ikut.
-- endpoint: `GET /finance/pnl`, `GET/POST /finance/expenses`, `GET /finance/ledger`,
-  `POST /finance/journal` (manual), `GET /finance/cashflow`, `GET /finance/accounts` (saldo).
-- semua di-scope per cabang + rentang tanggal, sama seperti `/dashboard/finance/report`.
+Spec teknis lengkap (ERD Prisma, aturan posting jurnal, daftar endpoint, integrasi POS Flutter &
+Back Office, urutan kerja, migrasi Railway) ada di **`SPEC_MODUL_KEUANGAN_V2.md`**.
+
+Ringkas: `pos-backend` belum punya `Expense`/`ExpenseCategory`/`ExpenseAttachment` (Fase K1),
+`Account`/`JournalEntry`/`JournalLine` + `Product.costPrice` (Fase K2), lalu endpoint laporan
+`/finance/pnl|ledger|balance-sheet|cashflow` (Fase K3). Semua di-scope per cabang + rentang tanggal,
+sama pola `/dashboard/finance/report` yang sudah dipakai halaman "Penjualan". Modul ini sudah ada &
+dipakai di V1 (jurnal di admin-core) — V2 membangunnya di `pos-backend` per-tenant.
