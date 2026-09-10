@@ -1,8 +1,15 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../core/config/api_constants.dart';
+import '../../../core/config/storage_keys.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_spacing.dart';
+import '../../../core/services/android_fg_weborder_handler.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/cashier_shift/screens/cashier_shift_screen.dart';
 import '../../../features/dashboard/screens/dashboard_screen.dart';
@@ -34,6 +41,57 @@ class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
   void initState() {
     super.initState();
     _tab = widget.initialTab;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Auto-start Android FG Web-Order Receiver SETELAH shell mount (after auth):
+      // 1) Session valid — double-check safety (shell hanya render setelah login).
+      final session = ref.read(currentSessionProvider);
+      if (session == null) return;
+      // 2) SP + ApiConstants 3-tier FIRST (KRITIS: SP override > env > default).
+      final sp = await SharedPreferences.getInstance();
+      await ApiConstants.initialize(sp);
+      // 3) Android only: if enabled=true dan service belum jalan → start.
+      if (Platform.isAndroid) {
+        final enabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? false;
+        if (enabled) {
+          bool running = false;
+          try {
+            running = await FlutterForegroundTask.isRunningService;
+          } catch (_) {}
+          if (!running) {
+            try {
+              await _startFgWebOrderService();
+            } catch (_) {}
+          }
+        }
+      }
+    });
+  }
+
+  Future<void> _startFgWebOrderService() async {
+    if (!Platform.isAndroid) return;
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'weborder_fg',
+        channelName: 'Web-Order Receiver',
+        channelDescription: 'Menerima & mencetak pesanan web di latar belakang.',
+        priority: NotificationPriority.HIGH,
+        channelImportance: NotificationChannelImportance.HIGH,
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(),
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.nothing(),
+        autoRunOnBoot: true,
+        autoRunOnMyPackageReplaced: true,
+        allowWakeLock: true,
+        allowWifiLock: true,
+      ),
+    );
+    await FlutterForegroundTask.startService(
+      notificationTitle: 'Goldenity POS',
+      notificationText: 'Menerima pesanan web secara otomatis di latar belakang.',
+      notificationIcon: const NotificationIcon(metaDataName: 'launcher_icon'),
+      callback: startFgWebOrderCallback,
+    );
   }
 
   static const _tabOrder = <GoldenitySidebarTab>[

@@ -1,5 +1,54 @@
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'storage_keys.dart';
+
 class ApiConstants {
-  static const String devBaseUrl = 'http://localhost:3001';
+  static const String _defaultBaseUrl = 'http://localhost:3001';
+  static late String _resolvedBaseUrl;
+  static bool _initialized = false;
+
+  /// 3-tier priority: SharedPreferences override > --dart-define=API_BASE_URL > default
+  static Future<void> initialize(SharedPreferences sp) async {
+    final fromSp = sp.getString(StorageKeys.overrideBaseUrl);
+    const fromEnv = String.fromEnvironment('API_BASE_URL', defaultValue: '');
+    if (fromSp != null && fromSp.trim().isNotEmpty) {
+      _resolvedBaseUrl = _normalizeBase(fromSp);
+    } else if (fromEnv.isNotEmpty) {
+      _resolvedBaseUrl = _normalizeBase(fromEnv);
+    } else {
+      _resolvedBaseUrl = _defaultBaseUrl;
+    }
+    _initialized = true;
+  }
+
+  /// Untuk DevOptions read / display current base URL.
+  static String get effectiveBaseUrl =>
+      _initialized ? _resolvedBaseUrl : _defaultBaseUrl;
+
+  /// Untuk DevOptions write override ke SP + reload cache (null = reset ke dart-define/default).
+  static Future<void> setOverrideBaseUrl(
+      SharedPreferences sp, String? url) async {
+    if (url == null || url.trim().isEmpty) {
+      await sp.remove(StorageKeys.overrideBaseUrl);
+    } else {
+      await sp.setString(StorageKeys.overrideBaseUrl, _normalizeBase(url));
+    }
+    await initialize(sp);
+  }
+
+  static String _normalizeBase(String url) {
+    var u = url.trim();
+    while (u.endsWith('/')) {
+      u = u.substring(0, u.length - 1);
+    }
+    return u;
+  }
+
+  /// Backward compatible getter — 40+ endpoint interpolation `$devBaseUrl` TETAP BERJALAN
+  /// tanpa satu pun perubahan. Sebelum initialize() = _defaultBaseUrl (safety fallback).
+  static String get devBaseUrl =>
+      _initialized ? _resolvedBaseUrl : _defaultBaseUrl;
+
   static const String apiV1Prefix = '/api/v1';
   static const Duration defaultConnectTimeout = Duration(seconds: 10);
   static const Duration defaultReceiveTimeout = Duration(seconds: 15);
@@ -10,13 +59,13 @@ class ApiConstants {
   static Uri uploadsEndpoint() => Uri.parse('$devBaseUrl$apiV1Prefix/uploads');
 
   static Uri testRbacScopeEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/test/rbac-scope';
+    final base = '$devBaseUrl$apiV1Prefix/test/rbac-scope';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
 
   static Uri productsEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/products';
+    final base = '$devBaseUrl$apiV1Prefix/products';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
@@ -35,7 +84,7 @@ class ApiConstants {
   }
 
   static Uri salesEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/sales';
+    final base = '$devBaseUrl$apiV1Prefix/sales';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
@@ -49,7 +98,7 @@ class ApiConstants {
   }
 
   static Uri categoriesEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/categories';
+    final base = '$devBaseUrl$apiV1Prefix/categories';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
@@ -60,7 +109,7 @@ class ApiConstants {
 
   // ===== FASE E: Cashier Shift =====
   static Uri shiftsEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/shifts';
+    final base = '$devBaseUrl$apiV1Prefix/shifts';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
@@ -108,20 +157,20 @@ class ApiConstants {
 
   // ===== FASE E: Dashboard + Keuangan =====
   static Uri dashboardSummaryEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/dashboard/summary';
+    final base = '$devBaseUrl$apiV1Prefix/dashboard/summary';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
 
   static Uri financeReportEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/dashboard/finance/report';
+    final base = '$devBaseUrl$apiV1Prefix/dashboard/finance/report';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
 
   // ===== Keuangan K1: Pengeluaran =====
   static Uri expensesEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/expenses';
+    final base = '$devBaseUrl$apiV1Prefix/expenses';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
@@ -134,7 +183,7 @@ class ApiConstants {
 
   // ===== FASE 2: Manajemen Meja =====
   static Uri tablesEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/tables';
+    final base = '$devBaseUrl$apiV1Prefix/tables';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
@@ -152,7 +201,7 @@ class ApiConstants {
       Uri.parse('$devBaseUrl$apiV1Prefix/tables/$tableId/qr.pdf');
 
   static Uri tablesQrPdfEndpoint([String? branchId]) {
-    const base = '$devBaseUrl$apiV1Prefix/tables/qr.pdf';
+    final base = '$devBaseUrl$apiV1Prefix/tables/qr.pdf';
     if (branchId == null || branchId.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: {'branchId': branchId});
   }
@@ -165,7 +214,7 @@ class ApiConstants {
 
   // ===== FASE 2: Web Orders (kasir) =====
   static Uri webOrdersEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/web-orders';
+    final base = '$devBaseUrl$apiV1Prefix/web-orders';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }
@@ -197,7 +246,7 @@ class ApiConstants {
 
   // ===== Multi-device =====
   static Uri devicesEndpoint([Map<String, String>? queryParams]) {
-    const base = '$devBaseUrl$apiV1Prefix/devices';
+    final base = '$devBaseUrl$apiV1Prefix/devices';
     if (queryParams == null || queryParams.isEmpty) return Uri.parse(base);
     return Uri.parse(base).replace(queryParameters: queryParams);
   }

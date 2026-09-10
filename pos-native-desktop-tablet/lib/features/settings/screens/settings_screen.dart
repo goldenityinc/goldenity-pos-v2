@@ -1,10 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/config/api_constants.dart';
+import '../../../core/config/storage_keys.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_elevation.dart';
+import '../../../core/services/android_fg_weborder_handler.dart';
 import '../../../core/services/hardware_connection_service.dart';
 import '../../../core/services/pin_service.dart';
 import '../../../shared/widgets/goldenity_image_upload_field.dart';
@@ -80,6 +88,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   final TextEditingController _deviceNameCtrl = TextEditingController();
   String _deviceRole = 'BOTH';
 
+  // Dev Options — base URL override (tap AppBar title 7× dalam 2s untuk buka).
+  int _devOptionsTapCount = 0;
+  bool _devOptionsVisible = false;
+  late DateTime _devOptionsLastTap;
+  final TextEditingController _devBaseUrlCtrl = TextEditingController();
+  bool _devBaseUrlTesting = false;
+  String? _devBaseUrlTestResult;
+
+  // Android — Foreground Service Web-Order Receiver (toggle di body).
+  bool _fgServiceEnabled = false;
+  bool _fgServiceLoading = false;
+
   /// Cabang yang aktif = cabang login (tanpa picker; beda cabang beda printer).
   String? get _loginBranchId {
     final s = ref.read(currentSessionProvider);
@@ -104,6 +124,399 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     return s?.selectedBranch?.name ?? s?.tenant.name ?? 'Cabang';
   }
 
+  // ======== Dev Options: Tap AppBar Title 7x (2s window) ========
+  void _handleAppBarDevTap() {
+    if (_devOptionsVisible) return;
+    final now = DateTime.now();
+    if (_devOptionsTapCount > 0) {
+      final gapMs = now.difference(_devOptionsLastTap).inMilliseconds;
+      if (gapMs > 2000) _devOptionsTapCount = 0;
+    }
+    _devOptionsLastTap = now;
+    _devOptionsTapCount++;
+    if (_devOptionsTapCount >= 7) {
+      _initDevOptionsControlsIfNeeded();
+      setState(() {
+        _devOptionsVisible = true;
+        _devOptionsTapCount = 0;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          duration: Duration(seconds: 2),
+          content: Text('[Dev] Menu Opsi Pengembang aktif.'),
+        ),
+      );
+    } else {
+      final remaining = 7 - _devOptionsTapCount;
+      if (remaining <= 2) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(milliseconds: 600),
+            content: Text('[Dev] Ketuk $remaining kali lagi…'),
+          ),
+        );
+      }
+    }
+  }
+
+  void _initDevOptionsControlsIfNeeded() {
+    if (_devBaseUrlCtrl.text.isEmpty) {
+      _devBaseUrlCtrl.text = ApiConstants.effectiveBaseUrl;
+    }
+  }
+
+  Future<void> _testBaseUrl() async {
+    final candidate = _devBaseUrlCtrl.text.trim();
+    if (candidate.isEmpty) {
+      setState(() => _devBaseUrlTestResult = '⚠️ Masukkan URL dulu.');
+      return;
+    }
+    setState(() {
+      _devBaseUrlTesting = true;
+      _devBaseUrlTestResult = null;
+    });
+    final stopwatch = Stopwatch()..start();
+    try {
+      final base = candidate.endsWith('/')
+          ? candidate.substring(0, candidate.length - 1)
+          : candidate;
+      final uri = Uri.parse('$base/health');
+      final client = HttpClient();
+      client.connectionTimeout = const Duration(seconds: 5);
+      final req = await client.getUrl(uri).timeout(const Duration(seconds: 5));
+      final resp = await req.close().timeout(const Duration(seconds: 5));
+      stopwatch.stop();
+      client.close();
+      final ok = resp.statusCode >= 200 && resp.statusCode < 300;
+      setState(() {
+        _devBaseUrlTestResult =
+            '${ok ? '✅' : '⚠️'} HTTP ${resp.statusCode} (${stopwatch.elapsedMilliseconds}ms)'
+            '${ok ? ' — terhubung.' : ' — status bukan 200.'}';
+      });
+    } catch (e) {
+      stopwatch.stop();
+      setState(() {
+        _devBaseUrlTestResult =
+            '❌ Gagal konek (${stopwatch.elapsedMilliseconds}ms): ${e.runtimeType.toString().replaceAll('Exception', '').replaceAll('_', '')}';
+      });
+    } finally {
+      if (mounted) setState(() => _devBaseUrlTesting = false);
+    }
+  }
+
+  Future<void> _saveBaseUrl() async {
+    final sp = await SharedPreferences.getInstance();
+    final candidate = _devBaseUrlCtrl.text.trim();
+    try {
+      await ApiConstants.setOverrideBaseUrl(sp, candidate);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                candidate.isEmpty
+                    ? '[Dev] Override dicopot (pakai default / dart-define).'
+                    : '[Dev] Base URL disimpan: ${ApiConstants.effectiveBaseUrl}'),
+            backgroundColor: GoldenityColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('[Dev] Gagal simpan: $e'),
+            backgroundColor: GoldenityColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _resetBaseUrl() async {
+    final sp = await SharedPreferences.getInstance();
+    await ApiConstants.setOverrideBaseUrl(sp, null);
+    _devBaseUrlCtrl.text = ApiConstants.effectiveBaseUrl;
+    setState(() => _devBaseUrlTestResult = '↺ Kembali ke default.');
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('[Dev] Base URL dikembalikan ke default / dart-define.'),
+        ),
+      );
+    }
+  }
+
+  Widget _buildDevOptionsSection(TextTheme textTheme, biz) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: GoldenitySpacing.lg,
+        vertical: GoldenitySpacing.md,
+      ),
+      margin: const EdgeInsets.only(
+        left: GoldenitySpacing.md,
+        right: GoldenitySpacing.md,
+        top: GoldenitySpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: GoldenityColors.surface2.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        border: Border.all(color: GoldenityColors.border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.developer_mode_rounded,
+                  size: 18, color: GoldenityColors.primary),
+              const SizedBox(width: GoldenitySpacing.sm),
+              Text(
+                'Opsi Pengembang · Base URL',
+                style: textTheme.labelMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _devOptionsVisible = false;
+                    _devBaseUrlTestResult = null;
+                  });
+                },
+                icon: const Icon(Icons.close_rounded, size: 18),
+                tooltip: 'Tutup Dev Options',
+              ),
+            ],
+          ),
+          const SizedBox(height: GoldenitySpacing.sm),
+          TextFormField(
+            controller: _devBaseUrlCtrl,
+            style: textTheme.bodySmall,
+            decoration: InputDecoration(
+              labelText: 'Base URL (contoh: http://192.168.1.10:3001)',
+              hintText: 'http://localhost:3001',
+              helperText: 'Tingkat prioritas: field ini > --dart-define > default localhost',
+              isDense: true,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                borderSide: const BorderSide(color: GoldenityColors.border),
+              ),
+            ),
+            keyboardType: TextInputType.url,
+          ),
+          const SizedBox(height: GoldenitySpacing.sm),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: _devBaseUrlTesting ? null : _testBaseUrl,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: GoldenitySpacing.md,
+                    vertical: GoldenitySpacing.sm,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                  ),
+                ),
+                icon: _devBaseUrlTesting
+                    ? SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: biz.base,
+                        ),
+                      )
+                    : const Icon(Icons.travel_explore_rounded, size: 16),
+                label: Text('Test Connection', style: textTheme.labelMedium),
+              ),
+              const SizedBox(width: GoldenitySpacing.sm),
+              ElevatedButton.icon(
+                onPressed: _saveBaseUrl,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: biz.base,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: GoldenitySpacing.md,
+                    vertical: GoldenitySpacing.sm,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                  ),
+                ),
+                icon: const Icon(Icons.save_rounded, size: 16),
+                label: Text('Simpan Override', style: textTheme.labelMedium),
+              ),
+              const SizedBox(width: GoldenitySpacing.sm),
+              TextButton.icon(
+                onPressed: _resetBaseUrl,
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: GoldenitySpacing.md,
+                    vertical: GoldenitySpacing.sm,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                  ),
+                ),
+                icon: const Icon(Icons.restore_rounded, size: 16),
+                label: Text('Reset Default', style: textTheme.labelMedium),
+              ),
+            ],
+          ),
+          if (_devBaseUrlTestResult != null)
+            Padding(
+              padding: const EdgeInsets.only(top: GoldenitySpacing.sm),
+              child: Text(_devBaseUrlTestResult!, style: textTheme.bodySmall),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ======== Android: FG Web-Order Receiver (toggle) ========
+  Future<void> _initAndStartFgService({bool silent = false}) async {
+    if (!Platform.isAndroid) return;
+    FlutterForegroundTask.init(
+      androidNotificationOptions: AndroidNotificationOptions(
+        channelId: 'weborder_fg',
+        channelName: 'Web-Order Receiver',
+        channelDescription:
+            'Menerima & mencetak pesanan web di latar belakang.',
+        priority: NotificationPriority.HIGH,
+        channelImportance: NotificationChannelImportance.HIGH,
+      ),
+      iosNotificationOptions: const IOSNotificationOptions(),
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.nothing(),
+        autoRunOnBoot: true,
+        autoRunOnMyPackageReplaced: true,
+        allowWakeLock: true,
+        allowWifiLock: true,
+      ),
+    );
+    await FlutterForegroundTask.startService(
+      notificationTitle: 'Goldenity POS',
+      notificationText:
+          'Menerima pesanan web secara otomatis di latar belakang.',
+      notificationIcon: const NotificationIcon(metaDataName: 'launcher_icon'),
+      callback: startFgWebOrderCallback,
+    );
+    if (!silent && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          duration: Duration(seconds: 2),
+          backgroundColor: GoldenityColors.success,
+          content: Text('Receiver latar-belakang AKTIF.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _toggleFgService(bool value) async {
+    if (!Platform.isAndroid) return;
+    setState(() => _fgServiceLoading = true);
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (value) {
+        await _initAndStartFgService();
+      } else {
+        if (await FlutterForegroundTask.isRunningService) {
+          await FlutterForegroundTask.stopService();
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              duration: Duration(seconds: 2),
+              content: Text('Receiver latar-belakang DINONAKTIFKAN.'),
+            ),
+          );
+        }
+      }
+      await sp.setBool(StorageKeys.fgServiceEnabled, value);
+      if (mounted) setState(() => _fgServiceEnabled = value);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: GoldenityColors.error,
+            content: Text(
+                'Gagal ubah receiver FG: ${e.runtimeType.toString().replaceAll('Exception', '').replaceAll('_', '')}'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _fgServiceLoading = false);
+    }
+  }
+
+  Widget _buildFgServiceToggleSection(TextTheme textTheme, biz) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: GoldenitySpacing.lg,
+        vertical: GoldenitySpacing.md,
+      ),
+      margin: const EdgeInsets.only(
+        left: GoldenitySpacing.md,
+        right: GoldenitySpacing.md,
+        top: GoldenitySpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: GoldenityColors.surface,
+        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        border: Border.all(color: GoldenityColors.border, width: 1),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: biz.base.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(GoldenityRadius.md),
+            ),
+            child: Icon(Icons.print_rounded, size: 22, color: biz.base),
+          ),
+          const SizedBox(width: GoldenitySpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Latar Belakang Web-Order Receiver',
+                  style: textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Tablet terus menerima & auto-cetak pesanan web walau aplikasi di-background (pakai polling 6 detik).',
+                  style: textTheme.bodySmall
+                      ?.copyWith(color: GoldenityColors.muted),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: GoldenitySpacing.sm),
+          if (_fgServiceLoading)
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          else
+            Switch.adaptive(
+              value: _fgServiceEnabled,
+              onChanged: _toggleFgService,
+              activeTrackColor: biz.base.withValues(alpha: 0.5),
+              activeThumbColor: biz.base,
+            ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -118,6 +531,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       if (b != null && b.isNotEmpty) {
         _selectedBranchId = b;
         await _loadPrintersForBranch(b);
+      }
+      // Android — FG Web-Order Receiver: sync SP enabled ↔ actual service state.
+      if (Platform.isAndroid) {
+        final sp = await SharedPreferences.getInstance();
+        final spEnabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? false;
+        bool actualRunning = false;
+        try {
+          actualRunning = await FlutterForegroundTask.isRunningService;
+        } catch (_) {}
+        if (!mounted) return;
+        setState(() => _fgServiceEnabled = spEnabled || actualRunning);
+        // Safety: user enable=true, tapi mati karena OOM low-mem → start ulang.
+        if (spEnabled && !actualRunning) {
+          try {
+            await _initAndStartFgService(silent: true);
+          } catch (_) {}
+        }
       }
     });
   }
@@ -141,6 +571,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     for (final ctrl in _printerPortCtrls.values) {
       ctrl.dispose();
     }
+    _devBaseUrlCtrl.dispose();
     super.dispose();
   }
 
@@ -468,7 +899,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         _printerPortCtrls[slot] = TextEditingController();
       }
       if (!_printerConnTypes.containsKey(slot)) {
-        _printerConnTypes[slot] = PrinterConnectionTypeDto.none;
+        _printerConnTypes[slot] = Platform.isAndroid
+            ? PrinterConnectionTypeDto.bluetooth
+            : PrinterConnectionTypeDto.none;
       }
       if (!_printerPaperWidths.containsKey(slot)) {
         _printerPaperWidths[slot] = 58;
@@ -577,6 +1010,104 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 
   Future<void> _runPrinterAutoScan(PrinterSlotDto slot) async {
+    // ===== Android Runtime Permission Gating (Bluetooth + Notifications) =====
+    if (Platform.isAndroid) {
+      final btScanStatus = await Permission.bluetoothScan.status;
+      final btConnectStatus = await Permission.bluetoothConnect.status;
+      final notifStatus = await Permission.notification.status;
+      final toRequest = <Permission>[];
+      if (btScanStatus.isDenied) toRequest.add(Permission.bluetoothScan);
+      if (btConnectStatus.isDenied) toRequest.add(Permission.bluetoothConnect);
+      if (notifStatus.isDenied) toRequest.add(Permission.notification);
+
+      if (toRequest.isNotEmpty) {
+        final result = await toRequest.request();
+        final scanAfter = result[Permission.bluetoothScan] ?? btScanStatus;
+        final connectAfter =
+            result[Permission.bluetoothConnect] ?? btConnectStatus;
+        final notifAfter =
+            result[Permission.notification] ?? notifStatus;
+
+        final permanentlyDeniedBt = <String>[];
+        if (scanAfter.isPermanentlyDenied) {
+          permanentlyDeniedBt.add('Bluetooth Scan');
+        }
+        if (connectAfter.isPermanentlyDenied) {
+          permanentlyDeniedBt.add('Bluetooth Connect');
+        }
+        if (permanentlyDeniedBt.isNotEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: GoldenityColors.error,
+                content: Text(
+                  'Akses ${permanentlyDeniedBt.join(' + ')} diblokir permanen. Buka Setelan Aplikasi untuk izinkan.',
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700),
+                ),
+                action: const SnackBarAction(
+                  label: 'BUKA SETELAN',
+                  textColor: Colors.white,
+                  onPressed: openAppSettings,
+                ),
+              ),
+            );
+          }
+          return;
+        }
+
+        if (scanAfter.isDenied || connectAfter.isDenied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: GoldenityColors.warning,
+                content: Text(
+                    'Izin Bluetooth dibutuhkan untuk scan printer thermal.'),
+              ),
+            );
+          }
+          return;
+        }
+
+        if (notifAfter.isDenied && !notifAfter.isPermanentlyDenied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                backgroundColor: GoldenityColors.warning,
+                duration: Duration(seconds: 2),
+                content: Text(
+                    'Izin notifikasi ditolak — latar belakang web-order tidak akan berjalan.'),
+              ),
+            );
+          }
+        }
+      } else {
+        if (btScanStatus.isPermanentlyDenied ||
+            btConnectStatus.isPermanentlyDenied) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              // ignore: prefer_const_constructors
+              SnackBar(
+                backgroundColor: GoldenityColors.error,
+                content: const Text(
+                  'Akses Bluetooth diblokir permanen. Buka Setelan Aplikasi.',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700),
+                ),
+                action: const SnackBarAction(
+                  label: 'BUKA SETELAN',
+                  textColor: Colors.white,
+                  onPressed: openAppSettings,
+                ),
+              ),
+            );
+          }
+          return;
+        }
+      }
+    }
+    // ===== END Android Runtime Permission Gating =====
+
     if (_scanning[slot] == true) return;
     final connType = _printerConnTypes[slot] ?? PrinterConnectionTypeDto.none;
     if (connType == PrinterConnectionTypeDto.none) {
@@ -676,10 +1207,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           backgroundColor: GoldenityColors.surface,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
-          title: const GoldenityPageHeader(
-            title: 'Pengaturan',
-            subtitle: 'Kelola cabang, printer & informasi toko',
-            dense: true,
+          title: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _handleAppBarDevTap,
+            child: const GoldenityPageHeader(
+              title: 'Pengaturan',
+              subtitle: 'Kelola cabang, printer & informasi toko',
+              dense: true,
+            ),
           ),
           actions: [
             IconButton(
@@ -753,40 +1288,48 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
             ],
           ),
         ),
-        body: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : _errMsg.isNotEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(GoldenitySpacing.xl),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.error_outline_rounded,
-                              size: 48, color: GoldenityColors.error),
-                          const SizedBox(height: GoldenitySpacing.md),
-                          Text(_errMsg, style: textTheme.bodyMedium),
-                          const SizedBox(height: GoldenitySpacing.md),
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              setState(() => _errMsg = '');
-                            },
-                            icon: const Icon(Icons.refresh_rounded),
-                            label: const Text('Coba Lagi'),
+        body: Column(
+          children: [
+            if (_devOptionsVisible) _buildDevOptionsSection(textTheme, biz),
+            if (Platform.isAndroid) _buildFgServiceToggleSection(textTheme, biz),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _errMsg.isNotEmpty
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(GoldenitySpacing.xl),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.error_outline_rounded,
+                                    size: 48, color: GoldenityColors.error),
+                                const SizedBox(height: GoldenitySpacing.md),
+                                Text(_errMsg, style: textTheme.bodyMedium),
+                                const SizedBox(height: GoldenitySpacing.md),
+                                OutlinedButton.icon(
+                                  onPressed: () {
+                                    setState(() => _errMsg = '');
+                                  },
+                                  icon: const Icon(Icons.refresh_rounded),
+                                  label: const Text('Coba Lagi'),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
-                      ),
-                    ),
-                  )
-                : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildStoreInfoTab(context, textTheme, biz),
-                      _buildBranchesTab(context, textTheme, biz),
-                      _buildPrintersTab(context, textTheme, biz),
-                      _buildDevicesTab(context, textTheme, biz),
-                    ],
-                  ),
+                        )
+                      : TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildStoreInfoTab(context, textTheme, biz),
+                            _buildBranchesTab(context, textTheme, biz),
+                            _buildPrintersTab(context, textTheme, biz),
+                            _buildDevicesTab(context, textTheme, biz),
+                          ],
+                        ),
+            ),
+          ],
+        ),
       ),
     );
   }

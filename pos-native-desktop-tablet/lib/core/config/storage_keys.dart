@@ -14,4 +14,10 @@ class StorageKeys {
   static const String deviceUuid = 'device_uuid';
   static const String deviceName = 'device_name';
   static const String deviceRole = 'device_role'; // CASHIER | CHECKER | BOTH
+
+  // Dev Options — override base URL runtime (SP > dart-define > default).
+  static const String overrideBaseUrl = 'override_base_url';
+
+  // Android Foreground Service — toggle enable/disable (persist di SP).
+  static const String fgServiceEnabled = 'fg_service_enabled';
 }
