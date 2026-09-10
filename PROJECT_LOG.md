@@ -8,6 +8,53 @@
 
 ---
 
+## 🪟🟢 [2026-09-11] Trae — **Windows POS Release Staging Build — dart-define API_BASE_URL Railway + VS2026 C++ Coroutine Deprecation Fix**
+
+### 🎯 Objective (Verbatim Andre):
+Arahkan POS Windows ke **Railway Staging Backend**. Pilih opsi `--dart-define=API_BASE_URL=https://goldenity-pos-v2-backend-staging.up.railway.app` (3-tier ApiConstants level 2 — SharedPreferences override > dart-define > default localhost).
+
+### 🔧 Hard Constraint & Pre-Fix (Root Cause):
+| No | Item | Detail |
+|:-:|---|---|
+| HC-1 | **image ^3.3.0 PINNED INTACT** | Grep pubspec.lock L439 → version=3.3.0 ✅ (TIDAK di-upgrade, ESC/POS thermal raster TIDAK rusak) |
+| HC-2 | **Platform guard no regression** | 4 dep Android (permission_handler, flutter_foreground_task, open_filex) 100% inside `if (Platform.isAndroid)` |
+| ROOT | VS 2026 Toolchain STL1011 | `<experimental/coroutine>` + `/await` deprecated akan dihapus MSVC. Plugin `permission_handler_windows.vcxproj` static assert error **C2338**. Fix: add `target_compile_definitions(...PRIVATE _SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)` di fungsi `APPLY_STANDARD_SETTINGS` CMake global (semua target runner+plugin kena) [windows/CMakeLists.txt L46](file:///e:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/windows/CMakeLists.txt#L40-L47). |
+| VERIFY | Silence define works | Build pertama FAIL STL1011 Exit 1 → purge `build/windows` → rebuild Exit 0 ✅ |
+
+### ✅ Build Command (VERBATIM DIJALANKAN — reproducible Andre lokal):
+```bash
+cd pos-native-desktop-tablet
+E:\flutter\bin\flutter.bat build windows --release `
+  --dart-define=API_BASE_URL=https://goldenity-pos-v2-backend-staging.up.railway.app
+```
+> **Catatan 3-tier Priority**: Jika user di Settings Tap7x DevOptions **Simpan Base URL Lokal (SP)**, maka URL SP yang dipakai (level 1 tertinggi). **Reset (hapus SP)** → URL Railway baked-in via dart-define aktif otomatis (level 2). **Keduanya tidak ada** → fallback localhost:3001 (level 3). [ApiConstants.initialize() L11-L22](file:///e:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/core/config/api_constants.dart#L11-L22).
+
+### 📦 Output Bundle Verified (31.4s build time):
+> Folder output: `pos-native-desktop-tablet/build/windows/x64/runner/Release/`
+| File | Size | Keterangan |
+|---|---:|---|
+| `goldenity_pos_native.exe` | 90 KB | Win32 launcher (bootstrap app.so) |
+| `app.so` | ~10.260 KB (10.0 MB) | **AOT Dart snapshot + API_BASE_URL baked-in here** |
+| `flutter_windows.dll` | ~20.786 KB (20.3 MB) | Flutter engine Windows |
+| `permission_handler_windows_plugin.dll` | 115 KB | ✅ Build SUKSES (STL1011 fixed) |
+| `flutter_pos_printer_platform_image_3_plugin.dll` | 89 KB | ✅ ESC/POS Windows plugin intact (image ^3.3.0 OK) |
+| `local_notifier_plugin.dll` | 160.5 KB | Local notification desktop toast |
+| `data/flutter_assets/` | - | assets/logo.png + fonts Inter 4 weight + .env baked |
+| **Total bundle ~33MB** | | Kompatibel Windows 10 22H2 x64 + Windows 11 x64 |
+
+### 🔐 Anti-Regression Gate Evidence (3 Zero):
+1. **Lint 0**: `flutter analyze --no-pub` → No issues found (1.2s)
+2. **C++ 0 Error**: permission_handler_windows_plugin.dll + semua plugin DLL generated successfully
+3. **Pinned Deps 0 Conflict**: pubspec.lock image=3.3.0 (grep L439 intact)
+
+### 👣 Next Step Andre (2 Action Items):
+| # | Action | Expected Result |
+|---|---|---|
+| **1** | **Copy seluruhan folder** `build/windows/x64/runner/Release/` ke mesin kasir Windows staging. Double-click `goldenity_pos_native.exe`. Login `kasir/kasir123`, tenant `demo-fnb`. | App berjalan. Settings → Tap7x AppBar Title → **DevOptions show:** `Current effective base URL: https://goldenity-pos-v2-backend-staging.up.railway.app` (hijau, bukan localhost). |
+| **2** | **Test Skenario Penuh di Staging**: Login → POS List Product load dari Railway → Cart > Payment (quick cash chip PAS + suggested 10/50/100k intact) → Auto Print thermal TCP/LAN (Windows x64) → Riwayat Penjualan read → Inventaris product_list_screen.dart yang Andre buka L148 Column load data dari Railway. | Semua endpoint 2xx. Tidak ada `XMLHttpRequest` / `Connection refused` error (menandakan URL Railway baked-in works). |
+
+---
+
 ## 🤖🟢 [2026-09-10] Trae — **Add Android Build Target (Group A: Flutter/Android Scaffold + Permissions + FG Service + Platform Guards + Launcher Icons + Signing Config + DevOptions)** — Spec MODE | Quality Gate: analyze 0 ✅, API signature v8.17 verified ✅, 4 pinned deps INTACT ✅, Platform guards audit ✅. Build APK/AAB di-host lokal BLOCKED (Android SDK TIDAK TERINSTALL di mesin ini; step build untuk Andre terlampir di review.md L28-38).
 
 **Konteks:** Tablet Android dapur menjalankan aplikasi GOLDENITY POS V2 DI BACKGROUND sebagai Web-Order Receiver + Auto-Printer Thermal (client pakai majoo sebagai POS utama, Goldenity POS di BG dengan polling 6 detik + auto-print). Requirement: Android minSdk 24, targetSdk 34, compileSdk 34, namespace `com.goldenity.pos`. Spec: `.trae/specs/android-build-target/spec.md` (1-414) + `tasks.md` (1-520). OQ1 App ID `com.goldenity.pos` | OQ2 Launcher icon `assets/logo.png` | OQ3 Release Keystore `JDK missing → debug signing fallback works; documented password di `E:\Goldenity\_keystores\GOLDENITY_POS_V2_KEYSTORE_INFO.txt` | OQ4 Socket.IO = diluar scope task ini (polling 6 detik sudah cukup untuk dapur).
