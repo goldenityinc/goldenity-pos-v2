@@ -1,0 +1,17 @@
+# Nixpacks build config (Railway).
+#
+# Fixes `EBUSY: resource busy or locked, rmdir '/app/node_modules/.cache'`:
+# that happened because the build command ran `npm ci`, and Nixpacks mounts
+# node_modules/.cache as a cache volume during the BUILD phase — `npm ci` tries
+# to wipe node_modules and can't remove the mount point.
+#
+# Install once (with devDeps), build phase only builds.
+
+[phases.setup]
+nixPkgs = ["nodejs_20", "openssl"]
+
+[phases.install]
+cmds = ["npm ci --include=dev"]
+
+[phases.build]
+cmds = ["npx prisma generate", "npm run build"]

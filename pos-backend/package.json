@@ -4,6 +4,9 @@
   "description": "Goldenity POS V2 Backend - Auth JWT, Inventory, Sales, Printer Settings",
   "private": true,
   "main": "dist/index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "dev:watchdog": "powershell -NoExit -ExecutionPolicy Bypass -File ./start-backend.ps1",

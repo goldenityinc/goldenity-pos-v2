@@ -1,0 +1,12 @@
+# Nixpacks build config (Railway).
+# Fixes `EBUSY ... rmdir '/app/node_modules/.cache'` — see pos-backend/nixpacks.toml.
+# Install once (with devDeps: tsc + vite are devDeps), build phase only builds.
+
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm ci --include=dev"]
+
+[phases.build]
+cmds = ["npm run build"]

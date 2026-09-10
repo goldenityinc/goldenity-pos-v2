@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Goldenity POS V2 — Web Back Office (tenant): karyawan, RBAC, inventaris, langganan.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
