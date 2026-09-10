@@ -13,13 +13,13 @@
  * Requires env: ADMIN_CORE_DATABASE_URL, POS_CONTROL_DATABASE_URL.
  */
 import 'dotenv/config';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
 import {
   parseArgs,
   requireEnv,
+  runPrisma,
   fetchAdminCoreTenant,
   fetchAdminCoreBranches,
 } from './_shared';
@@ -72,11 +72,9 @@ async function main() {
   // ── 1. schema ──
   console.log('▸ prisma db push …');
   const schemaPath = path.resolve(__dirname, '../prisma/schema.prisma');
-  execFileSync(
-    process.platform === 'win32' ? 'npx.cmd' : 'npx',
-    ['prisma', 'db', 'push', '--skip-generate', '--schema', schemaPath],
-    { stdio: 'inherit', env: { ...process.env, DATABASE_URL: targetUrl } },
-  );
+  runPrisma(['db', 'push', '--skip-generate', '--schema', schemaPath], {
+    DATABASE_URL: targetUrl,
+  });
 
   // ── 2. identity rows ──
   const db = new PrismaClient({ datasourceUrl: targetUrl });

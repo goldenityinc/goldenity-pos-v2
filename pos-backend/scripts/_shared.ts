@@ -5,6 +5,22 @@
  * directly over `pg`.
  */
 import { Client } from 'pg';
+import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+
+/**
+ * Run the locally-installed Prisma CLI via `node` directly.
+ * Avoids `spawnSync npx.cmd EINVAL` on Node >= 20.12 / 22 / 24 (the CVE-2024-27980
+ * hardening blocks spawning .cmd/.bat without shell:true).
+ */
+export function runPrisma(args: string[], extraEnv?: Record<string, string>): void {
+  const prismaPkg = require.resolve('prisma/package.json');
+  const prismaCli = path.join(path.dirname(prismaPkg), 'build', 'index.js');
+  execFileSync(process.execPath, [prismaCli, ...args], {
+    stdio: 'inherit',
+    env: extraEnv ? { ...process.env, ...extraEnv } : process.env,
+  });
+}
 
 export function parseArgs(argv: string[]): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {};

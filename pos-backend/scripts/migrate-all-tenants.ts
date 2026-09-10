@@ -10,12 +10,10 @@
  * Requires env: POS_CONTROL_DATABASE_URL.
  */
 import 'dotenv/config';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { parseArgs, requireEnv } from './_shared';
+import { parseArgs, requireEnv, runPrisma } from './_shared';
 import { listRegistry, closeRegistryPool } from '../src/config/tenant-registry';
 
-const NPX = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 const CONCURRENCY = 3;
 
 async function main() {
@@ -47,17 +45,11 @@ async function main() {
       const r = queue.shift()!;
       try {
         if (sqlFile) {
-          execFileSync(
-            NPX,
-            ['prisma', 'db', 'execute', '--file', sqlFile, '--url', r.dbUrl],
-            { stdio: 'inherit' },
-          );
+          runPrisma(['db', 'execute', '--file', sqlFile, '--url', r.dbUrl]);
         } else {
-          execFileSync(
-            NPX,
-            ['prisma', 'db', 'push', '--skip-generate', '--schema', schemaPath],
-            { stdio: 'inherit', env: { ...process.env, DATABASE_URL: r.dbUrl } },
-          );
+          runPrisma(['db', 'push', '--skip-generate', '--schema', schemaPath], {
+            DATABASE_URL: r.dbUrl,
+          });
         }
         results.push({ slug: r.slug, ok: true });
       } catch (e: any) {
