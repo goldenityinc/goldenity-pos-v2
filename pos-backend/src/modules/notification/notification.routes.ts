@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../config/database';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import { ok, fail, UserRole, type JwtAuthPayload } from '../../config/types';
 import { resolveEffectiveBranchFilter } from '../../utils/rbac';
 
@@ -10,7 +11,7 @@ import { resolveEffectiveBranchFilter } from '../../utils/rbac';
  * (`NotificationEvent` sebagai antrean); Socket.IO / FCM menyusul lewat Bridge.
  */
 export const notificationRoutes = Router();
-notificationRoutes.use(authenticateJWT);
+notificationRoutes.use(authenticateJWT, resolveTenantDb);
 
 const AckSchema = z.object({
   printed: z.boolean().optional(),

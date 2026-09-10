@@ -23,7 +23,11 @@ import { deviceRoutes } from './modules/device/device.routes';
 import { subscriptionRoutes } from './modules/subscription/subscription.routes';
 import { expenseRoutes } from './modules/expense/expense.routes';
 import { financeRoutes } from './modules/finance/finance.routes';
+import { internalRoutes } from './modules/internal/internal.routes';
 import { parseCorsOrigin } from './config/cors';
+import { isMultiTenant } from './config/database';
+import { pingControlPlane } from './config/control-plane';
+import { tenantDbStats, disconnectAllTenantClients } from './config/tenant-db';
 
 (BigInt.prototype as any).toJSON = function (this: bigint): string {
   return this.toString();
@@ -70,7 +74,8 @@ app.use(
   }),
 );
 
-app.get('/api/v1/health', (_req: Request, res: Response) => {
+app.get('/api/v1/health', async (_req: Request, res: Response) => {
+  const multi = isMultiTenant();
   res.status(200).json({
     success: true,
     data: {
@@ -78,6 +83,9 @@ app.get('/api/v1/health', (_req: Request, res: Response) => {
       service: 'goldenity-pos-backend',
       version: '2.0.0',
       timestamp: new Date().toISOString(),
+      mode: multi ? 'multi' : 'single',
+      controlPlane: multi ? await pingControlPlane() : null,
+      tenantClients: multi ? tenantDbStats() : null,
     },
   });
 });
@@ -101,11 +109,26 @@ app.use('/api/v1/devices', deviceRoutes);             // Multi-device per cabang
 app.use('/api/v1/subscription', subscriptionRoutes);  // Langganan (read tenant, write Admin Core) — Fase 3
 app.use('/api/v1/expenses', expenseRoutes);           // Keuangan K1 — pencatatan pengeluaran
 app.use('/api/v1/finance', financeRoutes);            // Keuangan K1 — laporan turunan (P&L / ledger / arus kas)
+app.use('/api/v1/internal', internalRoutes);          // Service-to-service (x-internal-token) — cache bust dari Admin Core
 
 const httpServer = createServer(app);
 initSocket(httpServer);
 
 httpServer.listen(PORT, () => {
   console.log(`[goldenity-pos-backend] listening on :${PORT} (+ Socket.IO /socket.io)`);
-  console.log(`[goldenity-pos-backend] mounted routes: /api/v1/health, /api/v1/auth, /api/v1/expenses, /api/v1/finance, /api/v1/categories, /api/v1/products, /api/v1/sales, /api/v1/settings, /api/v1/shifts, /api/v1/dashboard, /api/v1/uploads, /api/v1/tables, /api/v1/web-orders, /api/v1/order (customer, no-JWT), /api/v1/notifications, /api/v1/staff, /api/v1/devices, /api/v1/subscription`);
+  console.log(`[goldenity-pos-backend] TENANT_DB_MODE=${isMultiTenant() ? 'multi' : 'single'}`);
+  console.log(`[goldenity-pos-backend] mounted routes: /api/v1/health, /api/v1/auth, /api/v1/expenses, /api/v1/finance, /api/v1/categories, /api/v1/products, /api/v1/sales, /api/v1/settings, /api/v1/shifts, /api/v1/dashboard, /api/v1/uploads, /api/v1/tables, /api/v1/web-orders, /api/v1/order (customer, no-JWT), /api/v1/notifications, /api/v1/staff, /api/v1/devices, /api/v1/subscription, /api/v1/internal`);
 });
+
+async function gracefulShutdown(signal: string): Promise<void> {
+  console.log(`[goldenity-pos-backend] ${signal} — menutup koneksi...`);
+  httpServer.close();
+  try {
+    await disconnectAllTenantClients();
+  } catch {
+    /* ignore */
+  }
+  process.exit(0);
+}
+process.on('SIGTERM', () => void gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => void gracefulShutdown('SIGINT'));

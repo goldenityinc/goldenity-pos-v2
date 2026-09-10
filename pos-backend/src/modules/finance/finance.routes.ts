@@ -1,10 +1,11 @@
 import { Router, type Request, type Response } from 'express';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import type { ApiResponse, JwtAuthPayload } from '../../config/types';
 import { FinanceService } from './finance.service';
 
 export const financeRoutes = Router();
-financeRoutes.use(authenticateJWT);
+financeRoutes.use(authenticateJWT, resolveTenantDb);
 
 const send = (res: Response, r: ApiResponse<any>) =>
   res.status(r.success ? 200 : (r.error ?? '').startsWith('Payload') || (r.error ?? '').includes('Query') ? 400 : 500).json(r);

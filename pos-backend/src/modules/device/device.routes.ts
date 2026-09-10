@@ -2,6 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../config/database';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import { ok, fail, UserRole, type JwtAuthPayload } from '../../config/types';
 import { resolveEffectiveBranchFilter } from '../../utils/rbac';
 
@@ -12,7 +13,7 @@ import { resolveEffectiveBranchFilter } from '../../utils/rbac';
  * yang benar (branch + role CHECKER/BOTH).
  */
 export const deviceRoutes = Router();
-deviceRoutes.use(authenticateJWT);
+deviceRoutes.use(authenticateJWT, resolveTenantDb);
 
 const RegisterSchema = z.object({
   deviceId: z.string().trim().min(6, 'deviceId minimal 6 karakter').max(120),

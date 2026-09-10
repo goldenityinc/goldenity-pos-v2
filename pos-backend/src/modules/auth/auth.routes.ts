@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { AuthService } from './auth.service';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import { ok } from '../../config/types';
 import type { ApiResponse, JwtAuthPayload } from '../../config/types';
 import { resolveEffectiveBranchFilter } from '../../utils/rbac';
@@ -14,7 +15,7 @@ authRoutes.post(
 
     let httpStatus = 200;
     if (!result.success) {
-      httpStatus = extractStatusFromError(result.error, 500);
+      httpStatus = statusFromCode(result.code) ?? extractStatusFromError(result.error, 500);
     }
     res.status(httpStatus).json(result);
   },
@@ -23,6 +24,7 @@ authRoutes.post(
 authRoutes.get(
   '/me',
   authenticateJWT,
+  resolveTenantDb,
   async (req: Request, res: Response): Promise<void> => {
     const user = req.user as JwtAuthPayload;
     const result = await AuthService.getMe(user.userId);
@@ -40,6 +42,7 @@ authRoutes.get(
 authRoutes.post(
   '/change-password',
   authenticateJWT,
+  resolveTenantDb,
   async (req: Request, res: Response): Promise<void> => {
     const user = req.user as JwtAuthPayload;
     const result = await AuthService.changePassword(user.userId, req.body);
@@ -52,6 +55,22 @@ authRoutes.post(
     res.status(httpStatus).json(result);
   },
 );
+
+function statusFromCode(code: string | undefined): number | undefined {
+  switch (code) {
+    case 'TENANT_NOT_FOUND':
+      return 404;
+    case 'SUBSCRIPTION_SUSPENDED':
+    case 'TENANT_INACTIVE':
+      return 403;
+    case 'CONTROL_PLANE_UNAVAILABLE':
+    case 'TENANT_DB_UNAVAILABLE':
+    case 'TENANT_DB_UNCONFIGURED':
+      return 503;
+    default:
+      return undefined;
+  }
+}
 
 function extractStatusFromError(error: string | undefined, fallback: number): number {
   if (!error) return fallback;

@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { prisma } from '../../config/database';
+import { prisma, isMultiTenant } from '../../config/database';
 import { ok, fail, type ApiResponse, UserRole } from '../../config/types';
 import type { JwtAuthPayload } from '../../config/types';
 import { getSubscriptionViewByTenant } from '../subscription/subscription.service';
@@ -159,6 +159,9 @@ function assertAdmin(user: JwtAuthPayload): ApiResponse<never> | null {
 }
 
 function scopeTenantId(user: JwtAuthPayload, requested?: string): string {
+  // Multi-tenant: the request is already pinned to one tenant's DB, so a
+  // cross-tenant `?tenantId=` from SUPER_ADMIN is meaningless — always own tenant.
+  if (isMultiTenant()) return user.tenantId;
   return user.role === UserRole.SUPER_ADMIN && requested ? requested : user.tenantId;
 }
 
@@ -360,7 +363,7 @@ export class StaffService {
   static async createRole(user: JwtAuthPayload, raw: unknown): Promise<ApiResponse<any>> {
     const guard = assertAdmin(user);
     if (guard) return guard;
-    const tenantId = user.role === UserRole.SUPER_ADMIN && (raw as any)?.tenantId ? (raw as any).tenantId : user.tenantId;
+    const tenantId = scopeTenantId(user, typeof (raw as any)?.tenantId === 'string' ? (raw as any).tenantId : undefined);
     if (!(await customRbacEnabled(tenantId))) {
       return fail('Buat custom role butuh paket Professional/Enterprise.', 'FORBIDDEN_TIER');
     }

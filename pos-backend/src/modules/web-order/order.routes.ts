@@ -1,13 +1,20 @@
 import { Router, type Request, type Response } from 'express';
 import type { ApiResponse } from '../../config/types';
 import { WebOrderService } from './web-order.service';
+import { resolveOrderTenantDb } from '../../middleware/tenant-context.middleware';
 
 /**
  * Rute CUSTOMER Web Order — TANPA JWT (di-scope oleh `sessionToken` opaque yang
  * disimpan di localStorage browser customer). CORS harus terbuka untuk origin
  * aplikasi web order.
+ *
+ * Multi-tenant: butuh diskriminator tenant (?tenantSlug= / ?tenant= / header
+ * x-tenant-slug / body.tenantSlug) yang dibawa dari URL QR meja. Single mode:
+ * middleware ini pass-through.
  */
 export const orderRoutes = Router();
+
+orderRoutes.use(resolveOrderTenantDb);
 
 function statusFor(result: ApiResponse<any>, okStatus = 200): number {
   if (result.success) return okStatus;

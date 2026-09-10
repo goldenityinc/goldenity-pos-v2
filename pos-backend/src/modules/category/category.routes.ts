@@ -1,11 +1,12 @@
 import { Router, type Request, type Response } from 'express';
 import { CategoryService } from './category.service';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import type { ApiResponse, JwtAuthPayload } from '../../config/types';
 
 const categoryRoutes = Router();
 
-categoryRoutes.use(authenticateJWT);
+categoryRoutes.use(authenticateJWT, resolveTenantDb);
 
 categoryRoutes.get(
   '/',

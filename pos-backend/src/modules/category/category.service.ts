@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { prisma } from '../../config/database';
+import { prisma, isMultiTenant } from '../../config/database';
 import { ok, fail, type ApiResponse, UserRole as TypesUserRole } from '../../config/types';
 import type { JwtAuthPayload } from '../../config/types';
 import type { Category } from '@prisma/client';
@@ -46,7 +46,7 @@ export class CategoryService {
       where.isActive = true;
     }
 
-    if (user.role === TypesUserRole.SUPER_ADMIN) {
+    if (!isMultiTenant() && user.role === TypesUserRole.SUPER_ADMIN) {
       if (query?.tenantId && typeof query.tenantId === 'string' && query.tenantId.length > 0) {
         where.tenantId = query.tenantId;
       }
@@ -98,7 +98,7 @@ export class CategoryService {
     const trimmedName = input.name.trim();
 
     let effectiveTenantId: string;
-    if (user.role === TypesUserRole.SUPER_ADMIN && input.tenantId) {
+    if (!isMultiTenant() && user.role === TypesUserRole.SUPER_ADMIN && input.tenantId) {
       effectiveTenantId = input.tenantId;
     } else {
       effectiveTenantId = user.tenantId;

@@ -13,6 +13,8 @@ export interface JwtAuthPayload {
   branchId: string | null;
   role: UserRole;
   customRoleId?: string;
+  /** Present on tokens issued in multi-tenant mode; convenience only, not load-bearing. */
+  tenantSlug?: string;
 }
 
 export interface EffectiveBranchFilter {

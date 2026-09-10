@@ -1,305 +1,167 @@
-# Railway Staging — Setup & Cara Connect
+# Railway Staging — Setup & Cara Connect (arsitektur DB fisik per-tenant)
 
-Status: **siap eksekusi.** `railway.json` per service sudah dibuat; deploy = auto dari GitHub
-setelah `git push origin staging`. Terakhir diperbarui: 2026-09-09.
+Terakhir diperbarui: 2026-09-10. Menggantikan draf single-DB sebelumnya.
+
+Staging V2 kini **multi-tenant fisik**: tiap tenant punya Postgres sendiri di Railway.
+pos-backend membaca **identitas tenant + tier + tanggal langganan** langsung dari
+**DB Admin Core produksi** (koneksi **read-only**), dan menyimpan peta
+`tenantId → URL DB tenant` di **registry milik pos-backend sendiri** (Postgres kecil
+`pos-control`) — produksi Admin Core **tidak pernah ditulis** dari staging.
+
+```
+ PRODUKSI (read-only)          STAGING (Railway project baru)
+ ┌───────────────────┐         ┌─────────────────────────────────────────────┐
+ │ DB Admin Core     │◄────────│ pos-backend  (TENANT_DB_MODE=multi)          │
+ │  tenants          │  SELECT │   ADMIN_CORE_DATABASE_URL  → prod (ro role)  │
+ │  app_instances    │  only   │   POS_CONTROL_DATABASE_URL → pos-control     │
+ │  solutions        │         │                                             │
+ │  branches, users  │         │ pos-control  (Postgres)  tenant_db_registry  │
+ └───────────────────┘         │ pos-tenant-<slug>  (Postgres, 1 per tenant)  │
+                               │ pos-web-order · pos-web-backoffice           │
+                               └─────────────────────────────────────────────┘
+```
+
+`TENANT_DB_MODE=single` (default, tanpa env) = perilaku lama (satu `DATABASE_URL`,
+mirror langganan lokal). Semua di bawah ini untuk `multi`.
 
 ---
 
-## RUNBOOK — langkah berurutan (ikuti dari atas)
+## RUNBOOK
 
-Prasyarat: akun Railway, `psql`/`pg_dump` lokal, `DATABASE_URL` DB POS **produksi** (`$PROD`).
+Prasyarat: akun Railway; akses buat **role Postgres read-only** di DB Admin Core produksi;
+`git push` branch `staging` sudah dilakukan (auto-deploy).
 
-### 1 · Push kode
-```bash
-cd E:/Goldenity/goldenity-pos-v2
-git push origin staging        # ~96 commit; branch `staging`
-```
-(admin-core & super-admin: branch masing-masing di-push terpisah kalau perlu portal — POS staging tidak butuh itu.)
+### H1 · Control plane (Admin Core produksi, read-only) + registry
 
-### 2 · Railway project
-1. railway.app → **New Project** → `goldenity-pos-staging`.
-2. **+ New → Database → PostgreSQL**. Buka tab *Variables*, catat `DATABASE_URL` (versi **public/proxy** untuk restore dari laptop; versi **internal** untuk service).
-3. **+ New → GitHub Repo** `goldenityinc/goldenity-pos-v2`, branch `staging`, **3x** — sekali per service, set **Root Directory**:
-   - `pos-backend`  ·  `pos-web-order`  ·  `pos-web-backoffice`
-   Tiap service otomatis pakai `railway.json` di folder itu.
+1. Di Postgres Admin Core **produksi**, buat role read-only:
+   ```sql
+   CREATE ROLE pos_ro LOGIN PASSWORD '<kuat>';
+   GRANT CONNECT ON DATABASE <admincore_db> TO pos_ro;
+   GRANT USAGE ON SCHEMA public TO pos_ro;
+   GRANT SELECT ON tenants, app_instances, solutions, branches, users TO pos_ro;
+   ```
+   `ADMIN_CORE_DATABASE_URL` staging = connection string role `pos_ro` ini.
+2. Railway → project `goldenity-pos-staging` → **+ New → Database → PostgreSQL**, namai
+   `pos-control`. Catat `DATABASE_URL` (versi public untuk setup dari laptop, internal untuk service).
+3. Buat tabel registry di `pos-control` (idempoten):
+   ```bash
+   cd pos-backend
+   npx prisma db execute --url "<POS_CONTROL_PUBLIC_URL>" --file prisma/manual/tenant_control_registry.sql
+   ```
 
-### 3 · DB staging — **fresh + seed** (bukan slice)
+### H2 · Per-tenant DB (mulai 1–2 tenant, lalu lebarkan)
 
-> **PENTING — koreksi arsitektur.** V2 pos-backend = **single-DB multi-tenant**
-> (`prisma` satu client, satu `DATABASE_URL`; login cek tabel `Tenant`/`User`
-> di DB itu, bcrypt lokal — TIDAK ada SSO/link ke admin-core). admin-core ↔
-> pos-backend V2 **hanya** webhook langganan (`PUT /subscription/:tenantId`),
-> tidak membawa user/produk/cabang. **V2 belum pernah deploy produksi**, jadi
-> **tidak ada "DB POS produksi V2" untuk di-slice.** DB per-tenant + `provision:tenant`
-> itu arsitektur **V1** (`goldenity-pointofsales-app`), skema-nya beda (snake_case,
-> tanpa `tenantId`) → dump V1 TIDAK bisa `pg_restore` ke V2.
->
-> Migrasi data V1→V2 = proyek ETL terpisah, di luar scope "set up staging".
+Untuk tiap tenant produksi yang mau diuji (slug asli):
 
-```bash
-cd pos-backend
-# 1. Skema: pakai db push (bukan migrate deploy — histori migrasi V2 rusak,
-#    `20260904110000_category_hard_cutover` gagal replay dari nol).
-DATABASE_URL="$STAGING_PUBLIC_URL" npx prisma db push --skip-generate
-# 2. Data awal: tenant demo + admin/kasir + produk + contoh pengeluaran.
-DATABASE_URL="$STAGING_PUBLIC_URL" npm run db:seed
-```
-Login staging: **demo-fnb** · `admin` / `admin123` (owner) · `kasir` / `kasir123`.
+1. Railway → **+ New → Database → PostgreSQL**, namai `pos-tenant-<slug>`. Catat URL-nya (`$TDB`).
+2. Provisioning (skema `db push` + baris `Tenant`/`Branch`/admin `User` + tulis registry):
+   ```bash
+   cd pos-backend
+   ADMIN_CORE_DATABASE_URL="<prod ro>" POS_CONTROL_DATABASE_URL="<pos-control public>" \
+     npm run provision:tenant -- --slug <slug> --db-url "$TDB"
+   ```
+   - Admin user diambil dari `AppInstance.admin_email` / `admin_password` (plaintext di Admin Core) →
+     di-bcrypt ke DB tenant. Kalau `admin_password` kosong, beri `--admin-pass <pw>`.
+   - **Bukan** `migrate deploy` (histori migrasi V2 rusak di `20260904110000_category_hard_cutover`).
+3. ETL staf lainnya ke DB tenant:
+   ```bash
+   ADMIN_CORE_DATABASE_URL="<prod ro>" POS_CONTROL_DATABASE_URL="<pos-control public>" \
+     npm run etl:tenant-identity -- --slug <slug> --source admin-core
+   # atau, kalau kredensial POS asli tenant ada di DB V1-nya:
+   #   ... -- --slug <slug> --source v1-appusers --v1-db-url "<url DB V1 tenant>"
+   ```
+   `--source v1-appusers` memetakan role string V1 → `UserRole` V2 (admin/owner→TENANT_ADMIN,
+   kasir→CASHIER, montir→WORKSHOP_ADMIN, auditor→ACCOUNTANT; tak dikenal→CASHIER + log).
+4. Smoke test (lihat H4).
 
-`prisma/manual/staging_apply_v2_additions.sql` (idempoten) hanya dibutuhkan
-**kalau** kelak me-restore dump DB V2 lama yang belum punya Fase 3 / Keuangan K1.
-Backend TIDAK auto-migrate saat boot (`startCommand` = `node dist/index.js`).
+### H3 · Env vars pos-backend (Railway → Variables)
 
-### 4 · Env vars pos-backend  (Settings → Variables)
 | Key | Value |
 |---|---|
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (reference, versi internal) |
+| `TENANT_DB_MODE` | `multi` (set **setelah** minimal 1 tenant di-provision; `single` sebelum itu) |
+| `ADMIN_CORE_DATABASE_URL` | DB Admin Core **produksi**, role `pos_ro` (read-only) |
+| `POS_CONTROL_DATABASE_URL` | `${{pos-control.DATABASE_URL}}` (reference, internal) |
+| `DATABASE_URL` | DB scratch kecil untuk fallback `single` / `npm run db:seed`; tidak dipakai di `multi` |
 | `JWT_SECRET` | `openssl rand -hex 32` — **baru, bukan produksi** |
 | `JWT_EXPIRES_IN` | `24h` |
-| `CORS_ORIGIN` | `https://<web-order>.up.railway.app,https://<backoffice>.up.railway.app` (isi setelah step 6) |
-| `WEB_ORDER_BASE_URL` | `https://<web-order>.up.railway.app` (isi setelah step 6) |
-| `CORE_SYNC_TOKEN` | token acak (kalau mau sync langganan dari admin-core prod — lihat §5 bawah) |
+| `INTERNAL_SERVICE_TOKEN` | token acak — untuk `POST /api/v1/internal/cache/bust` dari Admin Core |
+| `SUBSCRIPTION_GRACE_DAYS` | `7` (samakan dengan Admin Core) |
+| `CONTROL_PLANE_CACHE_TTL_MS` | `45000` (opsional) |
+| `TENANT_DB_MAX_CLIENTS` / `TENANT_DB_IDLE_TTL_MS` | `25` / `600000` (opsional) |
+| `ALLOW_SUPERADMIN_TENANT_OVERRIDE` | `true` (staging saja — `?tenantSlug=` re-resolve DB) |
+| `ALLOW_SUPERADMIN_SUSPENDED_LOGIN` | `true` (SUPER_ADMIN tetap bisa login walau langganan suspended) |
+| `CORS_ORIGIN` | daftar origin FE, dipisah koma (Express + Socket.IO) |
+| `WEB_ORDER_BASE_URL` | origin pos-web-order (untuk URL QR meja) |
+| `CORE_SYNC_TOKEN` | tidak dipakai lagi di `multi` (webhook langganan dihapus) — boleh dikosongkan |
 
-### 5 · Env vars web (build-time — set SEBELUM deploy pertama, atau redeploy)
-- **pos-web-order** & **pos-web-backoffice**: `VITE_API_BASE = https://<pos-backend>.up.railway.app`
+Build command Railway tetap `npm ci --include=dev && npx prisma generate && npm run build`
+(`prisma generate` hanya butuh `schema.prisma`, tanpa DB). Start `node dist/index.js` —
+**tidak** ada `migrate deploy` saat boot.
 
-### 6 · Domain & finalisasi
-1. Tiap service: Settings → Networking → **Generate Domain**. Catat 3 URL.
-2. Isi balik `CORS_ORIGIN` + `WEB_ORDER_BASE_URL` (pos-backend) dan `VITE_API_BASE` (2 web app) dengan URL nyata → **Redeploy** service yang env-nya berubah.
-3. Smoke test: `GET https://<pos-backend>/api/v1/health` → 200; login pos-web-backoffice: demo-fnb/admin/admin123; buka pos-web-order (refresh di halaman dalam tidak 404).
+### H4 · Smoke test
 
-### 7 · POS Flutter → staging
-`pos-native-desktop-tablet/lib/core/config/api_constants.dart` → ganti `devBaseUrl` ke `https://<pos-backend>.up.railway.app`, rebuild.
+- `GET /api/v1/health` → `mode:"multi"`, `controlPlane:true`, `tenantClients` ada.
+- `POST /api/v1/auth/login` slug + user **asli produksi** → 200, JWT bawa `tenantSlug`.
+- `GET /api/v1/auth/me` → `subscription.tier` / `status` dari Admin Core.
+- `GET /api/v1/categories` → data tenant itu saja (isolasi); token tenant A tidak melihat data tenant B.
+- **Uji kadaluarsa:** di Admin Core set `app_instances.status='SUSPENDED'` (atau `end_date` lampau)
+  untuk tenant uji → `POST /api/v1/internal/cache/bust` (`x-internal-token`) `{ "tenantId": "..." }`
+  → `login` → **403 `SUBSCRIPTION_SUSPENDED`** + pesan "hubungi tim Goldenity"; request dengan token
+  lama juga 403 dalam ≤ TTL. Balikkan `ACTIVE` untuk lanjut.
 
----
+### H5 · Rollout skema ke semua tenant DB
 
-> ⚠️ **Bagian §0–§8 di bawah ini adalah draf lama** yang mengasumsikan "slice dari
-> DB POS produksi". Itu **tidak berlaku untuk V2** (lihat kotak PENTING di §3
-> RUNBOOK di atas). Ikuti **RUNBOOK** di atas. §0–§8 disimpan hanya sebagai
-> catatan/arsip.
-
-## 0. Topologi yang dituju
-
-```
-                     ┌─────────────────────────────────────────┐
-   PRODUCTION        │  goldenity-super-admin  (FE portal)      │
-   (biarkan apa      │  goldenity-admin-core-backend (BE portal)│
-    adanya)          │  + DB admin-core PRODUCTION              │
-                     └───────────────┬─────────────────────────┘
-                                     │  (opsional) sync langganan
-                                     │  PUT /api/v1/subscription/:tenantId
-                                     │  header x-core-sync-token
-                                     ▼
-   STAGING           ┌─────────────────────────────────────────┐
-   (Railway,         │  pos-backend            (Railway svc)    │
-    project baru)    │  pos-web-order          (Railway svc)    │
-                     │  pos-web-backoffice     (Railway svc)    │
-                     │  Postgres "pos-staging" (Railway plugin) │◄── di-slice
-                     └─────────────────────────────────────────┘     dari DB
-                                                                     POS produksi
-   LOKAL             pos-native-desktop-tablet (Flutter Windows)
-                     → arahkan API base ke URL pos-backend staging
-```
-
-**Prinsip yang diminta:**
-- **Login user** tetap pakai kredensial yang sudah ada di **production** — caranya: DB POS staging **di-slice (pg_dump/restore) dari DB POS produksi**, jadi semua tenant + user + hash password ikut terbawa. Orang login ke staging pakai username/password produksi mereka.
-- **Portal admin-core + super-admin tidak digandakan** ke staging. Tetap dipakai yang production untuk kelola tenant / langganan / tipe bisnis.
-- Yang benar-benar terpisah cuma **DB POS** (staging punya Postgres sendiri) supaya transaksi uji tidak mengotori produksi.
-
-> pos-backend meng-autentikasi **lokal** (bcrypt terhadap tabel `User` di DB-nya sendiri) — tidak ada SSO ke admin-core. Karena itu "pakai user production" = "bawa tabel User production ke DB staging via slice".
-
----
-
-## 1. Siapkan DB POS staging (slice dari produksi)
-
-Jalankan dari mesin yang punya akses ke DB POS produksi.
-
+Setelah `schema.prisma` berubah:
 ```bash
-# 1) Dump penuh skema + data dari DB POS produksi
-pg_dump "$PROD_POS_DATABASE_URL" \
-  --no-owner --no-privileges --format=custom \
-  -f pos_prod_slice.dump
-
-# 2) Buat Postgres di Railway (lihat langkah 2), ambil DATABASE_URL-nya → $STAGING_POS_DATABASE_URL
-
-# 3) Restore ke staging
-pg_restore --no-owner --no-privileges --clean --if-exists \
-  -d "$STAGING_POS_DATABASE_URL" pos_prod_slice.dump
+POS_CONTROL_DATABASE_URL="<pos-control>" npm run migrate:all-tenants          # db push ke semua
+POS_CONTROL_DATABASE_URL="<pos-control>" npm run migrate:all-tenants -- --sql prisma/manual/x.sql   # atau SQL idempoten
+POS_CONTROL_DATABASE_URL="<pos-control>" npm run migrate:all-tenants -- --dry-run
 ```
-
-**Kalau mau "slice" (subset, bukan full):** dump full tetap paling aman untuk staging pertama. Kalau volume terlalu besar, pilih 1 tenant:
-- dump full dulu, restore ke staging, lalu di staging hapus tenant lain:
-  `DELETE FROM "Tenant" WHERE slug <> '<tenant-yang-diuji>';` (FK `ON DELETE RESTRICT` di beberapa tabel → hapus anak dulu, atau sementara pakai `TRUNCATE ... CASCADE` pada tabel transaksi tenant lain). Lebih praktis: biarkan full, cukup uji pada 1 tenant.
-
-**Anonimisasi opsional** (kalau staging akan dilihat orang luar):
-```sql
-UPDATE "User" SET email = NULL WHERE email IS NOT NULL;   -- PII minimal
--- password hash biarkan supaya tim bisa login pakai kredensial asli
-```
-
-**Setelah restore — jalankan 2 migrasi baru** yang belum ada di produksi (Fase 3 + branch settings):
-```bash
-cd pos-backend
-DATABASE_URL="$STAGING_POS_DATABASE_URL" npx prisma migrate deploy
-```
-`migrate deploy` **tidak** pakai shadow DB, jadi masalah P3006 di histori lama tidak muncul. Ia hanya menerapkan yang pending:
-`20260909120000_fase3_backoffice` dan `20260909130000_branch_settings` (keduanya DDL murni: enum + kolom + tabel `Subscription`/`SubscriptionEvent`).
-
-> Kalau `migrate deploy` menolak karena drift histori, fallback manual:
-> ```bash
-> DATABASE_URL=... npx prisma db execute --file prisma/manual/20260909_fase3_backoffice.sql --schema prisma/schema.prisma
-> DATABASE_URL=... npx prisma db execute --file prisma/manual/20260909b_branch_settings.sql --schema prisma/schema.prisma
-> DATABASE_URL=... npx prisma migrate resolve --applied 20260909120000_fase3_backoffice
-> DATABASE_URL=... npx prisma migrate resolve --applied 20260909130000_branch_settings
-> ```
-
-**Isi langganan awal** supaya login tidak ke-blok `SUBSCRIPTION_SUSPENDED` (pos-backend menolak non-SUPER_ADMIN kalau `canOperatePos` false). Untuk tiap tenant yang diuji:
-```sql
-INSERT INTO "Subscription" (id, "tenantId", tier, status, "startDate", "endDate", "graceDays", "updatedAt")
-VALUES (gen_random_uuid(), '<tenantId>', 'PROFESSIONAL', 'ACTIVE', now(), now() + interval '90 days', 7, now())
-ON CONFLICT ("tenantId") DO UPDATE
-  SET status='ACTIVE', "endDate"=EXCLUDED."endDate", tier=EXCLUDED.tier, "updatedAt"=now();
-```
-(atau lewat portal setelah sync jalan — lihat langkah 5.)
 
 ---
 
-## 2. Buat project Railway
+## Service web (pos-web-order / pos-web-backoffice)
 
-`railway.app` → **New Project** → beri nama `goldenity-pos-staging`.
+Vite SPA. Build `npm ci --include=dev && npm run build` → `dist/`. Serve `npm run start`
+(`serve -s dist -l ${PORT:-4173}` — `-s` = SPA fallback, cegah 404 saat refresh halaman dalam).
+`railway.json` di tiap folder sudah menyetel ini.
 
-Tambahkan 4 komponen:
-
-| Komponen | Cara tambah |
+| Var | Value |
 |---|---|
-| **Postgres** | *New → Database → Add PostgreSQL*. Salin `DATABASE_URL` dari tab *Variables* (pakai yang `...internal` untuk service backend, `...proxy`/public untuk `pg_restore` dari laptop). |
-| **pos-backend** | *New → GitHub Repo* → pilih repo, set **Root Directory** = `pos-backend`, branch = `staging`. |
-| **pos-web-order** | *New → GitHub Repo* → Root Directory = `pos-web-order`, branch = `staging`. |
-| **pos-web-backoffice** | *New → GitHub Repo* → Root Directory = `pos-web-backoffice`, branch = `staging`. |
+| `VITE_API_BASE` | `https://<pos-backend-staging>.up.railway.app` (di-bake saat build → ganti = redeploy) |
 
-> Repo `goldenity-pos-v2` adalah monorepo → **wajib set Root Directory** per service. Deploy otomatis dari branch `staging` baru aktif **setelah** kita `git push` (masih ditahan). Sebelum itu bisa deploy manual: `railway up` dari tiap folder.
+**pos-web-order (customer) — kontrak baru multi-tenant:** URL QR meja kini membawa slug
+(`.../order?tenant=<slug>&qr=<qrToken>`). FE web-order harus menyimpan `tenant` di
+`localStorage` dan mengirimkannya tiap call ke `/api/v1/order/*` sebagai `?tenantSlug=` atau
+header `x-tenant-slug`. Tanpa itu, backend `multi` menolak `400 TENANT_SLUG_REQUIRED`.
+Stage perubahan FE ini lebih dulu.
 
----
+Domain: tiap service → Settings → Networking → Generate Domain. Isi balik `CORS_ORIGIN` +
+`WEB_ORDER_BASE_URL` (pos-backend) dan `VITE_API_BASE` (2 web app) dengan URL nyata → redeploy.
 
-## 3. Konfigurasi service: **pos-backend**
+## POS Flutter → staging
 
-**Settings → Build**
-- Build command:
-  `npm ci && npx prisma generate && npm run build`
-- Start command:
-  `npx prisma migrate deploy && node dist/index.js`
-  (aman diulang; kalau tidak mau migrasi tiap boot, pindahkan `migrate deploy` ke langkah 1 saja dan start = `node dist/index.js`)
-
-**Settings → Networking** → *Generate Domain* → catat, mis. `https://pos-backend-staging.up.railway.app`.
-
-**Variables**
-
-| Key | Value |
-|---|---|
-| `NODE_ENV` | `production` |
-| `PORT` | `${{PORT}}` (Railway inject; `src/index.ts` sudah baca `process.env.PORT`) |
-| `DATABASE_URL` | `${{Postgres.DATABASE_URL}}` (reference variable ke plugin Postgres) |
-| `JWT_SECRET` | 32+ byte acak baru — **jangan** samakan dengan produksi (`openssl rand -hex 32`) |
-| `JWT_EXPIRES_IN` | `24h` |
-| `CORS_ORIGIN` | daftar origin FE staging, **dipisah koma** (dipakai Express **dan** Socket.IO): `https://pos-web-order-staging.up.railway.app,https://pos-web-backoffice-staging.up.railway.app` (hindari `*` karena `credentials: true`) |
-| `WEB_ORDER_BASE_URL` | origin **pos-web-order** yang ter-deploy, mis. `https://pos-web-order-staging.up.railway.app`. Dipakai membangun URL QR meja (`{BASE}/{tenantSlug}/{branchId}/t/{qrToken}`). QR di-generate saat request → cukup set env ini, tidak ada data yang perlu disiapkan; `qrToken` per meja tidak berubah. PDF QR yang sudah dicetak sebelum env di-set (masih pakai default `order.goldenity.app`) tinggal dicetak ulang. |
-| `CORE_SYNC_TOKEN` | token acak baru; **harus sama** dengan yang dipasang di admin-core produksi kalau mau sync langganan otomatis (langkah 5). Kosongkan kalau mau isi langganan manual. |
-
-> `src/config/cors.ts` `parseCorsOrigin()` sudah menangani `*` / satu origin / daftar dipisah koma, dipakai bersama oleh Express CORS dan Socket.IO. Tidak perlu var terpisah untuk socket.
+`pos-native-desktop-tablet/lib/core/config/api_constants.dart` → `devBaseUrl` ke URL
+pos-backend staging, rebuild `E:/Flutter/bin/flutter.bat build windows`.
 
 ---
 
-## 4. Konfigurasi service: **pos-web-order** & **pos-web-backoffice**
+## Catatan / batasan
 
-Keduanya Vite SPA. Build statis, serve dengan fallback ke `index.html` (client routing `react-router-dom`).
-
-**Build command:** `npm ci && npm run build` → output `dist/`.
-
-**Cara serve — pilih salah satu:**
-
-- **A. Railway static (paling simpel):** Settings → set **Output Directory** = `dist`, aktifkan *SPA fallback* kalau tersedia. Kalau tidak ada opsi fallback, pakai B.
-- **B. `serve` sebagai start command:**
-  - Build command: `npm ci && npm run build`
-  - Start command: `npx serve -s dist -l ${{PORT}}`
-    (`-s` = single-page: semua route → `index.html`. Ini yang mencegah 404 saat refresh di halaman dalam, dan **juga** relevan ke isu Safari — halaman putih di Safari sudah ditangani di kode via `safeStorage` + `ErrorBoundary`, tapi SPA fallback tetap wajib.)
-
-**Variables (pos-web-order):**
-
-| Key | Value |
-|---|---|
-| `VITE_API_BASE` | `https://pos-backend-staging.up.railway.app`  (kode: `BASE = (VITE_API_BASE ?? '') + '/api/v1'`) |
-
-**Variables (pos-web-backoffice):** sama, `VITE_API_BASE` = URL pos-backend staging.
-
-> `VITE_*` di-bake saat build → setiap ganti nilai harus **redeploy**.
-> `vite.config.ts` proxy `/api` hanya untuk dev lokal; di prod tidak dipakai karena `VITE_API_BASE` absolut.
-
-**Domain:** Settings → Networking → Generate Domain untuk masing-masing. Balikkan kedua URL-nya (dipisah koma) ke `CORS_ORIGIN` pos-backend (langkah 3) lalu redeploy pos-backend.
-
----
-
-## 5. Hubungkan langganan: admin-core **produksi** → pos-backend **staging**
-
-Tujuan: perubahan tier/tanggal langganan di portal super-admin ikut tercermin di POS staging.
-
-`goldenity-admin-core-backend/src/controllers/appInstanceController.ts` → `syncPosSubscription()` mem-`PUT ${POS_BACKEND_SYNC_URL}/api/v1/subscription/:tenantId` dengan header `x-core-sync-token: $CORE_SYNC_TOKEN`, best-effort (tidak pernah menggagalkan request portal).
-
-**Opsi 1 — otomatis (ubah env admin-core produksi):**
-```
-POS_BACKEND_SYNC_URL = https://pos-backend-staging.up.railway.app
-CORE_SYNC_TOKEN      = <token sama dgn pos-backend staging>
-```
-⚠️ Efek samping: **setiap** create/update AppInstance solusi POS di produksi akan nembak staging juga. Umumnya tidak masalah (endpoint hanya nulis read-model langganan, di-scope per `tenantId`, best-effort). Tapi kalau tidak mau produksi "tahu" soal staging, pakai Opsi 2.
-
-**Opsi 2 — manual / satu kali (disarankan untuk awal):** biarkan env produksi apa adanya, dorong langganan ke staging pakai skrip:
-```bash
-curl -X PUT "https://pos-backend-staging.up.railway.app/api/v1/subscription/<tenantId>" \
-  -H "content-type: application/json" \
-  -H "x-core-sync-token: <CORE_SYNC_TOKEN staging>" \
-  -d '{"tier":"PROFESSIONAL","status":"ACTIVE","startDate":"2026-09-09","endDate":"2026-12-09","graceDays":7}'
-```
-Endpoint yang sama juga menerima **SUPER_ADMIN JWT** (Authorization: Bearer) sebagai ganti header token.
-
-> Verifikasi: login kasir di POS staging → kalau `status` `SUSPENDED`/`EXPIRED`, login ditolak `SUBSCRIPTION_SUSPENDED` (sesuai desain). Set `ACTIVE` + `endDate` masa depan agar bisa operasi.
-
----
-
-## 6. Arahkan POS desktop (Flutter) ke staging
-
-`pos-native-desktop-tablet` — ganti API base (lihat `lib/core/constants/api_constants.dart` atau env config yang dipakai build) ke:
-```
-https://pos-backend-staging.up.railway.app
-```
-Rebuild: `E:/Flutter/bin/flutter.bat build windows`. 
-
-Yang perlu dicek di POS staging:
-- Login → **Offline PIN setup** muncul di login pertama (fresh login) → set / "Lewati, atur nanti".
-- **Pemilihan cabang**: layar pilih cabang hanya muncul kalau tenant punya >1 cabang aktif; tenant 1 cabang auto-skip (by design). Untuk melihat layarnya, pastikan tenant uji punya ≥2 `Branch` dengan `isActive=true`.
-- Semua laporan (Dashboard, Riwayat Penjualan, Keuangan) hanya menampilkan cabang login (`branchId` selalu dikirim).
-- Pengaturan → kartu **Metode Pembayaran Web Order** (QRIS saja / QRIS + Bayar di Kasir) → tersimpan ke `Branch.webOrderPaymentMode` di DB.
-- Pengaturan → kartu **Reset PIN Offline**.
-- Cabut internet saat transaksi biasa → masuk antrean `pending_sales_queue`, sync otomatis tiap 30 dtk saat online lagi.
-
----
-
-## 7. Smoke test staging (checklist)
-
-- [ ] `GET https://pos-backend-staging.../api/v1/health` (atau root) → 200
-- [ ] Login POS desktop pakai user produksi (dari slice) → berhasil
-- [ ] pos-web-backoffice: login, Dashboard tampil, filter cabang jalan, halaman Langganan tampil tier + sisa hari
-- [ ] pos-web-order: scan QR meja / buka link sesi → menu tampil; refresh di halaman dalam tidak 404; buka di **Safari** → tidak layar putih
-- [ ] Set cabang ke `QRIS_ONLY` di backoffice/POS → web order tolak `PAY_AT_CASHIER` (HTTP 422), terima QRIS
-- [ ] Buat transaksi di POS → muncul di Riwayat Penjualan; slice per cabang benar
-- [ ] Ubah langganan tenant jadi `SUSPENDED` (langkah 5) → login kasir ditolak `SUBSCRIPTION_SUSPENDED`; balikkan ke `ACTIVE`
-
----
-
-## 8. Catatan / batasan
-
-- **Belum ada `git push`.** Semua commit masih lokal (pos-v2 `staging`, admin-core `feat/pos-v2-subscription-sync`, super-admin `feat/tenant-business-category`). Auto-deploy Railway dari branch `staging` baru jalan setelah push. Sebelum itu: `railway up` manual per service.
-- **Jangan pakai `JWT_SECRET` / `CORE_SYNC_TOKEN` produksi** di staging.
-- **Migrasi**: histori Prisma lama bermasalah di shadow DB (`prisma migrate dev` P3006) — di Railway jangan pernah jalankan `migrate dev`. Hanya `migrate deploy` (tanpa shadow DB) atau jalur manual `db execute` + `migrate resolve`.
-- **CORS**: begitu domain FE dibuat, isi `CORS_ORIGIN` eksplisit (daftar dipisah koma, bukan `*`) lalu redeploy pos-backend — Express + Socket.IO web order sama-sama pakai var ini.
-- **`VITE_API_BASE`** di-bake saat build → ganti nilai = redeploy FE.
-- Postgres Railway: pakai `DATABASE_URL` **internal** untuk service, **public/proxy** untuk `pg_restore` dari luar.
+- **Prod Admin Core = dependency runtime.** `pos-backend` fail-closed: kalau
+  `ADMIN_CORE_DATABASE_URL` tidak terjangkau, login & request baru 503
+  (`CONTROL_PLANE_UNAVAILABLE`). TTL cache 45 dtk meredam blip. Role `pos_ro` **read-only**
+  — staging tak bisa merusak produksi.
+- **Registry pos-side, bukan `app_instances`.** `provision-tenant.ts` menulis
+  `tenant_db_registry` di `pos-control`, tidak menyentuh `app_instances.dbConnectionString`
+  produksi.
+- **Push-invalidation.** Idealnya Admin Core memanggil
+  `POST https://<pos-backend-staging>/api/v1/internal/cache/bust` (`x-internal-token:
+  $INTERNAL_SERVICE_TOKEN`) `{ "tenantId": "..." }` saat suspend/renew, supaya efek langsung
+  (tanpa menunggu TTL). PR terpisah di Admin Core.
+- **Migrasi**: jangan pernah `prisma migrate dev` / `migrate deploy` (histori rusak). Hanya
+  `db push` (via `provision-tenant.ts` / `migrate:all-tenants`) atau `db execute --file`.
+- **JWT_SECRET / token internal**: baru untuk staging, jangan samakan produksi.
+- **Connection budget**: tiap tenant client dipatok `connection_limit=5`; manajer LRU
+  `TENANT_DB_MAX_CLIENTS=25` + evict idle 10 mnt. Pantau `pg_stat_activity` di staging.

@@ -1,12 +1,13 @@
 import { Router, type Request, type Response } from 'express';
 import { SettingsService } from './settings.service';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import type { ApiResponse, JwtAuthPayload } from '../../config/types';
 import type { PrinterSlot } from '@prisma/client';
 
 export const settingsRoutes = Router();
 
-settingsRoutes.use(authenticateJWT);
+settingsRoutes.use(authenticateJWT, resolveTenantDb);
 
 settingsRoutes.get(
   '/store',

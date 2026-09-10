@@ -1,10 +1,11 @@
 import { Router, type Request, type Response } from 'express';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import type { ApiResponse, JwtAuthPayload } from '../../config/types';
 import { WebOrderService } from './web-order.service';
 
 export const webOrderRoutes = Router();
-webOrderRoutes.use(authenticateJWT);
+webOrderRoutes.use(authenticateJWT, resolveTenantDb);
 
 function statusFor(result: ApiResponse<any>, okStatus = 200): number {
   if (result.success) return okStatus;

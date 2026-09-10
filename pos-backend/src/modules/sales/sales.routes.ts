@@ -1,9 +1,10 @@
 import express, { type Request, type Response } from 'express';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import { SalesService } from './sales.service';
 
 export const salesRoutes = express.Router();
-salesRoutes.use(authenticateJWT);
+salesRoutes.use(authenticateJWT, resolveTenantDb);
 
 function extractStatusFromError(err: string, code?: string): number {
   if (code === 'NOT_FOUND') return 404;

@@ -12,6 +12,12 @@ import type { JwtAuthPayload } from '../config/types';
  * Room:
  *   - `branch:<branchId>`  → semua device POS di cabang itu
  *   - `tenant:<tenantId>`  → semua device tenant (backoffice)
+ *
+ * MULTI-TENANT: handler di sini TIDAK mengakses DB. Kalau nanti perlu, bungkus
+ * body handler dengan:
+ *   const client = await getTenantClientByTenantId(socket.data.user.tenantId);
+ *   dbContext.run({ client, tenantId, slug }, () => { ...pakai `prisma` proxy... });
+ * (lihat src/config/tenant-db.ts + src/config/database.ts).
  */
 let io: Server | null = null;
 

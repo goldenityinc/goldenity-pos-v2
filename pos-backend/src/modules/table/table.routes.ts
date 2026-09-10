@@ -1,11 +1,12 @@
 import { Router, type Request, type Response } from 'express';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import type { ApiResponse, JwtAuthPayload } from '../../config/types';
 import { TableService } from './table.service';
 import { buildTableQrPdf } from './table-qr-pdf';
 
 export const tableRoutes = Router();
-tableRoutes.use(authenticateJWT);
+tableRoutes.use(authenticateJWT, resolveTenantDb);
 
 /** Stream PDF QR meja (1 halaman per meja). `?branchId=` opsional utk admin. */
 async function streamQrPdf(req: Request, res: Response, tableId?: string) {

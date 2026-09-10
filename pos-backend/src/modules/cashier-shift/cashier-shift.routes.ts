@@ -1,11 +1,12 @@
 import { Router, type Request, type Response } from 'express';
 import { CashierShiftService } from './cashier-shift.service';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import type { ApiResponse, JwtAuthPayload } from '../../config/types';
 
 export const cashierShiftRoutes = Router();
 
-cashierShiftRoutes.use(authenticateJWT);
+cashierShiftRoutes.use(authenticateJWT, resolveTenantDb);
 
 cashierShiftRoutes.get(
   '/current',

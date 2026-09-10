@@ -1,11 +1,16 @@
 import bcrypt from 'bcrypt';
 import { z } from 'zod';
-import { prisma } from '../../config/database';
+import { prisma, isMultiTenant } from '../../config/database';
 import { signAuthToken, getJwtConfig } from '../../config/jwt';
 import { ok, fail, type ApiResponse, UserRole as TypesUserRole } from '../../config/types';
 import type { UserRole as PrismaUserRole } from '@prisma/client';
-import { getSubscriptionViewByTenant } from '../subscription/subscription.service';
+import {
+  getSubscriptionViewByTenant,
+  subscriptionViewFromControlPlane,
+} from '../subscription/subscription.service';
 import { resolveEffectivePermissions, capabilitiesFromMatrix } from '../staff/staff.service';
+import { resolveTenantBySlug, ControlPlaneUnavailableError } from '../../config/control-plane';
+import { getTenantClient, TenantDbUnavailableError } from '../../config/tenant-db';
 
 const BCRYPT_ROUNDS = 10;
 const ROLE_LABEL: Record<string, string> = {
@@ -71,7 +76,127 @@ export class AuthService {
       const message = `Payload: ${rawMsg}`;
       return fail(message);
     }
-    const { tenantSlug, username, password } = parsed.data;
+    return isMultiTenant()
+      ? AuthService.loginMulti(parsed.data)
+      : AuthService.loginSingle(parsed.data);
+  }
+
+  /** Multi-tenant: identity + subscription from Admin Core, user row from the tenant DB. */
+  private static async loginMulti(
+    input: LoginRequest,
+  ): Promise<ApiResponse<LoginSuccessData>> {
+    const { tenantSlug, username, password } = input;
+
+    let resolved;
+    try {
+      resolved = await resolveTenantBySlug(tenantSlug);
+    } catch (err) {
+      if (err instanceof ControlPlaneUnavailableError) {
+        return fail('Sistem sedang tidak tersedia. Coba lagi sebentar.', 'CONTROL_PLANE_UNAVAILABLE');
+      }
+      throw err;
+    }
+    if (!resolved) return fail(TENANT_NOT_FOUND);
+    if (!resolved.isActive) return fail('Tenant sudah dinonaktifkan');
+    if (!resolved.pos) {
+      return fail(
+        'Langganan tenant tidak aktif. Hubungi tim Goldenity untuk mengaktifkan kembali.',
+        'SUBSCRIPTION_SUSPENDED',
+      );
+    }
+    if (!resolved.dbUrl) {
+      return fail('Database tenant belum dikonfigurasi. Provisioning belum selesai.', 'TENANT_DB_UNCONFIGURED');
+    }
+
+    let client;
+    try {
+      client = await getTenantClient(resolved.dbUrl);
+    } catch (err) {
+      if (err instanceof TenantDbUnavailableError) {
+        return fail('Sistem tenant belum siap. Coba lagi sebentar.', 'TENANT_DB_UNAVAILABLE');
+      }
+      throw err;
+    }
+
+    const user = await client.user.findUnique({
+      where: { tenantId_username: { tenantId: resolved.tenantId, username } },
+      select: {
+        id: true,
+        username: true,
+        passwordHash: true,
+        role: true,
+        tenantId: true,
+        branchId: true,
+        isActive: true,
+      },
+    });
+    if (!user) return fail(GENERIC_INVALID_CREDENTIALS);
+    if (!user.isActive) return fail(INACTIVE_USER);
+
+    const passwordMatch = await AuthService.comparePassword(password, user.passwordHash);
+    if (!passwordMatch) return fail(GENERIC_INVALID_CREDENTIALS);
+
+    // Subscription gate. SUPER_ADMIN may bypass a suspended subscription (staging/support).
+    const allowSuspendedSuper = process.env.ALLOW_SUPERADMIN_SUSPENDED_LOGIN !== 'false';
+    const view = subscriptionViewFromControlPlane(resolved);
+    if (!view.canOperatePos && !(user.role === 'SUPER_ADMIN' && allowSuspendedSuper)) {
+      return fail(
+        'Langganan tenant tidak aktif. Hubungi tim Goldenity untuk mengaktifkan kembali.',
+        'SUBSCRIPTION_SUSPENDED',
+      );
+    }
+
+    const branches = await client.branch.findMany({
+      where: { tenantId: resolved.tenantId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, name: true, qrisImageUrl: true },
+    });
+
+    const payload = {
+      userId: user.id,
+      tenantId: resolved.tenantId,
+      branchId: user.branchId,
+      role: user.role as unknown as TypesUserRole,
+      tenantSlug: resolved.slug,
+    };
+    const token = signAuthToken(payload);
+    const { expiresIn } = getJwtConfig();
+
+    const branchesResp = branches.map((b) => ({
+      id: b.id,
+      name: b.name,
+      qrisImageUrl: b.qrisImageUrl ?? null,
+    }));
+    const defaultBranch =
+      user.branchId != null ? branchesResp.find((b) => b.id === user.branchId) ?? null : null;
+
+    return ok<LoginSuccessData>({
+      token,
+      tokenType: 'Bearer',
+      expiresIn,
+      user: {
+        id: user.id,
+        username: user.username,
+        role: user.role as PrismaUserRole,
+        tenantId: resolved.tenantId,
+        branchId: user.branchId,
+      },
+      tenant: {
+        id: resolved.tenantId,
+        slug: resolved.slug,
+        name: resolved.name,
+        branches: branchesResp,
+      },
+      branch: defaultBranch,
+      branches: branchesResp,
+    });
+  }
+
+  /** Legacy single-DB login. */
+  private static async loginSingle(
+    input: LoginRequest,
+  ): Promise<ApiResponse<LoginSuccessData>> {
+    const { tenantSlug, username, password } = input;
 
     const tenant = await prisma.tenant.findUnique({
       where: { slug: tenantSlug },

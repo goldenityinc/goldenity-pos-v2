@@ -1,9 +1,10 @@
 import express, { type Request, type Response } from 'express';
 import { authenticateJWT } from '../../middleware/auth.middleware';
+import { resolveTenantDb } from '../../middleware/tenant-context.middleware';
 import { ProductService } from './product.service';
 
 export const productRoutes = express.Router();
-productRoutes.use(authenticateJWT);
+productRoutes.use(authenticateJWT, resolveTenantDb);
 
 function extractStatusFromError(err: string): number {
   if (!err) return 500;

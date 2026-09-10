@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { prisma } from '../../config/database';
+import { prisma, isMultiTenant } from '../../config/database';
 import { ok, fail, type ApiResponse, UserRole as TypesUserRole } from '../../config/types';
 import type { JwtAuthPayload } from '../../config/types';
 import type { Product } from '@prisma/client';
@@ -355,7 +355,7 @@ export class ProductService {
     const input: CreateProductInput = parsed.data;
 
     let effectiveTenantId: string;
-    if (user.role === TypesUserRole.SUPER_ADMIN && input.tenantId) {
+    if (!isMultiTenant() && user.role === TypesUserRole.SUPER_ADMIN && input.tenantId) {
       effectiveTenantId = input.tenantId;
     } else {
       effectiveTenantId = user.tenantId;
