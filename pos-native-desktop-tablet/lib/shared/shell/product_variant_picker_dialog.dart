@@ -24,8 +24,9 @@ class _VOpt {
 class _VGroup {
   final String name;
   final bool multi;
+  final bool required;
   final List<_VOpt> options;
-  _VGroup({required this.name, required this.multi, required this.options});
+  _VGroup({required this.name, required this.multi, required this.required, required this.options});
 }
 
 /// Parse `Product.variants` JSON (skema dari product_builder_screen.dart
@@ -49,6 +50,11 @@ List<_VGroup> _parseGroups(String? raw) {
     final optsRaw = g['options'];
     if (name == null || name.isEmpty || optsRaw is! List) continue;
     final multi = ((g['type'] as String?) ?? 'SINGLE').toUpperCase() == 'MULTIPLE';
+    // Produk lama tanpa field `required` tersimpan (belum pernah diedit ulang
+    // di Product Builder) jatuh ke perilaku lama: grup "Pilih 1" wajib, grup
+    // multi opsional. Produk yang sudah diedit lewat toggle "Wajib dipilih"
+    // di Product Builder pakai nilai eksplisit ini.
+    final required = g['required'] is bool ? g['required'] as bool : !multi;
     final opts = <_VOpt>[];
     for (final o in optsRaw) {
       if (o is! Map) continue;
@@ -59,7 +65,7 @@ List<_VGroup> _parseGroups(String? raw) {
       opts.add(_VOpt(id: (o['id'] as String?) ?? label, label: label, priceAdjustment: adj));
     }
     if (opts.isEmpty) continue;
-    out.add(_VGroup(name: name, multi: multi, options: opts));
+    out.add(_VGroup(name: name, multi: multi, required: required, options: opts));
   }
   return out;
 }
@@ -126,7 +132,7 @@ class _VariantPickerBodyState extends ConsumerState<_VariantPickerBody> {
   }
 
   List<_VGroup> get _missingRequired =>
-      _groups.where((g) => !g.multi && (_selected[g.name]?.isEmpty ?? true)).toList();
+      _groups.where((g) => g.required && (_selected[g.name]?.isEmpty ?? true)).toList();
 
   num get _delta {
     num sum = 0;
@@ -150,6 +156,11 @@ class _VariantPickerBodyState extends ConsumerState<_VariantPickerBody> {
         } else {
           current.add(o.id);
         }
+      } else if (!g.required && current.contains(o.id)) {
+        // Grup single-select OPSIONAL: tap opsi yang sudah terpilih untuk
+        // membatalkan pilihan (kembali "tidak pilih apa-apa") — grup wajib
+        // tetap radio biasa (selalu ada 1 terpilih, tidak bisa dikosongkan).
+        current.clear();
       } else {
         current
           ..clear()
@@ -321,7 +332,10 @@ class _VariantPickerBodyState extends ConsumerState<_VariantPickerBody> {
                   borderRadius: BorderRadius.circular(GoldenityRadius.full),
                 ),
                 child: Text(
-                  g.multi ? 'Boleh lebih' : 'Pilih 1',
+                  [
+                    if (g.required) 'Wajib' else 'Opsional',
+                    g.multi ? 'Boleh lebih' : 'Pilih 1',
+                  ].join(' · '),
                   style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: GoldenityColors.muted),
                 ),
               ),

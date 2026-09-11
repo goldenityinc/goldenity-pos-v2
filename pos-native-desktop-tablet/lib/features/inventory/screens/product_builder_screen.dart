@@ -59,6 +59,11 @@ class _VariantGroup {
   String name;
   String type;
   String kind;
+  // Apakah pelanggan/kasir WAJIB memilih dari grup ini sebelum bisa
+  // ditambahkan ke keranjang. Default true untuk grup "Pilih 1" & false
+  // untuk grup multi — bisa diubah manual (mis. "Toping" opsional walau
+  // Pilih 1, karena pelanggan boleh tidak pakai toping sama sekali).
+  bool required;
   List<_VariantOption> options;
   TextEditingController nameCtrl;
 
@@ -68,7 +73,9 @@ class _VariantGroup {
     required this.type,
     required this.kind,
     required this.options,
-  }) : nameCtrl = TextEditingController(text: name);
+    bool? required,
+  })  : required = required ?? (type != 'MULTIPLE'),
+        nameCtrl = TextEditingController(text: name);
 
   void dispose() {
     nameCtrl.dispose();
@@ -97,6 +104,7 @@ class _VariantGroup {
       'name': name.trim().isEmpty ? 'Grup Varian' : name.trim(),
       'type': type,
       'kind': forcedKind,
+      'required': required,
       'options': opts,
     };
   }
@@ -256,11 +264,15 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
         }
         final typeRaw = (g['type'] as String?) ?? 'SINGLE';
         final kindRaw = ((g['kind'] as String?) ?? 'VARIAN').toUpperCase();
+        final resolvedType = typeRaw.toUpperCase() == 'MULTIPLE' ? 'MULTIPLE' : 'SINGLE';
         result.add(_VariantGroup(
           id: (g['id'] as String?) ?? 'grp_$i',
           name: (g['name'] as String?) ?? '',
-          type: typeRaw.toUpperCase() == 'MULTIPLE' ? 'MULTIPLE' : 'SINGLE',
+          type: resolvedType,
           kind: kindRaw == 'OPSI' ? 'OPSI' : 'VARIAN',
+          // Produk lama (belum pernah disimpan ulang) tidak punya field ini —
+          // fallback ke perilaku lama: grup "Pilih 1" wajib, grup multi opsional.
+          required: g['required'] is bool ? g['required'] as bool : resolvedType != 'MULTIPLE',
           options: opts,
         ));
       }
@@ -1010,6 +1022,19 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? 'Nama grup tidak boleh kosong' : null,
               onChanged: (_) => setState(() {}),
+            ),
+            SwitchListTile.adaptive(
+              value: g.required,
+              onChanged: _loading ? null : (v) => setState(() => g.required = v),
+              title: const Text('Wajib dipilih'),
+              subtitle: Text(
+                g.required
+                    ? 'Pelanggan/kasir harus pilih dari grup ini sebelum ditambah ke pesanan.'
+                    : 'Boleh dilewati — grup ini opsional.',
+                style: tt.bodySmall?.copyWith(color: GoldenityColors.text2),
+              ),
+              contentPadding: EdgeInsets.zero,
+              dense: true,
             ),
             const SizedBox(height: GoldenitySpacing.md),
             ...List<Widget>.generate(g.options.length, (j) {

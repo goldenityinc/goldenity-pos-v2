@@ -9,6 +9,7 @@ interface VOpt {
 interface VGroup {
   name: string;
   multi: boolean;
+  required: boolean;
   options: VOpt[];
 }
 
@@ -32,13 +33,24 @@ function parseGroups(raw: unknown): VGroup[] {
       const name = g?.name ?? g?.title ?? g?.label;
       const opts = g?.options ?? g?.choices ?? g?.values;
       if (!name || !Array.isArray(opts)) return null;
+      // BUG FIX: skema asli (product_builder_screen.dart _VariantGroup.toJson)
+      // pakai type 'SINGLE'/'MULTIPLE' — cek 'MULTI' di sini tidak pernah cocok
+      // dengan 'MULTIPLE', jadi grup multi-select (mis. "Tambahan" boleh >1
+      // topping) selalu jatuh ke single-select di sini. Terima keduanya.
+      const typeUp = `${g?.type ?? ''}`.toUpperCase();
       const multi =
-        `${g?.type ?? ''}`.toUpperCase() === 'MULTI' ||
+        typeUp === 'MULTIPLE' ||
+        typeUp === 'MULTI' ||
         g?.multi === true ||
         (typeof g?.maxSelect === 'number' && g.maxSelect > 1);
+      // Field baru — produk lama yang belum diedit ulang di Product Builder
+      // tidak punya ini, fallback ke perilaku lama (grup Pilih 1 = wajib,
+      // grup multi = opsional).
+      const required = typeof g?.required === 'boolean' ? g.required : !multi;
       return {
         name: String(name),
         multi,
+        required,
         options: opts
           .map((o: any): VOpt | null => {
             const on = o?.name ?? o?.label ?? o?.title;
@@ -80,7 +92,7 @@ export default function ProductSheet({
   const [qty, setQty] = useState(1);
   const [note, setNote] = useState('');
 
-  const missing = groups.filter((g) => !g.multi && !(sel[g.name]?.length));
+  const missing = groups.filter((g) => g.required && !(sel[g.name]?.length));
 
   const delta = groups.reduce((sum, g) => {
     const chosen = sel[g.name] ?? [];
@@ -99,6 +111,12 @@ export default function ProductSheet({
           ...prev,
           [g.name]: cur.includes(optName) ? cur.filter((x) => x !== optName) : [...cur, optName],
         };
+      }
+      // Grup single-select OPSIONAL: tap opsi yang sudah terpilih untuk
+      // membatalkan pilihan — grup wajib tetap radio biasa (selalu ada 1
+      // terpilih setelah dipilih sekali, tidak bisa dikosongkan lagi).
+      if (!g.required && cur.includes(optName)) {
+        return { ...prev, [g.name]: [] };
       }
       return { ...prev, [g.name]: [optName] };
     });
@@ -145,7 +163,7 @@ export default function ProductSheet({
             <div className="mb-1.5 flex items-center gap-2">
               <span className="text-[13px] font-bold text-ink">{g.name}</span>
               <span className="rounded-full bg-surface2 px-2 py-0.5 text-[10px] font-semibold text-muted">
-                {g.multi ? 'Pilih beberapa' : 'Pilih 1'}
+                {(g.required ? 'Wajib · ' : 'Opsional · ') + (g.multi ? 'Pilih beberapa' : 'Pilih 1')}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-2">
