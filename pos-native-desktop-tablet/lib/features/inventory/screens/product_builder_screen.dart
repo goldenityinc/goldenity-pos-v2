@@ -10,6 +10,7 @@ import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/models/category_profile.dart';
 import '../../../core/models/product_profile.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../shared/widgets/goldenity_toggle.dart';
 import '../providers/product_list_provider.dart';
 import '../utils/variant_price_calculator.dart';
 
@@ -905,16 +906,11 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
             ],
           ),
           const SizedBox(height: GoldenitySpacing.sm),
-          SwitchListTile.adaptive(
+          GoldenitySwitchRow(
             value: _isActive,
             onChanged: _loading ? null : (v) => setState(() => _isActive = v),
-            title: const Text('Status Produk Aktif'),
-            subtitle: Text(
-              _isActive ? 'Akan muncul di POS' : 'Disembunyikan dari POS (draft)',
-              style: tt.bodySmall?.copyWith(color: GoldenityColors.text2),
-            ),
-            contentPadding: EdgeInsets.zero,
-            dense: true,
+            title: 'Status Produk Aktif',
+            subtitle: _isActive ? 'Akan muncul di POS' : 'Disembunyikan dari POS (draft)',
           ),
           const SizedBox(height: GoldenitySpacing.sm),
           TextFormField(
@@ -1023,18 +1019,13 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                   (v == null || v.trim().isEmpty) ? 'Nama grup tidak boleh kosong' : null,
               onChanged: (_) => setState(() {}),
             ),
-            SwitchListTile.adaptive(
+            GoldenitySwitchRow(
               value: g.required,
               onChanged: _loading ? null : (v) => setState(() => g.required = v),
-              title: const Text('Wajib dipilih'),
-              subtitle: Text(
-                g.required
-                    ? 'Pelanggan/kasir harus pilih dari grup ini sebelum ditambah ke pesanan.'
-                    : 'Boleh dilewati — grup ini opsional.',
-                style: tt.bodySmall?.copyWith(color: GoldenityColors.text2),
-              ),
-              contentPadding: EdgeInsets.zero,
-              dense: true,
+              title: 'Wajib dipilih',
+              subtitle: g.required
+                  ? 'Pelanggan/kasir harus pilih dari grup ini sebelum ditambah ke pesanan.'
+                  : 'Boleh dilewati — grup ini opsional.',
             ),
             const SizedBox(height: GoldenitySpacing.md),
             ...List<Widget>.generate(g.options.length, (j) {
@@ -1115,14 +1106,13 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                           child: Row(
                             children: [
                               Expanded(
-                                child: SwitchListTile.adaptive(
-                                  contentPadding: EdgeInsets.zero,
+                                child: GoldenitySwitchRow(
                                   dense: true,
                                   value: g.isOpsi ? false : o.trackStock,
                                   onChanged: (_loading || g.isOpsi)
                                       ? null
                                       : (v) => setState(() => o.trackStock = v),
-                                  title: Text('Lacak Stok', style: tt.labelMedium),
+                                  title: 'Lacak Stok',
                                 ),
                               ),
                               if (o.trackStock)

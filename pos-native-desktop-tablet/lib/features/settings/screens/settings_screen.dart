@@ -18,6 +18,7 @@ import '../../../core/services/pin_service.dart';
 import '../../../shared/widgets/goldenity_image_upload_field.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
+import '../../../shared/widgets/goldenity_toggle.dart';
 import '../../../core/models/branch_profile_extended.dart';
 import '../../../core/models/printer_config_profile.dart';
 import '../../../core/models/user_profile.dart';
@@ -506,11 +507,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           else
-            Switch.adaptive(
+            GoldenityToggle(
               value: _fgServiceEnabled,
               onChanged: _toggleFgService,
-              activeTrackColor: biz.base.withValues(alpha: 0.5),
-              activeThumbColor: biz.base,
+              activeColor: biz.base,
             ),
         ],
       ),
@@ -1693,11 +1693,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           ),
         ),
         const SizedBox(width: GoldenitySpacing.md),
-        Switch.adaptive(
+        GoldenityToggle(
           value: value,
           onChanged: onChanged,
-          activeTrackColor: biz.base.withValues(alpha: 0.5),
-          activeThumbColor: biz.base,
+          activeColor: biz.base,
         ),
       ],
     );
@@ -2195,10 +2194,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                 ],
               ),
             ),
-            Switch(
+            GoldenityToggle(
               value: d.isActive,
               onChanged: (v) => _patchDevice(d, isActive: v),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ],
         ),
@@ -2349,10 +2347,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                               color: cashierAllowed
                                   ? biz.base
                                   : GoldenityColors.muted)),
-                      Switch.adaptive(
+                      GoldenityToggle(
                         value: cashierAllowed,
-                        activeTrackColor: biz.base.withValues(alpha: 0.5),
-                        activeThumbColor: biz.base,
+                        activeColor: biz.base,
                         onChanged: _loading
                             ? null
                             : (v) => _toggleWebOrderQrisOnly(!v),
@@ -2615,9 +2612,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                       child: SizedBox(
                           width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
                     )
-                  : Switch(
+                  : GoldenityToggle(
                       value: on,
-                      activeThumbColor: green,
+                      activeColor: green,
                       onChanged: _loading ? null : _toggleWebOrderAutoAccept,
                     ),
             ],

@@ -8,6 +8,7 @@ import '../../../core/design/goldenity_elevation.dart';
 import '../../../shared/widgets/goldenity_modal.dart';
 import '../../../shared/widgets/goldenity_buttons.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
+import '../../../shared/widgets/goldenity_toggle.dart';
 import '../../../core/models/category_profile.dart';
 import '../providers/product_list_provider.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -469,17 +470,9 @@ class _CategoryGridCard extends StatelessWidget {
             const Spacer(),
             Row(
               children: [
-                SizedBox(
-                  height: 26,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Switch(
-                      value: c.isActive,
-                      onChanged: loading ? null : onToggle,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      activeThumbColor: GoldenityColors.primary,
-                    ),
-                  ),
+                GoldenityToggle(
+                  value: c.isActive,
+                  onChanged: loading ? null : onToggle,
                 ),
                 const Spacer(),
                 GestureDetector(
