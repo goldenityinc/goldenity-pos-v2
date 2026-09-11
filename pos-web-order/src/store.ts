@@ -80,6 +80,11 @@ interface SessionInfo {
 interface State {
   session: SessionInfo | null;
   cart: CartLine[];
+  // Slug tenant dari URL QR (/:slug/:branchId/t/:qrToken) — dikirim sebagai header
+  // x-tenant-slug di setiap request (lihat api.ts). Wajib ada sebelum sesi terbentuk,
+  // dan tetap tersimpan (persist) untuk rute tanpa :slug (/menu, /checkout, /orders).
+  tenantSlug: string | null;
+  setTenantSlug: (slug: string) => void;
   setSession: (s: StartSessionResp, customerName?: string) => void;
   syncPaymentModes: (modes: WebOrderPaymentMethod[] | undefined) => void;
   clearSession: () => void;
@@ -96,6 +101,8 @@ export const useStore = create<State>()(
     (set, get) => ({
       session: null,
       cart: [],
+      tenantSlug: null,
+      setTenantSlug: (slug) => set({ tenantSlug: slug }),
       setSession: (s, customerName) =>
         set({
           session: {
@@ -110,6 +117,8 @@ export const useStore = create<State>()(
                 ? s.paymentModes
                 : ['QRIS_STATIC', 'PAY_AT_CASHIER'],
           },
+          // Balikan startSession adalah sumber kebenaran paling akhir untuk slug.
+          tenantSlug: s.tenant.slug,
           cart: [],
         }),
       syncPaymentModes: (modes) =>

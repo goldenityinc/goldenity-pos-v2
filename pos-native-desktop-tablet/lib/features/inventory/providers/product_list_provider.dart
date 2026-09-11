@@ -163,7 +163,10 @@ class ProductListNotifier extends Notifier<ProductListState> {
       // keep cached categories if any
     }
 
-    if (!result.success || result.products.isEmpty) {
+    // Katalog kosong (tenant baru, belum ada produk) BUKAN error — hanya benar-benar
+    // gagal kalau request-nya sendiri gagal (result.success == false). Empty list yang
+    // sukses jatuh ke branch success di bawah -> layar tampilkan "Belum ada produk".
+    if (!result.success) {
       state = state.copyWith(
         status: ProductListStatus.error,
         categories: categories,

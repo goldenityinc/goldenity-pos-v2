@@ -53,15 +53,20 @@ class TableApiService {
     int? capacity,
     String? branchId,
   }) async {
+    final payload = {
+      'code': code,
+      if (capacity != null) 'capacity': capacity,
+      if (branchId != null && branchId.isNotEmpty) 'branchId': branchId,
+    };
+    // ignore: avoid_print
+    print('[TABLE_DEBUG] create payload=$payload uri=${ApiConstants.tablesEndpoint()}');
     final r = await _client
         .post(ApiConstants.tablesEndpoint(),
             headers: _h(token),
-            body: jsonEncode({
-              'code': code,
-              if (capacity != null) 'capacity': capacity,
-              if (branchId != null && branchId.isNotEmpty) 'branchId': branchId,
-            }))
+            body: jsonEncode(payload))
         .timeout(ApiConstants.defaultReceiveTimeout);
+    // ignore: avoid_print
+    print('[TABLE_DEBUG] create response status=${r.statusCode} body=${r.body}');
     _ok(r);
   }
 

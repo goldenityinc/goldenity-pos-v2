@@ -10,8 +10,18 @@ export default function SessionGate() {
   const session = useStore((s) => s.session);
   const setSession = useStore((s) => s.setSession);
   const clearSession = useStore((s) => s.clearSession);
+  const setTenantSlug = useStore((s) => s.setTenantSlug);
 
   const qrToken = params.qrToken || sp.get('t') || sp.get('qrToken') || '';
+
+  // URL QR /:slug/:branchId/t/:qrToken bawa slug tenant — simpan segera (persist),
+  // dipakai sebagai header x-tenant-slug di semua request (lihat api.ts). Tanpa
+  // ini backend multi-tenant tidak tahu DB tenant mana yang harus dibuka.
+  useEffect(() => {
+    const slug = params.slug || sp.get('tenant') || sp.get('tenantSlug');
+    if (slug) setTenantSlug(slug);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.slug]);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');

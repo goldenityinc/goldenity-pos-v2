@@ -1,4 +1,17 @@
+import { useStore } from './store';
+
 const BASE = (import.meta.env.VITE_API_BASE ?? '') + '/api/v1';
+
+/**
+ * Backend (multi-tenant DB fisik per-tenant) tidak punya JWT di jalur customer —
+ * setiap request WAJIB bawa tenant slug (dibaca dari URL /:slug/:branchId/t/:qrToken
+ * lewat SessionGate -> store.setTenantSlug, persist lintas rute /menu /checkout /orders).
+ * Tanpa ini backend balas 400 TENANT_SLUG_REQUIRED ("Parameter tenant tidak ada.").
+ */
+function tenantHeaders(): Record<string, string> {
+  const slug = useStore.getState().tenantSlug;
+  return slug ? { 'x-tenant-slug': slug } : {};
+}
 
 async function j<T>(res: Response): Promise<T> {
   let body: any;
@@ -91,15 +104,19 @@ export const api = {
   startSession: (p: { qrToken: string; customerName?: string; customerPhone?: string }) =>
     fetch(`${BASE}/order/session`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...tenantHeaders() },
       body: JSON.stringify(p),
     }).then(j<StartSessionResp>),
 
   getSession: (sessionToken: string) =>
-    fetch(`${BASE}/order/session/${sessionToken}`).then(j<SessionDetail>),
+    fetch(`${BASE}/order/session/${sessionToken}`, { headers: tenantHeaders() }).then(
+      j<SessionDetail>,
+    ),
 
   getMenu: (sessionToken: string) =>
-    fetch(`${BASE}/order/menu?sessionToken=${encodeURIComponent(sessionToken)}`).then(j<MenuResp>),
+    fetch(`${BASE}/order/menu?sessionToken=${encodeURIComponent(sessionToken)}`, {
+      headers: tenantHeaders(),
+    }).then(j<MenuResp>),
 
   submit: (p: {
     sessionToken: string;
@@ -109,28 +126,36 @@ export const api = {
   }) =>
     fetch(`${BASE}/order/submit`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...tenantHeaders() },
       body: JSON.stringify(p),
     }).then(j<WebOrder>),
 
   markPaid: (sessionToken: string, id: string) =>
     fetch(`${BASE}/order/${id}/paid`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-session-token': sessionToken },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-token': sessionToken,
+        ...tenantHeaders(),
+      },
       body: JSON.stringify({ sessionToken }),
     }).then(j<WebOrder>),
 
   submitProof: (sessionToken: string, id: string, url: string) =>
     fetch(`${BASE}/order/${id}/proof`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-session-token': sessionToken },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-token': sessionToken,
+        ...tenantHeaders(),
+      },
       body: JSON.stringify({ sessionToken, url }),
     }).then(j<WebOrder>),
 
   getStatus: (sessionToken: string, id: string) =>
-    fetch(`${BASE}/order/${id}/status?sessionToken=${encodeURIComponent(sessionToken)}`).then(
-      j<WebOrder>,
-    ),
+    fetch(`${BASE}/order/${id}/status?sessionToken=${encodeURIComponent(sessionToken)}`, {
+      headers: tenantHeaders(),
+    }).then(j<WebOrder>),
 };
 
 export const rupiah = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
