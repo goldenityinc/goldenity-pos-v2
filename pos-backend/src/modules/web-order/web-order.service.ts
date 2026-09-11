@@ -41,8 +41,13 @@ function priceDeltaForSelections(variants: unknown, selections: unknown): number
     if (!Array.isArray(opts)) continue;
     for (const o of opts) {
       const oName = `${o?.name ?? o?.label ?? o?.title ?? ''}`.trim().toLowerCase();
+      // POS Flutter menyimpan harga tambahan varian sebagai `priceAdjustment`
+      // (product_builder_screen.dart _VariantOption.toJson) — itu sumber
+      // kebenarannya; sisanya jaga-jaga kalau ada sumber data lain.
       const delta =
-        Number(o?.priceDelta ?? o?.extraPrice ?? o?.addPrice ?? o?.price ?? 0) || 0;
+        Number(
+          o?.priceAdjustment ?? o?.priceDelta ?? o?.extraPrice ?? o?.addPrice ?? o?.price ?? 0,
+        ) || 0;
       if (oName) deltaByKey.set(`${gName}|${oName}`, delta);
     }
   }
