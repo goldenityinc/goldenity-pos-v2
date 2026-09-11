@@ -52,4 +52,15 @@ class CategoryProfile {
     'productCount': productCount,
     'activeProductCount': activeProductCount,
   };
+
+  // Equality by id (bukan identity objek) — WAJIB supaya DropdownButtonFormField
+  // tidak crash setelah daftar kategori di-refetch (mis. sehabis "Tambah Kategori"
+  // inline dari layar Tambah Produk): instance lama yang dipegang sebagai `value`
+  // harus tetap "==" dengan instance baru di `items` selama id-nya sama.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || (other is CategoryProfile && other.id == id);
+
+  @override
+  int get hashCode => id.hashCode;
 }

@@ -43,7 +43,13 @@ function parseGroups(raw: unknown): VGroup[] {
           .map((o: any): VOpt | null => {
             const on = o?.name ?? o?.label ?? o?.title;
             if (!on) return null;
-            const delta = Number(o?.priceDelta ?? o?.extraPrice ?? o?.addPrice ?? o?.price ?? 0) || 0;
+            // POS Flutter menyimpan harga tambahan varian sebagai `priceAdjustment`
+            // (lihat product_builder_screen.dart _VariantOption.toJson) — key lain
+            // di sini cuma jaga-jaga kalau sumber data lain pakai nama beda.
+            const delta =
+              Number(
+                o?.priceAdjustment ?? o?.priceDelta ?? o?.extraPrice ?? o?.addPrice ?? o?.price ?? 0,
+              ) || 0;
             return { name: String(on), delta };
           })
           .filter(Boolean) as VOpt[],
