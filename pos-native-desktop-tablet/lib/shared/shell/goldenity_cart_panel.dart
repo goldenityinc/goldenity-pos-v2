@@ -401,7 +401,7 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
                 ),
                 const SizedBox(width: GoldenitySpacing.sm),
                 GestureDetector(
-                  onTap: () => ref.read(cartNotifierProvider.notifier).removeItem(item.product.id),
+                  onTap: () => ref.read(cartNotifierProvider.notifier).removeItem(item.lineKey),
                   child: Text(
                     'Hapus',
                     style: textTheme.labelSmall?.copyWith(
@@ -412,6 +412,18 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
                 ),
               ],
             ),
+            if ((item.variantLabel ?? '').isNotEmpty || (item.note ?? '').isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                [item.variantLabel, item.note].where((s) => (s ?? '').isNotEmpty).join(' · '),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.labelSmall?.copyWith(
+                  color: GoldenityColors.muted,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
             const SizedBox(height: GoldenitySpacing.xs),
             Row(
               crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -449,7 +461,7 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
                   onTap: item.quantity > 0
                       ? () => ref
                           .read(cartNotifierProvider.notifier)
-                          .updateQuantity(item.product.id, item.quantity - 1)
+                          .updateQuantity(item.lineKey, item.quantity - 1)
                       : null,
                 ),
                 Container(
@@ -470,7 +482,7 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
                   filled: true,
                   onTap: () => ref
                       .read(cartNotifierProvider.notifier)
-                      .updateQuantity(item.product.id, item.quantity + 1),
+                      .updateQuantity(item.lineKey, item.quantity + 1),
                 ),
               ],
             ),

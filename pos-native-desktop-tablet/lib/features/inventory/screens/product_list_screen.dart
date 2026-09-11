@@ -13,10 +13,12 @@ import '../../../features/sales/providers/cart_provider.dart';
 import '../../../features/sales/providers/sales_sync_notifier.dart';
 import '../../../shared/shell/goldenity_cart_panel.dart';
 import '../../../shared/shell/goldenity_payment_modal.dart';
+import '../../../shared/shell/product_variant_picker_dialog.dart';
 import '../../../shared/widgets/goldenity_counter_button.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../providers/product_list_provider.dart';
 import '../providers/sync_queue_notifier.dart';
+import '../utils/variant_price_calculator.dart';
 
 class ProductListScreen extends ConsumerStatefulWidget {
   const ProductListScreen({super.key});
@@ -703,7 +705,21 @@ class _ProductCard extends ConsumerWidget {
     final lowStock =
         product.isActive && product.stock > 0 && product.stock <= kLowStockThreshold;
     final canAdd = !inactive && !outOfStock;
-    final qty = cart[product.id]?.quantity ?? 0;
+    final hasVariants = VariantPriceCalculator.parseVariants(product)?.isNotEmpty ?? false;
+    // Produk bervarian: qty di kartu grid = TOTAL lintas semua baris keranjang
+    // kombinasi varian produk ini (bisa >1 baris, mis. Espresso Panas + Es).
+    final qty = hasVariants ? ref.watch(cartQuantityForProductProvider(product.id)) : (cart[product.id]?.quantity ?? 0);
+
+    void openVariantPicker() {
+      ProductVariantPickerDialog.show(context: context, ref: ref, product: product);
+    }
+
+    void decrementVariantProduct() {
+      final lines = cart.values.where((it) => it.product.id == product.id).toList();
+      if (lines.isEmpty) return;
+      final target = lines.last;
+      cartNotifier.updateQuantity(target.lineKey, target.quantity - 1);
+    }
 
     return Opacity(
       opacity: outOfStock ? 0.55 : (inactive ? 0.7 : 1.0),
@@ -725,7 +741,11 @@ class _ProductCard extends ConsumerWidget {
                 children: <Widget>[
                   Positioned.fill(
                     child: InkWell(
-                      onTap: canAdd ? () => cartNotifier.addToCart(product) : null,
+                      onTap: !canAdd
+                          ? null
+                          : hasVariants
+                              ? openVariantPicker
+                              : () => cartNotifier.addToCart(product),
                       child: Container(
                         color: GoldenityColors.surface2,
                         alignment: Alignment.center,
@@ -776,10 +796,24 @@ class _ProductCard extends ConsumerWidget {
                       onChanged: !canAdd
                           ? (_) {}
                           : (v) {
-                              if (v > qty) {
-                                cartNotifier.addToCart(product);
+                              if (v <= qty) {
+                                // Turun: produk bervarian dikurangi dari baris
+                                // paling akhir (heuristik "terakhir ditambah");
+                                // produk polos tetap langsung pakai productId.
+                                if (hasVariants) {
+                                  decrementVariantProduct();
+                                } else {
+                                  cartNotifier.updateQuantity(product.id, v);
+                                }
+                                return;
+                              }
+                              // Naik: produk bervarian WAJIB lewat picker
+                              // (pilihan varian bisa beda tiap kali ditambah),
+                              // produk polos langsung ditambah seperti sebelumnya.
+                              if (hasVariants) {
+                                openVariantPicker();
                               } else {
-                                cartNotifier.updateQuantity(product.id, v);
+                                cartNotifier.addToCart(product);
                               }
                             },
                     ),

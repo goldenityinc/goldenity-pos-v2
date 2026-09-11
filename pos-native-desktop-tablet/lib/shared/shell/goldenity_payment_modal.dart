@@ -365,6 +365,13 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
       'cashReceived': paid.toDouble(),
       'cashChange': change.toDouble(),
       'items': cart.values.map((CartItem item) {
+        // `SalesRecordItem` cuma punya kolom `note` bebas teks (tidak ada
+        // kolom JSON khusus varian) — label varian + catatan pelanggan
+        // digabung ke situ supaya tetap tercetak di struk/kitchen ticket.
+        final noteParts = <String>[
+          if ((item.variantLabel ?? '').isNotEmpty) item.variantLabel!,
+          if ((item.note ?? '').isNotEmpty) item.note!,
+        ];
         return {
           'productId': item.product.id,
           'productName': item.product.name,
@@ -372,6 +379,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
           'unitPrice': item.unitPrice.toDouble(),
           'lineTotal': item.lineSubtotal.toDouble(),
           'categoryName': item.product.category,
+          'note': noteParts.isEmpty ? null : noteParts.join(' · '),
         };
       }).toList(),
     };

@@ -588,7 +588,21 @@ export class TableService {
     });
 
     await prisma.$transaction(async (tx) => {
-      for (const o of stillPayable) {
+      for (let i = 0; i < stillPayable.length; i++) {
+        const o = stillPayable[i];
+        // BUG FIX: sebelumnya SELALU cashReceived=o.total & cashChange=0 di sini,
+        // padahal `cashReceived`/`cashChange` gabungan di atas (dari nominal tunai
+        // yang BENAR-BENAR diterima kasir) sudah dihitung benar dan malah cuma
+        // dipakai di response `ok({...})` (toast di UI) — struk yang di-print
+        // dibaca dari SalesRecord tersimpan, jadi selalu tercetak "uang pas" /
+        // kembalian 0 walau kasir terima lebih (mis. tagihan 35rb, tunai 50rb).
+        // Order terakhir menyerap sisa kembalian gabungan supaya total
+        // cashReceived seluruh SalesRecord yang tersimpan = nominal tunai yang
+        // sungguh diterima; order sebelumnya dianggap lunas pas (change=0).
+        const isLast = i === stillPayable.length - 1;
+        const orderCashReceived =
+          paymentMethod === 'CASH' ? Number(o.total) + (isLast ? cashChange ?? 0 : 0) : null;
+        const orderCashChange = paymentMethod === 'CASH' ? (isLast ? cashChange ?? 0 : 0) : null;
         await tx.salesRecord.update({
           where: { id: o.salesRecordId! },
           data: {
@@ -597,8 +611,8 @@ export class TableService {
               paymentMethod === 'CASH'
                 ? null
                 : paymentReferenceNumber?.trim() || `WEB-Q${o.queueNumber}`,
-            cashReceived: paymentMethod === 'CASH' ? (o.total as any) : null,
-            cashChange: paymentMethod === 'CASH' ? (0 as any) : null,
+            cashReceived: orderCashReceived as any,
+            cashChange: orderCashChange as any,
             ...(openShift ? { cashierShiftId: openShift.id } : {}),
           },
         });
