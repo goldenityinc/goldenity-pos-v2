@@ -7,6 +7,7 @@ import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_elevation.dart';
 import '../../../shared/widgets/goldenity_modal.dart';
 import '../../../shared/widgets/goldenity_buttons.dart';
+import '../../../shared/widgets/goldenity_choice_chip.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_toggle.dart';
 import '../../../core/models/category_profile.dart';
@@ -262,8 +263,8 @@ class _CategoryManagementScreenState extends ConsumerState<CategoryManagementScr
           dense: true,
         ),
         actions: [
-          FilterChip(
-            label: const Text('Termasuk Nonaktif'),
+          GoldenityChoiceChip(
+            label: 'Termasuk Nonaktif',
             selected: _includeInactive,
             onSelected: _loading
                 ? null

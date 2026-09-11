@@ -15,6 +15,7 @@ import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/services/android_fg_weborder_handler.dart';
 import '../../../core/services/hardware_connection_service.dart';
 import '../../../core/services/pin_service.dart';
+import '../../../shared/widgets/goldenity_choice_chip.dart';
 import '../../../shared/widgets/goldenity_image_upload_field.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
@@ -2102,8 +2103,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                   spacing: 8,
                   children: [
                     for (final r in const ['CASHIER', 'CHECKER', 'BOTH'])
-                      ChoiceChip(
-                        label: Text(_roleLabel(r)),
+                      GoldenityChoiceChip(
+                        label: _roleLabel(r),
                         selected: _deviceRole == r,
                         onSelected: (_) => setState(() => _deviceRole = r),
                       ),
@@ -2347,6 +2348,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                               color: cashierAllowed
                                   ? biz.base
                                   : GoldenityColors.muted)),
+                      const SizedBox(width: GoldenitySpacing.sm),
                       GoldenityToggle(
                         value: cashierAllowed,
                         activeColor: biz.base,
@@ -2931,15 +2933,12 @@ class _PrinterSlotCard extends StatelessWidget {
             runSpacing: GoldenitySpacing.xs,
             children: connOptions.map((t) {
               final selected = connType == t;
-              return ChoiceChip(
-                label: Text(connTypeLabelFn(t)),
+              return GoldenityChoiceChip(
+                label: connTypeLabelFn(t),
                 selected: selected,
-                selectedColor: biz.base,
+                activeColor: biz.base,
+                dense: true,
                 onSelected: (_) => onConnTypeChanged(t),
-                labelStyle: textTheme.labelSmall?.copyWith(
-                  color: selected ? Colors.white : GoldenityColors.text2,
-                  fontWeight: FontWeight.w700,
-                ),
               );
             }).toList(),
           ),
@@ -2959,15 +2958,12 @@ class _PrinterSlotCard extends StatelessWidget {
             runSpacing: GoldenitySpacing.xs,
             children: [58, 80].map((mm) {
               final selected = paperWidthMm == mm;
-              return ChoiceChip(
-                label: Text('${mm}mm'),
+              return GoldenityChoiceChip(
+                label: '${mm}mm',
                 selected: selected,
-                selectedColor: biz.base,
+                activeColor: biz.base,
+                dense: true,
                 onSelected: (_) => onPaperWidthChanged(mm),
-                labelStyle: textTheme.labelSmall?.copyWith(
-                  color: selected ? Colors.white : GoldenityColors.text2,
-                  fontWeight: FontWeight.w700,
-                ),
               );
             }).toList(),
           ),

@@ -14,6 +14,7 @@ import '../../../features/sales/providers/sales_sync_notifier.dart';
 import '../../../shared/shell/goldenity_cart_panel.dart';
 import '../../../shared/shell/goldenity_payment_modal.dart';
 import '../../../shared/shell/product_variant_picker_dialog.dart';
+import '../../../shared/widgets/goldenity_choice_chip.dart';
 import '../../../shared/widgets/goldenity_counter_button.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../providers/product_list_provider.dart';
@@ -448,28 +449,11 @@ class _CategoryChips extends ConsumerWidget {
         itemBuilder: (ctx, i) {
           final chip = chips[i];
           final active = chip.id == selected;
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(GoldenityRadius.full),
-              onTap: () => ref.read(productCategoryFilterProvider.notifier).state = chip.id,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: active ? GoldenityColors.primary : GoldenityColors.surface,
-                  borderRadius: BorderRadius.circular(GoldenityRadius.full),
-                  border: Border.all(color: active ? GoldenityColors.primary : GoldenityColors.border),
-                ),
-                child: Text(
-                  chip.label,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                    color: active ? Colors.white : GoldenityColors.muted,
-                  ),
-                ),
-              ),
+          return Center(
+            child: GoldenityChoiceChip(
+              label: chip.label,
+              selected: active,
+              onSelected: (_) => ref.read(productCategoryFilterProvider.notifier).state = chip.id,
             ),
           );
         },

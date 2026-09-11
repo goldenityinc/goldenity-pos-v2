@@ -9,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
+import '../../../shared/widgets/goldenity_choice_chip.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -372,8 +373,8 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
         ]),
       );
 
-  Widget _rangeChip(String key, String label) => ChoiceChip(
-        label: Text(label),
+  Widget _rangeChip(String key, String label) => GoldenityChoiceChip(
+        label: label,
         selected: _range == key,
         onSelected: (_) => setState(() => _range = key),
       );
@@ -600,9 +601,9 @@ class _ExpensesScreenState extends ConsumerState<ExpensesScreen> {
                       ('QRIS', 'QRIS', Icons.qr_code_2_rounded),
                       ('CARD', 'Kartu Debit/Kredit', Icons.credit_card_rounded),
                     ])
-                      ChoiceChip(
-                        avatar: Icon(m.$3, size: 15, color: pm == m.$1 ? Colors.white : GoldenityColors.text2),
-                        label: Text(m.$2),
+                      GoldenityChoiceChip(
+                        icon: m.$3,
+                        label: m.$2,
                         selected: pm == m.$1,
                         onSelected: (_) => setSheet(() => pm = m.$1),
                       ),
