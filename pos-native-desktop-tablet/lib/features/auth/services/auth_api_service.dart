@@ -81,6 +81,10 @@ class AuthApiService {
       'password': password,
     });
 
+    // TEMP DIAGNOSTIC — remove after login issue resolved.
+    // ignore: avoid_print
+    print('[LOGIN_DEBUG] uri=$uri tenantSlug="${tenantSlug.trim()}" username="${username.trim()}" pwLen=${password.length}');
+
     try {
       final response = await _client
           .post(
@@ -92,6 +96,9 @@ class AuthApiService {
             body: body,
           )
           .timeout(ApiConstants.defaultReceiveTimeout);
+
+      // ignore: avoid_print
+      print('[LOGIN_DEBUG] status=${response.statusCode} body=${response.body}');
 
       Map<String, dynamic> data;
       try {
@@ -126,6 +133,8 @@ class AuthApiService {
         return LoginResult.failure('Respons server tidak valid');
       }
 
+      // ignore: avoid_print
+      print('[LOGIN_DEBUG] parsing user/tenant OK, about to return success');
       return LoginResult.success(
         token: token,
         tokenType: tokenType,
@@ -133,13 +142,19 @@ class AuthApiService {
         user: UserProfile.fromJson(userRaw),
         tenant: TenantProfile.fromJson(tenantRaw),
       );
-    } on SocketException {
+    } on SocketException catch (e) {
+      // ignore: avoid_print
+      print('[LOGIN_DEBUG] SocketException: $e');
       return LoginResult.failure(
         'Tidak dapat terhubung ke server. Periksa koneksi atau hubungi IT.',
       );
-    } on FormatException {
+    } on FormatException catch (e) {
+      // ignore: avoid_print
+      print('[LOGIN_DEBUG] FormatException: $e');
       return LoginResult.failure('Format data server tidak dikenali');
-    } catch (e) {
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[LOGIN_DEBUG] UNEXPECTED ${e.runtimeType}: $e\n$st');
       return LoginResult.failure('Terjadi kesalahan: ${e.toString()}');
     }
   }

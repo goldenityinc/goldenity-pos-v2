@@ -5,6 +5,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/config/api_constants.dart';
 import 'core/config/storage_keys.dart';
 import 'core/services/web_order_notification_service.dart';
 import 'core/design/goldenity_colors.dart';
@@ -30,6 +31,11 @@ Future<void> main() async {
   await Hive.initFlutter();
   InventoryHiveRepository.registerAdapters();
   final SharedPreferences sp = await SharedPreferences.getInstance();
+  // WAJIB sebelum login screen bisa muncul — tanpa ini devBaseUrl jatuh ke
+  // default localhost:3001 dan --dart-define=API_BASE_URL tidak pernah kepakai
+  // (ApiConstants.initialize() lain di app_shell/FG service baru jalan SETELAH
+  // login berhasil — terlambat untuk request login itu sendiri).
+  await ApiConstants.initialize(sp);
   final hiveRepo = await InventoryHiveRepository.open();
   final salesOfflineQueue = await SalesOfflineQueue.open();
   // Notifikasi desktop untuk web order baru (jalan walau POS minimize).

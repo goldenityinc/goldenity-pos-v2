@@ -8,9 +8,10 @@
  *       [--out <path to migrated-tenants.json>] \
  *       [--no-create-missing]
  *
- * For each tenant it reads V1 `tables`, ensures a matching V2 `DiningTable`
- * exists (branchId = String(v1 branch_id), code = table_number; created with a
- * fresh qrToken if absent), then emits byTableId + byKey indexes. Existing
+ * For each tenant it reads V1 `tables` + `branches`, resolves each V1 branch to
+ * its real V2 Branch UUID (matched by name — V2 Branch.id is always a uuid()),
+ * ensures a matching V2 `DiningTable` exists (code = table_number; created with
+ * a fresh qrToken if absent), then emits byTableId + byKey indexes. Existing
  * entries in --out for other tenants are preserved.
  *
  * Requires env: ADMIN_CORE_DATABASE_URL, POS_CONTROL_DATABASE_URL.
@@ -20,7 +21,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
-import { parseArgs, requireEnv, fetchAdminCoreTenant, fetchV1Tables } from './_shared';
+import {
+  parseArgs,
+  requireEnv,
+  fetchAdminCoreTenant,
+  fetchAdminCoreBranches,
+  fetchV1Tables,
+  buildV1ToV2BranchIdMap,
+} from './_shared';
 import { getRegistryRowBySlug, closeRegistryPool } from '../src/config/tenant-registry';
 
 const DEFAULT_OUT = path.resolve(
@@ -74,8 +82,11 @@ async function main() {
       continue;
     }
 
+    const v1Branches = await fetchAdminCoreBranches(adminCoreUrl, t.tenantId);
     const v1Tables = await fetchV1Tables(v1TablesDb, t.tenantId);
     const db = new PrismaClient({ datasourceUrl: reg.dbUrl });
+    // V2 Branch.id is ALWAYS a real UUID — never the V1 bigint. Resolve by name.
+    const v1ToV2Branch = await buildV1ToV2BranchIdMap(db, t.tenantId, v1Branches);
     const byTableId: Record<string, { branchId: string; qrToken: string }> = {};
     const byKey: Record<string, { branchId: string; qrToken: string }> = {};
     let created = 0;
@@ -87,22 +98,19 @@ async function main() {
           missed++;
           continue;
         }
+        const v2BranchId = v1ToV2Branch.get(vt.branchId);
+        if (!v2BranchId) {
+          console.warn(`  ~ ${slug}: branch V1 #${vt.branchId} tidak ketemu padanan V2 (nama beda?) — table ${vt.tableNumber} dilewati`);
+          missed++;
+          continue;
+        }
         let dt = await db.diningTable.findFirst({
-          where: { branchId: vt.branchId, code: vt.tableNumber },
+          where: { branchId: v2BranchId, code: vt.tableNumber },
           select: { qrToken: true },
         });
         if (!dt && createMissing) {
-          const branchExists = await db.branch.findUnique({
-            where: { id: vt.branchId },
-            select: { id: true },
-          });
-          if (!branchExists) {
-            console.warn(`  ~ ${slug}: branch ${vt.branchId} tidak ada di V2 — table ${vt.tableNumber} dilewati`);
-            missed++;
-            continue;
-          }
           dt = await db.diningTable.create({
-            data: { branchId: vt.branchId, code: vt.tableNumber, qrToken: newToken() },
+            data: { branchId: v2BranchId, code: vt.tableNumber, qrToken: newToken() },
             select: { qrToken: true },
           });
           created++;
@@ -112,7 +120,10 @@ async function main() {
           continue;
         }
         matched++;
-        const rec = { branchId: vt.branchId, qrToken: dt.qrToken };
+        // byKey stays keyed by the V1 branchId/table (that's what arrives in the
+        // incoming V1 QR URL's query params) — only the stored value's branchId
+        // is the real V2 UUID, used to build the V2 redirect target URL.
+        const rec = { branchId: v2BranchId, qrToken: dt.qrToken };
         byTableId[vt.id] = rec;
         byKey[`${vt.branchId}:${vt.tableNumber}`] = rec;
       }

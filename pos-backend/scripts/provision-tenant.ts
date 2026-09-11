@@ -22,6 +22,7 @@ import {
   runPrisma,
   fetchAdminCoreTenant,
   fetchAdminCoreBranches,
+  buildV1ToV2BranchIdMap,
 } from './_shared';
 import {
   ensureRegistryTable,
@@ -113,23 +114,36 @@ async function main() {
       },
     });
 
+    // V2 Branch.id is ALWAYS a real UUID (Zod validates it as .uuid() across the
+    // backend) — never reuse the V1 bigint id. Upsert by (tenantId, name) instead;
+    // Prisma auto-generates a fresh uuid() on create.
     for (const b of branches) {
-      await db.branch.upsert({
-        where: { id: b.id },
-        create: {
-          id: b.id,
-          tenantId: t.tenantId,
-          name: b.name,
-          qrisImageUrl: b.qrisImageUrl,
-          isActive: b.isActive,
-        },
-        update: { name: b.name, qrisImageUrl: b.qrisImageUrl, isActive: b.isActive },
+      const existing = await db.branch.findFirst({
+        where: { tenantId: t.tenantId, name: b.name },
+        select: { id: true },
       });
+      if (existing) {
+        await db.branch.update({
+          where: { id: existing.id },
+          data: { qrisImageUrl: b.qrisImageUrl, isActive: b.isActive },
+        });
+      } else {
+        await db.branch.create({
+          data: {
+            tenantId: t.tenantId,
+            name: b.name,
+            qrisImageUrl: b.qrisImageUrl,
+            isActive: b.isActive,
+          },
+        });
+      }
     }
 
+    const v1ToV2Branch = await buildV1ToV2BranchIdMap(db, t.tenantId, branches);
+    const mainV1 = branches.find((b) => b.isMain) ?? branches[0];
     const defaultBranchId =
       adminRole === 'CASHIER' || adminRole === 'CRM_STAFF' || adminRole === 'WORKSHOP_ADMIN'
-        ? branches.find((b) => b.isMain)?.id ?? branches[0]?.id ?? null
+        ? (mainV1 ? v1ToV2Branch.get(mainV1.id) ?? null : null)
         : null;
 
     await db.user.upsert({

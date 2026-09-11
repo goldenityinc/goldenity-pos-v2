@@ -85,6 +85,8 @@ class AuthNotifier extends Notifier<AuthState> {
     );
 
     if (!result.success) {
+      // ignore: avoid_print
+      print('[LOGIN_DEBUG] api.login() failed: ${result.errorMessage}');
       _lastExpiredMessage = null;
       if (state == AuthState.authenticated) {
         _applyState(AuthState.authenticated);
@@ -94,21 +96,30 @@ class AuthNotifier extends Notifier<AuthState> {
       return (false, result.errorMessage ?? 'Login gagal');
     }
 
-    await repo.saveSession(
-      token: result.token!,
-      tokenType: result.tokenType!,
-      expiresIn: result.expiresIn!,
-      user: result.user!,
-      tenant: result.tenant!,
-    );
+    try {
+      await repo.saveSession(
+        token: result.token!,
+        tokenType: result.tokenType!,
+        expiresIn: result.expiresIn!,
+        user: result.user!,
+        tenant: result.tenant!,
+      );
 
-    final reloaded = repo.loadSession();
-    _session = reloaded;
-    _lastExpiredMessage = null;
-    _freshLogin = true; // baru isi password → skip gerbang PIN unlock, tawarkan setup
-    _pinUnlocked = false;
-    _applyState(AuthState.authenticated);
-    return (true, null);
+      final reloaded = repo.loadSession();
+      // ignore: avoid_print
+      print('[LOGIN_DEBUG] saveSession OK, reloaded=${reloaded != null}');
+      _session = reloaded;
+      _lastExpiredMessage = null;
+      _freshLogin = true; // baru isi password → skip gerbang PIN unlock, tawarkan setup
+      _pinUnlocked = false;
+      _applyState(AuthState.authenticated);
+      return (true, null);
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[LOGIN_DEBUG] EXCEPTION after successful API login: $e\n$st');
+      _applyState(AuthState.unauthenticated);
+      return (false, 'Gagal menyimpan sesi: $e');
+    }
   }
 
   Future<void> selectBranch(String branchId) async {

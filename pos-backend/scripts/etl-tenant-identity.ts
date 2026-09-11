@@ -17,7 +17,7 @@ import {
   fetchAdminCoreBranches,
   fetchAdminCoreUsers,
   fetchV1AppUsers,
-  branchIdToString,
+  buildV1ToV2BranchIdMap,
   mapV1Role,
 } from './_shared';
 import { getRegistryRowBySlug, closeRegistryPool } from '../src/config/tenant-registry';
@@ -46,7 +46,14 @@ async function main() {
   }
 
   const branches = await fetchAdminCoreBranches(adminCoreUrl, t.tenantId);
-  const mainBranchId = branches.find((b) => b.isMain)?.id ?? branches[0]?.id ?? null;
+  const mainV1Branch = branches.find((b) => b.isMain) ?? branches[0];
+
+  // V2 Branch.id is ALWAYS a real UUID — resolve V1 numeric branch ids to the
+  // actual V2 UUID (matched by name in provision-tenant.ts) before assigning
+  // User.branchId. Never write a V1 bigint id there.
+  const db = new PrismaClient({ datasourceUrl: reg.dbUrl });
+  const v1ToV2Branch = await buildV1ToV2BranchIdMap(db, t.tenantId, branches);
+  const mainBranchId = mainV1Branch ? v1ToV2Branch.get(mainV1Branch.id) ?? null : null;
 
   type Row = {
     username: string;
@@ -69,11 +76,13 @@ async function main() {
       }
       const role = (u.role as Row['role']) || 'CASHIER';
       const needsBranch = role === 'CASHIER' || role === 'CRM_STAFF' || role === 'WORKSHOP_ADMIN';
+      const v2BranchId =
+        u.branchId != null ? v1ToV2Branch.get(String(u.branchId)) ?? null : null;
       rows.push({
         username: u.username,
         passwordHash: u.passwordHash,
         role,
-        branchId: u.branchId != null ? branchIdToString(u.branchId) : needsBranch ? mainBranchId : null,
+        branchId: v2BranchId ?? (needsBranch ? mainBranchId : null),
         email: u.email,
         name: u.name,
         isActive: u.isActive,
@@ -113,9 +122,11 @@ async function main() {
   for (const r of rows) {
     console.log(`  ${dryRun ? '[dry] ' : ''}${r.username}  ${r.role}  branch=${r.branchId ?? '-'}${r.note ? `  (${r.note})` : ''}`);
   }
-  if (dryRun) return;
+  if (dryRun) {
+    await db.$disconnect();
+    return;
+  }
 
-  const db = new PrismaClient({ datasourceUrl: reg.dbUrl });
   try {
     let created = 0;
     let updated = 0;

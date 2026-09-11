@@ -7,6 +7,7 @@
 import { Client } from 'pg';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import type { PrismaClient } from '@prisma/client';
 
 /**
  * Run the locally-installed Prisma CLI via `node` directly.
@@ -159,6 +160,30 @@ export async function fetchAdminCoreTenant(
         : null,
     };
   });
+}
+
+/**
+ * V2 `Branch.id` is ALWAYS a real UUID (backend-wide Zod validation assumes it —
+ * `.uuid('branchId format UUID tidak valid')` across table/product/sales/staff/etc).
+ * Never reuse a V1 bigint branch id as the V2 Branch.id. Build a V1-id -> V2-id
+ * map by matching branch NAME instead (name is what provisioning copies verbatim).
+ */
+export async function buildV1ToV2BranchIdMap(
+  db: PrismaClient,
+  tenantId: string,
+  v1Branches: AdminCoreBranch[],
+): Promise<Map<string, string>> {
+  const v2Branches = await db.branch.findMany({
+    where: { tenantId },
+    select: { id: true, name: true },
+  });
+  const byName = new Map(v2Branches.map((b) => [b.name.trim().toLowerCase(), b.id]));
+  const map = new Map<string, string>();
+  for (const v1 of v1Branches) {
+    const v2Id = byName.get(v1.name.trim().toLowerCase());
+    if (v2Id) map.set(v1.id, v2Id);
+  }
+  return map;
 }
 
 export interface AdminCoreBranch {
