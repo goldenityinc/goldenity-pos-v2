@@ -20,6 +20,7 @@
     "provision:tenant": "tsx scripts/provision-tenant.ts",
     "migrate:all-tenants": "tsx scripts/migrate-all-tenants.ts",
     "etl:tenant-identity": "tsx scripts/etl-tenant-identity.ts",
+    "etl:tenant-data": "tsx scripts/etl-tenant-data.ts",
     "build:qr-redirect-map": "tsx scripts/build-qr-redirect-map.ts",
     "typecheck": "tsc --noEmit"
   },

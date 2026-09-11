@@ -311,3 +311,124 @@ export function mapV1Role(raw: string | null): 'TENANT_ADMIN' | 'CASHIER' | 'WOR
   if (/(crm|sales|marketing)/.test(r)) return 'CRM_STAFF';
   return 'CASHIER';
 }
+
+/**
+ * Resolve a V1 tenant's own Postgres connection string, ported from
+ * admin-core's `UserService.resolveTenantDbConnectionString` (same
+ * info_schema-first fallback): prefer `tenants.db_connection_url` /
+ * `dbConnectionUrl` if that column exists and is set, else fall back to the
+ * most relevant `app_instances.dbConnectionString`. Read-only against
+ * admin-core. Returns null if neither is set (tenant runs single-DB / not
+ * migrated to a dedicated V1 DB).
+ */
+export async function resolveV1TenantDbUrl(adminCoreUrl: string, tenantId: string): Promise<string | null> {
+  return withPg(adminCoreUrl, async (c) => {
+    const colRows = (
+      await c.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = 'public' AND table_name = 'tenants'
+           AND column_name IN ('db_connection_url', 'dbConnectionUrl')`,
+      )
+    ).rows.map((r: any) => r.column_name as string);
+    const col = colRows.includes('db_connection_url')
+      ? 'db_connection_url'
+      : colRows.includes('dbConnectionUrl')
+        ? 'dbConnectionUrl'
+        : null;
+    if (col) {
+      const r = (await c.query(`SELECT "${col}" AS url FROM tenants WHERE id = $1 LIMIT 1`, [tenantId])).rows[0];
+      const url = r?.url?.trim();
+      if (url) return url;
+    }
+    const r = (
+      await c.query(
+        `SELECT ai."dbConnectionString" AS url FROM app_instances ai
+         WHERE ai."tenantId" = $1 AND ai."dbConnectionString" IS NOT NULL
+         ORDER BY CASE ai.status WHEN 'ACTIVE' THEN 0 WHEN 'SUSPENDED' THEN 1 ELSE 2 END,
+                  ai."updatedAt" DESC, ai."createdAt" DESC
+         LIMIT 1`,
+        [tenantId],
+      )
+    ).rows[0];
+    const url = r?.url?.trim();
+    return url && url.length > 0 ? url : null;
+  });
+}
+
+/** true if `table` has a column named `column` in the connected DB. */
+async function hasColumn(c: import('pg').Client, table: string, column: string): Promise<boolean> {
+  const r = await c.query(
+    `SELECT 1 FROM information_schema.columns WHERE table_name = $1 AND column_name = $2 LIMIT 1`,
+    [table, column],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
+export interface V1Category {
+  id: string;
+  name: string;
+}
+
+/**
+ * V1 `categories` table. Two known shapes (see master_schema.sql vs the
+ * evolved/admin-core schema) — some V1 tenant DBs have no `tenant_id` column
+ * at all (one Postgres DB per V1 tenant, so no scoping needed), others do
+ * (tenant living inside a shared multi-tenant DB). Detect at runtime instead
+ * of assuming either shape.
+ */
+export async function fetchV1Categories(dbUrl: string, tenantId?: string): Promise<V1Category[]> {
+  return withPg(dbUrl, async (c) => {
+    const scoped = tenantId ? await hasColumn(c, 'categories', 'tenant_id') : false;
+    const sql = scoped
+      ? `SELECT id, name FROM categories WHERE tenant_id = $1`
+      : `SELECT id, name FROM categories`;
+    const rows = (await c.query(sql, scoped ? [tenantId] : [])).rows;
+    return rows.map((r: any) => ({ id: String(r.id), name: String(r.name ?? '').trim() })).filter((r) => r.name);
+  });
+}
+
+export interface V1Product {
+  id: string;
+  name: string;
+  category: string | null; // free-text category NAME (V1 `products.category` is not a FK)
+  branchId: string | null; // only present in the evolved schema
+  barcode: string | null;
+  price: number;
+  purchasePrice: number | null;
+  stock: number | null;
+  isActive: boolean;
+  isService: boolean;
+  imageUrl: string | null; // only present in the evolved schema
+}
+
+/** V1 `products` table — see fetchV1Categories for the tenant_id caveat. */
+export async function fetchV1Products(dbUrl: string, tenantId?: string): Promise<V1Product[]> {
+  return withPg(dbUrl, async (c) => {
+    const scoped = tenantId ? await hasColumn(c, 'products', 'tenant_id') : false;
+    const hasBranch = await hasColumn(c, 'products', 'branch_id');
+    const hasImage = await hasColumn(c, 'products', 'image_url');
+    const cols = [
+      'id', 'name', 'category', 'barcode', 'price', 'purchase_price AS "purchasePrice"',
+      'stock', 'is_active AS "isActive"', 'is_service AS "isService"',
+      hasBranch ? 'branch_id AS "branchId"' : 'NULL AS "branchId"',
+      hasImage ? 'image_url AS "imageUrl"' : 'NULL AS "imageUrl"',
+    ].join(', ');
+    const sql = scoped
+      ? `SELECT ${cols} FROM products WHERE tenant_id = $1`
+      : `SELECT ${cols} FROM products`;
+    const rows = (await c.query(sql, scoped ? [tenantId] : [])).rows;
+    return rows.map((r: any) => ({
+      id: String(r.id),
+      name: String(r.name ?? '').trim(),
+      category: r.category ? String(r.category).trim() : null,
+      branchId: r.branchId != null ? String(r.branchId) : null,
+      barcode: r.barcode ? String(r.barcode).trim() : null,
+      price: Number(r.price) || 0,
+      purchasePrice: r.purchasePrice != null ? Number(r.purchasePrice) : null,
+      stock: r.stock != null ? Number(r.stock) : null,
+      isActive: r.isActive !== false,
+      isService: r.isService === true,
+      imageUrl: r.imageUrl ? String(r.imageUrl).trim() : null,
+    })).filter((p) => p.name);
+  });
+}
