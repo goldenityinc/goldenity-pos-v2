@@ -81,6 +81,12 @@ class WebOrder {
   final String? customerNote;
   final String? rejectionReason;
   final String? salesRecordId;
+  // Nominal tunai riil yang diterima kasir + kembaliannya (dari SalesRecord
+  // terkait) — null kalau belum lunas / bukan metode CASH. Dipakai cetak
+  // ulang struk "LUNAS" (WebOrderPrintService) supaya Dibayar/Kembalian
+  // tidak selalu jatuh ke total/0 ("uang pas").
+  final num? cashReceived;
+  final num? cashChange;
   final String? tableCode;
   final String? customerName;
   final DateTime? createdAt;
@@ -99,6 +105,8 @@ class WebOrder {
     this.customerNote,
     this.rejectionReason,
     this.salesRecordId,
+    this.cashReceived,
+    this.cashChange,
     this.tableCode,
     this.customerName,
     this.createdAt,
@@ -123,6 +131,8 @@ class WebOrder {
       customerNote: j['customerNote'] as String?,
       rejectionReason: j['rejectionReason'] as String?,
       salesRecordId: j['salesRecordId']?.toString(),
+      cashReceived: j['cashReceived'] == null ? null : _num(j['cashReceived']),
+      cashChange: j['cashChange'] == null ? null : _num(j['cashChange']),
       tableCode: table?['code']?.toString(),
       customerName: j['customerName'] as String?,
       createdAt: DateTime.tryParse('${j['createdAt']}'),

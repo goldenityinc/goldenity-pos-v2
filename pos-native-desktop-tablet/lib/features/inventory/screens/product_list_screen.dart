@@ -793,11 +793,11 @@ class _ProductCard extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Center(
-                      child: GoldenityCounterButton(
+                    GoldenityCounterButton(
                       value: qty,
                       min: 0,
                       max: 99,
+                      expand: true,
                       onChanged: !canAdd
                           ? (_) {}
                           : (v) {
@@ -821,7 +821,6 @@ class _ProductCard extends ConsumerWidget {
                                 cartNotifier.addToCart(product);
                               }
                             },
-                      ),
                     ),
                   ],
                 ),

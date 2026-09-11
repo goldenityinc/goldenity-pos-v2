@@ -226,8 +226,12 @@ class WebOrderPrintService {
       payment: ReceiptPaymentData(
         methodLabel: methodLabel,
         referenceNumber: null,
-        totalPaid: isPaid ? o.total : 0,
-        changeAmount: 0,
+        // BUG FIX: sebelumnya SELALU `o.total`/`0` ("uang pas", tanpa kembalian)
+        // walau kasir terima tunai lebih dari tagihan — sekarang pakai nominal
+        // riil dari SalesRecord (o.cashReceived/cashChange, diisi backend saat
+        // settle-orders), fallback ke total/0 kalau belum ada (mis. QRIS/Kartu).
+        totalPaid: isPaid ? (o.cashReceived ?? o.total) : 0,
+        changeAmount: isPaid ? (o.cashChange ?? 0) : 0,
       ),
       footerThankYou: [
         isPaid ? '*** LUNAS ***' : '*** BELUM DIBAYAR ***',

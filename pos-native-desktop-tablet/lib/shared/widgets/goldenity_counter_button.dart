@@ -17,6 +17,7 @@ class GoldenityCounterButton extends StatelessWidget {
     this.min = 1,
     this.max = 99,
     this.buttonSize = 28.0,
+    this.expand = false,
   });
 
   final int value;
@@ -25,43 +26,64 @@ class GoldenityCounterButton extends StatelessWidget {
   final int max;
   final double buttonSize;
 
+  /// Saat true, stepper mengisi seluruh lebar yang tersedia dengan `−` di
+  /// kiri dan `+` di kanan (dipakai kartu grid produk POS — Figma arch-sleek).
+  /// Default false = compact, nempel jadi satu grup (dipakai di dialog).
+  final bool expand;
+
   bool get _canMinus => value > min;
   bool get _canPlus => value < max;
 
   @override
   Widget build(BuildContext context) {
+    final valueLabel = Text(
+      '$value',
+      style: const TextStyle(
+        fontFamily: GoldenityTypography.fontFamilyMono,
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+        color: GoldenityColors.text,
+        height: 1,
+      ),
+    );
+    final minusBtn = _Btn(
+      icon: Icons.remove_rounded,
+      size: buttonSize,
+      enabled: _canMinus,
+      filled: false,
+      onTap: _canMinus ? () => onChanged(value - 1) : null,
+    );
+    final plusBtn = _Btn(
+      icon: Icons.add_rounded,
+      size: buttonSize,
+      enabled: _canPlus,
+      filled: true,
+      onTap: _canPlus ? () => onChanged(value + 1) : null,
+    );
+
+    if (expand) {
+      return Row(
+        mainAxisSize: MainAxisSize.max,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: <Widget>[
+          minusBtn,
+          Expanded(child: Center(child: valueLabel)),
+          plusBtn,
+        ],
+      );
+    }
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        _Btn(
-          icon: Icons.remove_rounded,
-          size: buttonSize,
-          enabled: _canMinus,
-          filled: false,
-          onTap: _canMinus ? () => onChanged(value - 1) : null,
-        ),
+        minusBtn,
         Container(
           constraints: BoxConstraints(minWidth: buttonSize * 1.15),
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Text(
-            '$value',
-            style: const TextStyle(
-              fontFamily: GoldenityTypography.fontFamilyMono,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: GoldenityColors.text,
-              height: 1,
-            ),
-          ),
+          child: valueLabel,
         ),
-        _Btn(
-          icon: Icons.add_rounded,
-          size: buttonSize,
-          enabled: _canPlus,
-          filled: true,
-          onTap: _canPlus ? () => onChanged(value + 1) : null,
-        ),
+        plusBtn,
       ],
     );
   }

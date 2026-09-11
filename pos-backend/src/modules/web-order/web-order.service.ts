@@ -102,6 +102,7 @@ const AdvanceStatusSchema = z.object({
 const webOrderInclude = {
   items: true,
   tableSession: { include: { table: { select: { id: true, code: true } } } },
+  salesRecord: { select: { cashReceived: true, cashChange: true } },
 } satisfies Prisma.WebOrderInclude;
 
 function mapWebOrder(row: any) {
@@ -121,6 +122,11 @@ function mapWebOrder(row: any) {
     customerNote: row.customerNote,
     rejectionReason: row.rejectionReason,
     salesRecordId: row.salesRecordId != null ? row.salesRecordId.toString() : null,
+    // Nominal tunai riil (bukan sekadar `total`) — dibaca dari SalesRecord yang
+    // terhubung supaya struk "LUNAS" (WebOrderPrintService._buildReceipt di
+    // Flutter) bisa cetak Dibayar/Kembalian yang benar, bukan selalu total/0.
+    cashReceived: row.salesRecord?.cashReceived ?? null,
+    cashChange: row.salesRecord?.cashChange ?? null,
     table: row.tableSession?.table
       ? { id: row.tableSession.table.id, code: row.tableSession.table.code }
       : null,
