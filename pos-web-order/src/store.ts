@@ -75,6 +75,13 @@ interface SessionInfo {
   expiresAt: string;
   customerName?: string;
   paymentModes: WebOrderPaymentMethod[];
+  // Config pajak toko — disinkron dari respons /menu (lihat syncTaxConfig),
+  // dipakai Checkout.tsx menampilkan preview Subtotal/PPN/Total SEBELUM
+  // submit supaya customer tidak kaget totalnya beda dari yang di-charge
+  // backend (lihat computeOrderTotals di web-order.shared.ts, backend).
+  taxEnabled: boolean;
+  taxRatePercentage: number;
+  pricesIncludeTax: boolean;
 }
 
 interface State {
@@ -87,6 +94,11 @@ interface State {
   setTenantSlug: (slug: string) => void;
   setSession: (s: StartSessionResp, customerName?: string) => void;
   syncPaymentModes: (modes: WebOrderPaymentMethod[] | undefined) => void;
+  syncTaxConfig: (tax: {
+    taxEnabled: boolean;
+    taxRatePercentage: number;
+    pricesIncludeTax: boolean;
+  }) => void;
   clearSession: () => void;
   addLine: (l: Omit<CartLine, 'key'> & { key?: string }) => void;
   setQty: (key: string, qty: number) => void;
@@ -94,6 +106,12 @@ interface State {
   clearCart: () => void;
   cartCount: () => number;
   cartTotal: () => number;
+  /** Estimasi pajak dari cart (belum submit) — formula SAMA dengan backend
+   * `computeOrderTotals` (web-order.shared.ts): exclusive = subtotal*rate/100,
+   * inclusive = subtotal sudah termasuk pajak (pajak dihitung terkandung). */
+  cartTaxAmount: () => number;
+  /** exclusive = subtotal + pajak; inclusive = subtotal saja (pajak sudah di dalam). */
+  cartGrandTotal: () => number;
 }
 
 export const useStore = create<State>()(
@@ -116,6 +134,12 @@ export const useStore = create<State>()(
               Array.isArray(s.paymentModes) && s.paymentModes.length
                 ? s.paymentModes
                 : ['QRIS_STATIC', 'PAY_AT_CASHIER'],
+            // Nilai default aman (disembunyikan) sampai /menu disinkron —
+            // lihat syncTaxConfig, dipanggil dari Menu.tsx sama seperti
+            // syncPaymentModes.
+            taxEnabled: false,
+            taxRatePercentage: 11,
+            pricesIncludeTax: false,
           },
           // Balikan startSession adalah sumber kebenaran paling akhir untuk slug.
           tenantSlug: s.tenant.slug,
@@ -127,6 +151,8 @@ export const useStore = create<State>()(
             ? { session: { ...st.session, paymentModes: modes } }
             : {},
         ),
+      syncTaxConfig: (tax) =>
+        set((st) => (st.session ? { session: { ...st.session, ...tax } } : {})),
       clearSession: () => set({ session: null, cart: [] }),
       addLine: (l) =>
         set((st) => {
@@ -154,6 +180,20 @@ export const useStore = create<State>()(
       clearCart: () => set({ cart: [] }),
       cartCount: () => get().cart.reduce((s, c) => s + c.qty, 0),
       cartTotal: () => get().cart.reduce((s, c) => s + c.unitPrice * c.qty, 0),
+      cartTaxAmount: () => {
+        const st = get();
+        const tax = st.session;
+        const subtotal = st.cartTotal();
+        if (!tax?.taxEnabled || tax.taxRatePercentage <= 0 || subtotal <= 0) return 0;
+        return tax.pricesIncludeTax
+          ? (subtotal * tax.taxRatePercentage) / (100 + tax.taxRatePercentage)
+          : (subtotal * tax.taxRatePercentage) / 100;
+      },
+      cartGrandTotal: () => {
+        const st = get();
+        const subtotal = st.cartTotal();
+        return st.session?.pricesIncludeTax ? subtotal : subtotal + st.cartTaxAmount();
+      },
     }),
     {
       name: 'goldenity-weborder',

@@ -9,7 +9,9 @@ export default function Checkout() {
   const cart = useStore((s) => s.cart);
   const setQty = useStore((s) => s.setQty);
   const clearCart = useStore((s) => s.clearCart);
-  const total = useStore((s) => s.cartTotal());
+  const subtotal = useStore((s) => s.cartTotal());
+  const taxAmount = useStore((s) => s.cartTaxAmount());
+  const total = useStore((s) => s.cartGrandTotal());
 
   const modes = session.paymentModes ?? ['QRIS_STATIC', 'PAY_AT_CASHIER'];
   const cashierAllowed = modes.includes('PAY_AT_CASHIER');
@@ -142,6 +144,20 @@ export default function Checkout() {
 
       {cart.length > 0 && (
         <div className="fixed bottom-0 left-1/2 w-full max-w-app -translate-x-1/2 border-t border-line bg-white p-4">
+          {session.taxEnabled && (
+            <>
+              <div className="mb-1 flex items-center justify-between text-[12.5px]">
+                <span className="text-muted">Subtotal</span>
+                <span className="num text-ink2">{rupiah(subtotal)}</span>
+              </div>
+              <div className="mb-1 flex items-center justify-between text-[12.5px]">
+                <span className="text-muted">
+                  PPN {session.taxRatePercentage}%{session.pricesIncludeTax ? ' (termasuk)' : ''}
+                </span>
+                <span className="num text-ink2">{rupiah(taxAmount)}</span>
+              </div>
+            </>
+          )}
           <div className="mb-2 flex items-center justify-between text-sm">
             <span className="text-muted">Total</span>
             <span className="num text-lg font-extrabold text-ink">{rupiah(total)}</span>

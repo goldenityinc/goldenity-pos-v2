@@ -240,6 +240,14 @@ class WebOrderPrintService {
         footerText,
       ].join('\n'),
       paperWidthColumns: paperWidthMm >= 80 ? 48 : 32,
+      // BUG FIX: sebelumnya tidak diisi sama sekali → ReceiptData jatuh ke
+      // default `taxEnabled: true`, jadi baris "Pajak (PPn X%)" SELALU
+      // tercetak di struk web order walau tenant sudah matikan PPN di
+      // Pengaturan. Sekarang ikut config toko yang sama dipakai POS cart
+      // checkout (goldenity_payment_modal.dart _mapSaleToReceipt).
+      taxEnabled: _store?.taxEnabled ?? false,
+      taxRatePercentage: _store?.taxRatePercentage ?? 11,
+      pricesIncludeTax: _store?.pricesIncludeTax ?? false,
     );
     return ReceiptGenerator.generateEscPosBytes(
       data,

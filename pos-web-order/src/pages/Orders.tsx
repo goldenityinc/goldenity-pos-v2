@@ -189,6 +189,12 @@ function OrderCard({
           </div>
         ))}
         {o.customerNote && <div className="text-[11px] text-muted">📝 {o.customerNote}</div>}
+        {o.taxAmount > 0 && (
+          <div className="flex justify-between text-[11px] text-muted">
+            <span>PPN</span>
+            <span className="num">{rupiah(o.taxAmount)}</span>
+          </div>
+        )}
       </div>
 
       <div className="mt-2 flex items-center justify-between border-t border-line pt-2">
