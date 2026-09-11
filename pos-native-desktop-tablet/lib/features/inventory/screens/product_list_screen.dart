@@ -768,7 +768,11 @@ class _ProductCard extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(10, 9, 10, 8),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  // stretch (bukan start) supaya baris stepper di bawah bisa
+                  // di-tengahkan lewat Center — Text nama/harga tetap rata kiri
+                  // seperti biasa (textAlign default start, tidak terpengaruh
+                  // lebar box yang lebih besar).
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     Text(
                       product.name,
@@ -789,7 +793,8 @@ class _ProductCard extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    GoldenityCounterButton(
+                    Center(
+                      child: GoldenityCounterButton(
                       value: qty,
                       min: 0,
                       max: 99,
@@ -816,6 +821,7 @@ class _ProductCard extends ConsumerWidget {
                                 cartNotifier.addToCart(product);
                               }
                             },
+                      ),
                     ),
                   ],
                 ),
