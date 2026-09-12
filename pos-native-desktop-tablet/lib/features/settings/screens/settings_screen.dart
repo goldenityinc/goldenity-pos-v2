@@ -528,33 +528,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     _tabController = TabController(length: 4, vsync: this);
     _deviceNameCtrl.text = ref.read(deviceApiServiceProvider).localDeviceName();
     _deviceRole = ref.read(deviceApiServiceProvider).localDeviceRole();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _loadStore();
-      await _loadBranches();
-      // Printer terikat cabang login — muat otomatis, tanpa picker.
-      final b = _loginBranchId;
-      if (b != null && b.isNotEmpty) {
-        _selectedBranchId = b;
-        await _loadPrintersForBranch(b);
-      }
-      // Android — FG Web-Order Receiver: sync SP enabled ↔ actual service state.
-      if (Platform.isAndroid) {
-        final sp = await SharedPreferences.getInstance();
-        final spEnabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? false;
-        bool actualRunning = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAll());
+  }
+
+  /// Urutan muat awal Settings — dipakai baik dari `initState` maupun tombol
+  /// "Coba Lagi" (sebelumnya tombol itu cuma menyembunyikan pesan error tanpa
+  /// benar-benar memuat ulang, jadi form bisa tetap kosong setelah ditekan).
+  /// Info Toko + Daftar Cabang dimuat PARALEL (sebelumnya berurutan) supaya
+  /// total waktu tunggu tidak jadi 2x lipat saat backend baru redeploy /
+  /// koneksi DB tenant masih dingin.
+  Future<void> _loadAll() async {
+    await Future.wait([_loadStore(), _loadBranches()]);
+    // Printer terikat cabang login — muat otomatis, tanpa picker.
+    final b = _loginBranchId;
+    if (b != null && b.isNotEmpty) {
+      _selectedBranchId = b;
+      await _loadPrintersForBranch(b);
+    }
+    // Android — FG Web-Order Receiver: sync SP enabled ↔ actual service state.
+    if (Platform.isAndroid) {
+      final sp = await SharedPreferences.getInstance();
+      final spEnabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? false;
+      bool actualRunning = false;
+      try {
+        actualRunning = await FlutterForegroundTask.isRunningService;
+      } catch (_) {}
+      if (!mounted) return;
+      setState(() => _fgServiceEnabled = spEnabled || actualRunning);
+      // Safety: user enable=true, tapi mati karena OOM low-mem → start ulang.
+      if (spEnabled && !actualRunning) {
         try {
-          actualRunning = await FlutterForegroundTask.isRunningService;
+          await _initAndStartFgService(silent: true);
         } catch (_) {}
-        if (!mounted) return;
-        setState(() => _fgServiceEnabled = spEnabled || actualRunning);
-        // Safety: user enable=true, tapi mati karena OOM low-mem → start ulang.
-        if (spEnabled && !actualRunning) {
-          try {
-            await _initAndStartFgService(silent: true);
-          } catch (_) {}
-        }
       }
-    });
+    }
   }
 
   @override
@@ -1321,6 +1328,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                                 OutlinedButton.icon(
                                   onPressed: () {
                                     setState(() => _errMsg = '');
+                                    _loadAll();
                                   },
                                   icon: const Icon(Icons.refresh_rounded),
                                   label: const Text('Coba Lagi'),

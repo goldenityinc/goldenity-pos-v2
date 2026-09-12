@@ -193,9 +193,21 @@ class TableManagementScreen extends ConsumerWidget {
     Widget body;
 
     if (status == 'OCCUPIED') {
-      // Semua aksi (bayar per-order / bayar semua / tutup sesi) dirender di
-      // dalam body karena bergantung pada data sesi yang dimuat async.
-      actions = const [];
+      // Aksi bayar/tutup-sesi dirender di dalam body (_OccupiedBody) karena
+      // bergantung pada data sesi yang dimuat async. "Lihat QR" ditaruh di
+      // footer luar supaya TETAP bisa diakses walau meja sedang terisi —
+      // sebelumnya cuma muncul untuk meja kosong, padahal staff/pelanggan
+      // kadang perlu lihat/cetak ulang QR meja yang sedang dipakai juga.
+      actions = [
+        GoldenityOutlineButton(
+          label: 'Lihat QR',
+          icon: Icons.qr_code_rounded,
+          onTap: () {
+            Navigator.of(context).maybePop();
+            _showQrDialog(context, ref, table);
+          },
+        ),
+      ];
       body = _OccupiedBody(tableId: table.id, tableCode: table.code, currency: _currency);
     } else if (status == 'RESERVED') {
       final r = table.reservation;
@@ -709,10 +721,30 @@ class _OccupiedBodyState extends ConsumerState<_OccupiedBody> {
           style: const TextStyle(color: GoldenityColors.error, fontSize: 12)),
       data: (d) {
         if (d.session == null) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Text('Belum ada sesi aktif di meja ini.',
-                style: TextStyle(color: GoldenityColors.muted, fontSize: 13)),
+          // Meja tercatat TERISI tapi tidak ada TableSession berstatus ACTIVE
+          // yang cocok (sesi sudah keburu tertutup lewat jalur lain, atau
+          // datanya tidak sinkron) — tanpa tombol ini meja jadi macet
+          // permanen: tidak kelihatan pesanannya, tidak bisa dibuka sesi baru
+          // (masih Terisi), dan QR pun ikut tak terjangkau dari drawer lama.
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Meja tercatat Terisi, tapi sesi aktifnya tidak ditemukan (kemungkinan data tidak sinkron).',
+                  style: TextStyle(color: GoldenityColors.muted, fontSize: 13, height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                GoldenityFillButton(
+                  label: 'Reset Meja ke Tersedia',
+                  icon: Icons.restart_alt_rounded,
+                  color: GoldenityColors.warning,
+                  busy: _closing,
+                  onTap: _closeSession,
+                ),
+              ],
+            ),
           );
         }
         final session = d.session!;
