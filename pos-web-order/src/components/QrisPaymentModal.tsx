@@ -87,21 +87,17 @@ export default function QrisPaymentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 mx-auto flex max-w-app items-end bg-black/40" onClick={onClose}>
-      <div
-        className="sheet-enter max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-3 flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-extrabold text-ink">Bayar QRIS — Q-{order.queueNumber}</h2>
-            <p className="mt-0.5 text-[12.5px] text-muted">
-              Scan kode di bawah dengan e-wallet / m-banking, atau screenshot untuk dibayar nanti.
-            </p>
-          </div>
-          <button onClick={onClose} className="ml-2 text-muted">
-            ✕
-          </button>
+    // Sengaja TIDAK bisa ditutup lewat tap backdrop / tombol ✕ — sebelumnya
+    // customer bisa menutup modal ini tanpa bayar/upload bukti sama sekali
+    // lalu lupa, order jadi menggantung UNPAID tanpa disadari. Satu-satunya
+    // jalan keluar modal ini adalah menyelesaikan "Saya Sudah Bayar" di bawah.
+    <div className="fixed inset-0 z-50 mx-auto flex max-w-app items-end bg-black/40">
+      <div className="sheet-enter max-h-[92vh] w-full overflow-y-auto rounded-t-3xl bg-white p-5">
+        <div className="mb-3">
+          <h2 className="text-lg font-extrabold text-ink">Bayar QRIS — Q-{order.queueNumber}</h2>
+          <p className="mt-0.5 text-[12.5px] text-muted">
+            Scan kode di bawah dengan e-wallet / m-banking, lalu konfirmasi di sini setelah bayar.
+          </p>
         </div>
 
         <div className="mb-4 flex flex-col items-center rounded-2xl border border-line bg-surface2 p-4">

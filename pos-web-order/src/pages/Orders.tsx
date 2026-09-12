@@ -130,7 +130,13 @@ function OrderCard({
 }) {
   const step = STATUS_STEP[o.status] ?? 0;
   const cancelled = o.status === 'CANCELLED';
-  const [showQris, setShowQris] = useState(false);
+  // Order yang baru saja dikirim (highlight, dari ?new= di URL) dan masih
+  // UNPAID QRIS langsung buka modal bayar otomatis — sebelumnya customer
+  // harus ingat sendiri untuk tap "Bayar Sekarang", gampang kelewat kalau
+  // langsung menutup tab / pindah layar setelah checkout.
+  const [showQris, setShowQris] = useState(
+    () => !!highlight && !cancelled && o.paymentMethod === 'QRIS_STATIC' && o.paymentStatus === 'UNPAID',
+  );
 
   return (
     <div
