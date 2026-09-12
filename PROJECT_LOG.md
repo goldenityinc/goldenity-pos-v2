@@ -8,6 +8,28 @@
 
 ---
 
+## 🛠️🟢 [2026-09-13] Claude — **Koreksi: pubspec version dikembalikan 1.0.0 → 2.0.0 (salah ketik Andre di request Trae)**
+
+### 🎯 Objective (Verbatim Andre):
+```
+Kembalikan saja ke v2.0.0 aku salah ini yang benar
+```
+Entri Trae di bawah (2026-09-12) menurunkan `pubspec.yaml` version dari `2.0.0+1` ke `1.0.0+1` atas permintaan Andre saat itu — belakangan Andre sadar itu salah (app sudah dikenal sebagai "Goldenity POS V2", dan footer sidebar hardcode teks `'Goldenity POS V2 · v2.0.0'` di [goldenity_app_shell.dart:174](file:///e:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/lib/shared/shell/goldenity_app_shell.dart#L174) — kalau dibiarkan 1.0.0, installer/APK bakal lapor versi "1.0.0" sementara UI app sendiri masih bilang "v2.0.0", membingungkan tim.
+
+### 🔧 Perubahan:
+| File | Perubahan |
+|---|---|
+| [pubspec.yaml](file:///e:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/pubspec.yaml) | `version: 1.0.0+1 → 2.0.0+1` (dikembalikan persis ke nilai sebelum entri Trae) + `flutter pub get` resync. |
+| Windows Release | Rebuild ulang (`flutter build windows --release --dart-define=API_BASE_URL=...staging...`) — EXE sebelumnya sudah ter-bake versi 1.0.0, sekarang 2.0.0. |
+| `release_outputs/1.0.0/` → `release_outputs/2.0.0/` | Folder di-rename, isi `windows/` di-refresh dengan build baru, `VERSION.md` di-update semua rujukan "1.0.0" → "2.0.0" (judul, tabel info build, path folder, catatan APK). Android APK masih pending — belum ada yang di-build sama sekali untuk versi manapun, jadi tidak ada file APK basi yang perlu dihapus. |
+
+### ✅ Verifikasi:
+- `flutter build windows --release` sukses (exit 0), EXE baru tersalin ke `release_outputs/2.0.0/windows/goldenity_pos_native.exe`.
+- Git terverifikasi bersih: commit Trae `3dec1f6` memang sudah ter-push ke `origin/staging` sebelum koreksi ini (dicek `git fetch` + `git log origin/staging -1`, cocok dengan HEAD lokal).
+- `release_outputs/` tetap di `.gitignore` — tidak ada binary yang ter-commit.
+
+---
+
 ## 🚀🟢 [2026-09-12] Trae — **Release v1.0.0 Baked-in Railway Staging URL (Windows Siap Pakai · Android Step Build Andre)**
 
 ### 🎯 Objective (Verbatim Andre):
