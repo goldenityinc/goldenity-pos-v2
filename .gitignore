@@ -21,6 +21,7 @@ yarn-error.log*
 
 # --- Flutter (pos-native-desktop-tablet, pos-native-mobile) ---
 **/build/
+release_outputs/
 **/.dart_tool/
 **/.flutter-plugins
 **/.flutter-plugins-dependencies

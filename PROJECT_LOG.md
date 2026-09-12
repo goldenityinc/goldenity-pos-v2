@@ -8,6 +8,44 @@
 
 ---
 
+## 🚀🟢 [2026-09-12] Trae — **Release v1.0.0 Baked-in Railway Staging URL (Windows Siap Pakai · Android Step Build Andre)**
+
+### 🎯 Objective (Verbatim Andre):
+```
+flutter build apk --release --dart-define=API_BASE_URL=https://goldenity-pos-v2-backend-staging.up.railway.app
+sekarang buatkan aku installer .apk dan .exe buatkan juga folder release output untuk kamu put semua installer disitu dan versi ini 1.0.0
+```
+→ Pilih central release folder `release_outputs/<VERSION>/`. Version set EXACT `1.0.0+1` L4 pubspec. Windows build EXE SIAP PAKAI ke folder. Android APK BLOCKED karena host TIDAK install Android SDK → dokumentasikan step build COPY-PASTE di VERSION.md manifest untuk Andre jalankan di mesinnya yang SDK installed.
+
+### 🔧 4 Perubahan Kode Konfigurasi (Additive ONLY, NO Logic Change):
+| File | Perubahan | Evidence Line |
+|---|---|---|
+| [pubspec.yaml](file:///e:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/pubspec.yaml) | `version: 2.0.0+1 → 1.0.0+1` (standard Flutter: semantic + buildNumber). Lalu `flutter pub get` resync metadata. | L4 version line · Pub get Exit 0 `Got dependencies!` |
+| [CMakeLists.txt Windows](file:///e:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/windows/CMakeLists.txt#L40-L47) | **SUDAH ADA fix STL1011 L46** dari sesi 2026-09-11. `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` apply ke runner + SEMUA plugin via function `APPLY_STANDARD_SETTINGS` → 3 DLL plugin build SUCCESS. | L46 target_compile_definitions PRIVATE |
+| 🔺 release_outputs/1.0.0 FOLDER | Dibuat struktur: `windows/` (copy full bundle), `android/` (menunggu APK Andre built), `VERSION.md` manifest full. | Tree verify 26 files windows + manifest |
+| 🔺 `release_outputs/1.0.0/VERSION.md` NEW | Manifest 206 lines: (1) version/build/commit/timestamp, (2) 3-tier priority, (3) cara install Windows siap pakai, (4) **7 Prasyarat Mesin Andre SDK + JDK**, (5) Step build APK copy-paste dengan dart-define STAGING URL SAMA, (6) Output apk target arm64-v8a, (7) Checklist install tablet Android 6 item, (8) 8 Anti-Regression PASS evidence. | [VERSION.md](file:///e:/Goldenity/goldenity-pos-v2/release_outputs/1.0.0/VERSION.md) |
+
+### 📦 Build Output Summary (2 Platforms):
+| Platform | Status | Output Folder / File | Size | Cara Pakai |
+|---|:-:|---|---:|---|
+| **🪟 Windows x64 Release** | ✅ **SIAP PAKAI** (Built 39.6s, Exit 0) | `release_outputs/1.0.0/windows/` (copy SELURUH isi ke PC kasir → double-click goldenity_pos_native.exe) | **37.8 MB total** (26 files: 90KB exe + 10MB app.so + 20MB flutter.dll + 3 DLL plugins + data/flutter_assets) | **Install: copy folder → launch exe → Login kasir/kasir123 tenant demo-fnb → Settings Tap7x DevOptions → Base URL = Railway staging (HIJAU)** |
+| **🤖 Android APK Release (arm64-v8a tablet target)** | ⚠️ **ANDRE BUILD LOKAL SDK MACHINE ONLY** (Host blocked: No Android SDK found. Ini ENV BUKAN kode bug.) | `pos-native-desktop-tablet/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk` → copy hasilnya Andre ke `release_outputs/1.0.0/android/` local mesinnya. | ≈ 65 MB (release split-per-abi arm64) | **Andre step copy-paste ada di [VERSION.md → STEP BUILD APK ANDRE](file:///e:/Goldenity/goldenity-pos-v2/release_outputs/1.0.0/VERSION.md#L94-L120)**. 7 Prasyarat + Copy-Paste 3 line cmd. |
+
+### ✅ 4 Zero-Constraint Verifikasi Anti-Regression (All PASS):
+1. ✅ **Lint 0 Global**: `flutter analyze --no-pub` Exit 0 · **No issues found! (ran in 5.6s)**
+2. ✅ **Pinned Dep image ^3.3.0 INTACT**: pubspec.lock L439 version 3.3.0 · ESC/POS thermal raster image NOT BROKEN ✅
+3. ✅ **Platform Guard Audit NO Windows Regression**: permission_handler/flutter_foreground_task/open_filex SEMUA dalam `if (Platform.isAndroid)` block · Windows 3 DLL plugin build SUCCESS ✅
+4. ✅ **3-Tier ApiConstants Backward Compat**: 40+ endpoint `$devBaseUrl` getter name TETAP SAMA, TIDAK SATU PUN CALL SITE diubah. SP override > dart-define Railway (active sekarang) > localhost ✅
+
+### 👣 3 Next Step Andre (Urutan Wajib):
+| # | Action Item | Expected Result |
+|---|---|---|
+| **1 (HOT)** | **Build APK Release di mesinmu yang sudah install Android SDK + JDK 17** — COPY-PASTE 3 line cmd dari VERSION.md L105-L112 (build apk --release --split-per-abi + dart-define Railway staging URL SAMA dengan Windows) | Output `app-arm64-v8a-release.apk` ≈ 65MB · Copy ke `release_outputs/1.0.0/android/` lokal · Sideload ke tablet dapur. |
+| **2 (HOT)** | **Install Windows ke 1 PC Kasir Staging**: Copy seluruh folder `release_outputs/1.0.0/windows/` → jalankan `goldenity_pos_native.exe` · Login → Settings Tap7x → DevOptions show URL Railway HIJAU → Test POS Cart + Quick Cash 28k = chip 30k (LOCKED algo) → Print TCP/LAN thermal receipt works. | Semua 2xx endpoint Railway (TIDAK ada Connection Refused localhost). |
+| **3 (Physical Tablet Checklist)** | Jalankan 14-item physical test di [`.trae/specs/android-build-target/review.md`](file:///e:/Goldenity/goldenity-pos-v2/.trae/specs/android-build-target/review.md#L31-L90) · Isi PASS/FAIL · Sign-off block L93-L105. Jika FAIL ≥ 1 item: submit ClickUp ticket POS V2. | 14/14 PASS → Kitchen Receiver Android production ready! |
+
+---
+
 ## 🪟🟢 [2026-09-11] Trae — **Windows POS Release Staging Build — dart-define API_BASE_URL Railway + VS2026 C++ Coroutine Deprecation Fix**
 
 ### 🎯 Objective (Verbatim Andre):

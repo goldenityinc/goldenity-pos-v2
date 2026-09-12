@@ -1,7 +1,7 @@
 name: goldenity_pos_native
 description: Goldenity POS V2 Native - Tablet F&B
 publish_to: 'none'
-version: 2.0.0+1
+version: 1.0.0+1
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
