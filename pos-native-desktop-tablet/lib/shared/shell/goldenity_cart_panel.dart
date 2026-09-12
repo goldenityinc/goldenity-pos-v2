@@ -319,8 +319,11 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
   }
 
   Widget _buildEmptyState(BuildContext context, TextTheme textTheme) {
+    // FIX: RenderFlex overflow saat panel kanan sempit/pendek (mis. jendela
+    // di-resize kecil) — dulu Column ini dipaksa muat tanpa jalan keluar.
+    // SingleChildScrollView bikin sisa ruang tinggal scroll, bukan overflow.
     return Center(
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(GoldenitySpacing.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,

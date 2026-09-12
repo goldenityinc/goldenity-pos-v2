@@ -37,6 +37,14 @@ class SettingsApiService {
     return data;
   }
 
+  // Timeout lebih longgar khusus utk getStore/listBranches — dipanggil dari
+  // layar Settings (bukan alur kasir yang butuh fail-fast) dan lewat
+  // resolveTenantDb middleware yang bisa kena cold-start koneksi DB tenant
+  // atau round-trip control-plane ke admin-core kalau cache 45dtk-nya
+  // kadaluarsa. 15dtk default (ApiConstants.defaultReceiveTimeout) beberapa
+  // kali kepotong pas kondisi ini, munculin TimeoutException di layar Settings.
+  static const Duration _settingsLoadTimeout = Duration(seconds: 30);
+
   // ===== STORE =====
   Future<StoreSettingsProfile?> getStore({
     required String authToken,
@@ -44,7 +52,7 @@ class SettingsApiService {
     final uri = ApiConstants.settingsStoreEndpoint();
     final resp = await _client
         .get(uri, headers: _authHeaders(authToken))
-        .timeout(ApiConstants.defaultReceiveTimeout);
+        .timeout(_settingsLoadTimeout);
     final data = _ensureSuccess(_parseJsonOrFail(resp.body, resp.statusCode));
     final inner = data['data'] as Map<String, dynamic>?;
     if (inner == null || inner.isEmpty) return null;
@@ -75,7 +83,7 @@ class SettingsApiService {
     final uri = ApiConstants.settingsBranchesEndpoint();
     final resp = await _client
         .get(uri, headers: _authHeaders(authToken))
-        .timeout(ApiConstants.defaultReceiveTimeout);
+        .timeout(_settingsLoadTimeout);
     final data = _ensureSuccess(_parseJsonOrFail(resp.body, resp.statusCode));
     final rawData = data['data'];
     final List<dynamic> list;

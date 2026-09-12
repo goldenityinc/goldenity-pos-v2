@@ -589,12 +589,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
   Future<void> _loadStore() async {
     setState(() => _loading = true);
+    final sw = Stopwatch()..start();
     try {
       final auth = ref.read(authNotifierProvider.notifier);
       final token = auth.session?.token;
       if (token == null) throw Exception('Sesi tidak ditemukan');
       final settingsApi = ref.read(settingsApiServiceProvider);
       final store = await settingsApi.getStore(authToken: token);
+      // ignore: avoid_print
+      print('[SETTINGS_DEBUG] getStore selesai dalam ${sw.elapsedMilliseconds}ms');
       if (store != null && mounted) {
         setState(() {
           _storeNameCtrl.text = store.name;
@@ -613,6 +616,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         });
       }
     } catch (e) {
+      // ignore: avoid_print
+      print('[SETTINGS_DEBUG] getStore GAGAL setelah ${sw.elapsedMilliseconds}ms: $e');
       if (mounted) {
         setState(() => _errMsg = e.toString().replaceAll('Exception: ', ''));
       }
@@ -684,12 +689,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
 
   Future<void> _loadBranches() async {
     setState(() => _loading = true);
+    final sw = Stopwatch()..start();
     try {
       final auth = ref.read(authNotifierProvider.notifier);
       final token = auth.session?.token;
       if (token == null) throw Exception('Sesi tidak ditemukan');
       final settingsApi = ref.read(settingsApiServiceProvider);
       final list = await settingsApi.listBranches(authToken: token);
+      // ignore: avoid_print
+      print('[SETTINGS_DEBUG] listBranches selesai dalam ${sw.elapsedMilliseconds}ms (${list.length} cabang)');
       if (mounted) {
         final lb = _loginBranchId;
         BranchWithPrintersProfile? loginBranch;
@@ -704,6 +712,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         });
       }
     } catch (e) {
+      // ignore: avoid_print
+      print('[SETTINGS_DEBUG] listBranches GAGAL setelah ${sw.elapsedMilliseconds}ms: $e');
       if (mounted) {
         setState(() => _errMsg = e.toString().replaceAll('Exception: ', ''));
       }
