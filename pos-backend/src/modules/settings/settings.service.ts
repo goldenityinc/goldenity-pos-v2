@@ -42,6 +42,7 @@ const UpsertPrinterSchema = z.object({
     .pipe(z.coerce.number().int())
     .refine((v) => v === 58 || v === 80, 'paperWidth harus 58 atau 80 (mm)')
     .optional(),
+  autoOpenCashDrawer: z.boolean().optional(),
 });
 
 interface StoreData {
@@ -184,6 +185,7 @@ export class SettingsService {
             address: true,
             port: true,
             paperWidth: true,
+            autoOpenCashDrawer: true,
           },
         },
       },

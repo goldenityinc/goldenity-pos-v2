@@ -133,6 +133,17 @@ class WebOrderPrintService {
         await _send(cashier, bytes);
         anyOk = true;
         results.add('struk:OK(${cashier.connectionType.name})');
+        // Ported dari V1 (AppConfigService.autoOpenCashDrawer) — kasir baru
+        // saja terima tunai utk order "Bayar di Kasir" yang jadi LUNAS
+        // (bukan saat sekadar diterima/paidReprint=false).
+        if (paidReprint && order.paymentMethod == 'PAY_AT_CASHIER' && cashier.autoOpenCashDrawer) {
+          try {
+            await _hw.openCashDrawer(_toHwConfig(cashier));
+            debugPrint('[web-order print] Q-${order.queueNumber} cash drawer dibuka.');
+          } catch (e) {
+            debugPrint('[web-order print] Q-${order.queueNumber} gagal buka cash drawer: $e');
+          }
+        }
       } catch (e) {
         results.add('struk:GAGAL($e)');
       }

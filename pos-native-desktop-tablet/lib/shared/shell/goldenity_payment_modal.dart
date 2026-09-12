@@ -474,6 +474,18 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
                       '[RECEIPT SENT] ${bytes.length} bytes → slot ${chosen.slot.name} type ${hwConfig.connectionType.name}.',
                       name: 'payment.receipt',
                     );
+                    // Ported dari V1 (AppConfigService.autoOpenCashDrawer) —
+                    // drawer fisik nyambung via RJ11/RJ12 ke printer yang
+                    // baru saja mencetak struknya, jadi kirim lewat koneksi
+                    // yang sama, hanya untuk pembayaran TUNAI.
+                    if (paymentMethod == kPaymentMethodCash && chosen.autoOpenCashDrawer) {
+                      try {
+                        await hwSvc.openCashDrawer(hwConfig);
+                        dev.log('[CASH DRAWER] perintah buka laci terkirim.', name: 'payment.receipt');
+                      } catch (drawerErr) {
+                        dev.log('[CASH DRAWER FAILED] $drawerErr', name: 'payment.receipt', error: drawerErr);
+                      }
+                    }
                     if (mounted) {
                       WidgetsBinding.instance.addPostFrameCallback((_) {
                         ScaffoldMessenger.of(context).showSnackBar(

@@ -40,6 +40,11 @@ class PrinterConfigProfile {
   /// Issue #2 — sebelumnya di-hack di SharedPreferences, sekarang kolom DB nyata.
   final int paperWidth;
 
+  /// Ported dari V1 (AppConfigService.autoOpenCashDrawer) — kirim perintah
+  /// ESC/POS buka cash drawer ke printer slot ini setiap transaksi TUNAI
+  /// selesai dicetak (drawer fisik umumnya nyambung via RJ11/RJ12 ke printer).
+  final bool autoOpenCashDrawer;
+
   const PrinterConfigProfile({
     required this.id,
     required this.branchId,
@@ -48,6 +53,7 @@ class PrinterConfigProfile {
     this.address,
     this.port,
     this.paperWidth = 58,
+    this.autoOpenCashDrawer = false,
   });
 
   factory PrinterConfigProfile.fromJson(Map<String, dynamic> json) {
@@ -60,6 +66,7 @@ class PrinterConfigProfile {
       address: json['address'] as String?,
       port: (json['port'] as num?)?.toInt(),
       paperWidth: (json['paperWidth'] as num?)?.toInt() == 80 ? 80 : 58,
+      autoOpenCashDrawer: json['autoOpenCashDrawer'] as bool? ?? false,
     );
   }
 
@@ -71,5 +78,17 @@ class PrinterConfigProfile {
         if (address != null) 'address': address,
         if (port != null) 'port': port,
         'paperWidth': paperWidth,
+        'autoOpenCashDrawer': autoOpenCashDrawer,
       };
+
+  PrinterConfigProfile copyWith({bool? autoOpenCashDrawer}) => PrinterConfigProfile(
+        id: id,
+        branchId: branchId,
+        slot: slot,
+        connectionType: connectionType,
+        address: address,
+        port: port,
+        paperWidth: paperWidth,
+        autoOpenCashDrawer: autoOpenCashDrawer ?? this.autoOpenCashDrawer,
+      );
 }

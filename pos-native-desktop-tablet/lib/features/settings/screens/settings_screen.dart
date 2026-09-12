@@ -82,6 +82,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   // di-load dari & disimpan ke `upsertPrinter`, dibaca payment modal dari
   // profil printer langsung.
   final Map<PrinterSlotDto, int> _printerPaperWidths = {};
+  // Ported dari V1 (AppConfigService.autoOpenCashDrawer) — per slot printer,
+  // sama pola dgn _printerPaperWidths di atas.
+  final Map<PrinterSlotDto, bool> _printerAutoOpenDrawer = {};
 
   // Perangkat (multi-device)
   List<DeviceInfo> _devices = [];
@@ -907,6 +910,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       if (!_printerPaperWidths.containsKey(slot)) {
         _printerPaperWidths[slot] = 58;
       }
+      if (!_printerAutoOpenDrawer.containsKey(slot)) {
+        _printerAutoOpenDrawer[slot] = false;
+      }
     }
   }
 
@@ -924,6 +930,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         // Reset ke default dulu (slot yang belum ada config-nya di BE).
         for (final slot in PrinterSlotDto.values) {
           _printerPaperWidths[slot] = 58;
+          _printerAutoOpenDrawer[slot] = false;
         }
         for (final p in list) {
           _printerConnTypes[p.slot] = p.connectionType;
@@ -931,6 +938,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
           _printerPortCtrls[p.slot]?.text = p.port != null ? '${p.port}' : '';
           // Issue #2 — ukuran kertas sekarang kolom nyata di PrinterConfig BE.
           _printerPaperWidths[p.slot] = p.paperWidth;
+          _printerAutoOpenDrawer[p.slot] = p.autoOpenCashDrawer;
         }
       }
     } catch (e) {
@@ -969,6 +977,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         address: address != null && address.isNotEmpty ? address : null,
         port: port,
         paperWidth: _printerPaperWidths[slot] ?? 58,
+        autoOpenCashDrawer: _printerAutoOpenDrawer[slot] ?? false,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2819,6 +2828,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         paperWidthMm: _printerPaperWidths[slot] ?? 58,
                         onPaperWidthChanged: (w) =>
                             setState(() => _printerPaperWidths[slot] = w),
+                        autoOpenCashDrawer: _printerAutoOpenDrawer[slot] ?? false,
+                        onAutoOpenCashDrawerChanged: (v) =>
+                            setState(() => _printerAutoOpenDrawer[slot] = v),
                         onSave: _loading ? null : () => _upsertPrinter(slot),
                         scanning: _scanning[slot] ?? false,
                         scanMsg: _scanMsg[slot] ?? '',
@@ -2850,6 +2862,8 @@ class _PrinterSlotCard extends StatelessWidget {
   final ValueChanged<PrinterConnectionTypeDto> onConnTypeChanged;
   final int paperWidthMm;
   final ValueChanged<int> onPaperWidthChanged;
+  final bool autoOpenCashDrawer;
+  final ValueChanged<bool> onAutoOpenCashDrawerChanged;
   final VoidCallback? onSave;
   final bool scanning;
   final String scanMsg;
@@ -2869,6 +2883,8 @@ class _PrinterSlotCard extends StatelessWidget {
     required this.onConnTypeChanged,
     required this.paperWidthMm,
     required this.onPaperWidthChanged,
+    required this.autoOpenCashDrawer,
+    required this.onAutoOpenCashDrawerChanged,
     required this.onSave,
     required this.scanning,
     required this.scanMsg,
@@ -2966,6 +2982,18 @@ class _PrinterSlotCard extends StatelessWidget {
                 onSelected: (_) => onPaperWidthChanged(mm),
               );
             }).toList(),
+          ),
+          const SizedBox(height: GoldenitySpacing.md),
+          // Ported dari V1 (AppConfigService.autoOpenCashDrawer) — drawer
+          // fisik umumnya nyambung via RJ11/RJ12 ke printer slot ini.
+          GoldenitySwitchRow(
+            value: autoOpenCashDrawer,
+            onChanged: connType == PrinterConnectionTypeDto.none
+                ? null
+                : onAutoOpenCashDrawerChanged,
+            activeColor: biz.base,
+            title: 'Otomatis Buka Cash Drawer',
+            subtitle: 'Buka laci kasir otomatis setiap transaksi tunai selesai dicetak.',
           ),
           const SizedBox(height: GoldenitySpacing.md),
           Row(

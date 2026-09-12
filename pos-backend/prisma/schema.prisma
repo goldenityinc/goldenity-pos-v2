@@ -412,6 +412,10 @@ model PrinterConfig {
   address        String?
   port           Int?
   paperWidth     Int                   @default(58) // 58 | 80 (mm) — lebar kertas thermal per slot
+  // Ported dari V1 (AppConfigService.autoOpenCashDrawer): kirim perintah ESC/POS
+  // buka cash drawer ke printer slot ini setiap transaksi TUNAI selesai dicetak
+  // (drawer fisik biasanya terhubung via RJ11/RJ12 ke printer, bukan device terpisah).
+  autoOpenCashDrawer Boolean            @default(false)
   branch         Branch                @relation(fields: [branchId], references: [id])
   device         Device?               @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 

@@ -198,6 +198,7 @@ class SettingsApiService {
     String? address,
     int? port,
     int? paperWidth,
+    bool? autoOpenCashDrawer,
   }) async {
     final payload = <String, dynamic>{
       'slot': printerSlotToString(slot),
@@ -205,6 +206,7 @@ class SettingsApiService {
       if (address != null && address.isNotEmpty) 'address': address,
       if (port != null) 'port': port,
       if (paperWidth != null) 'paperWidth': paperWidth,
+      if (autoOpenCashDrawer != null) 'autoOpenCashDrawer': autoOpenCashDrawer,
     };
     final uri = ApiConstants.settingsPrintersUpsertEndpoint(branchId);
     final resp = await _client
