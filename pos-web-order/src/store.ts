@@ -75,13 +75,18 @@ interface SessionInfo {
   expiresAt: string;
   customerName?: string;
   paymentModes: WebOrderPaymentMethod[];
-  // Config pajak toko — disinkron dari respons /menu (lihat syncTaxConfig),
+  // Config pajak toko — disinkron dari respons /menu (lihat syncMenuConfig),
   // dipakai Checkout.tsx menampilkan preview Subtotal/PPN/Total SEBELUM
   // submit supaya customer tidak kaget totalnya beda dari yang di-charge
   // backend (lihat computeOrderTotals di web-order.shared.ts, backend).
   taxEnabled: boolean;
   taxRatePercentage: number;
   pricesIncludeTax: boolean;
+  // QRIS toko (gambar statis) + apakah upload bukti transfer wajib — dipakai
+  // Orders.tsx menampilkan modal "Saya sudah bayar" + upload bukti untuk
+  // pesanan QRIS.
+  qrisImageUrl: string | null;
+  isPaymentProofMandatory: boolean;
 }
 
 interface State {
@@ -94,10 +99,12 @@ interface State {
   setTenantSlug: (slug: string) => void;
   setSession: (s: StartSessionResp, customerName?: string) => void;
   syncPaymentModes: (modes: WebOrderPaymentMethod[] | undefined) => void;
-  syncTaxConfig: (tax: {
+  syncMenuConfig: (cfg: {
     taxEnabled: boolean;
     taxRatePercentage: number;
     pricesIncludeTax: boolean;
+    qrisImageUrl: string | null;
+    isPaymentProofMandatory: boolean;
   }) => void;
   clearSession: () => void;
   addLine: (l: Omit<CartLine, 'key'> & { key?: string }) => void;
@@ -135,11 +142,13 @@ export const useStore = create<State>()(
                 ? s.paymentModes
                 : ['QRIS_STATIC', 'PAY_AT_CASHIER'],
             // Nilai default aman (disembunyikan) sampai /menu disinkron —
-            // lihat syncTaxConfig, dipanggil dari Menu.tsx sama seperti
+            // lihat syncMenuConfig, dipanggil dari Menu.tsx sama seperti
             // syncPaymentModes.
             taxEnabled: false,
             taxRatePercentage: 11,
             pricesIncludeTax: false,
+            qrisImageUrl: null,
+            isPaymentProofMandatory: false,
           },
           // Balikan startSession adalah sumber kebenaran paling akhir untuk slug.
           tenantSlug: s.tenant.slug,
@@ -151,8 +160,8 @@ export const useStore = create<State>()(
             ? { session: { ...st.session, paymentModes: modes } }
             : {},
         ),
-      syncTaxConfig: (tax) =>
-        set((st) => (st.session ? { session: { ...st.session, ...tax } } : {})),
+      syncMenuConfig: (cfg) =>
+        set((st) => (st.session ? { session: { ...st.session, ...cfg } } : {})),
       clearSession: () => set({ session: null, cart: [] }),
       addLine: (l) =>
         set((st) => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, rupiah, type SessionDetail, type WebOrder } from '../api';
 import { useStore } from '../store';
+import QrisPaymentModal from '../components/QrisPaymentModal';
 
 const STEPS = ['Antri', 'Terima', 'Masak', 'Siap', 'Antar'];
 const STATUS_STEP: Record<string, number> = {
@@ -80,7 +81,8 @@ export default function Orders() {
                 highlight={sp.get('new') === o.id}
                 onPay={load}
                 sessionToken={session.sessionToken}
-                qrisUrl={null}
+                qrisImageUrl={session.qrisImageUrl}
+                proofMandatory={session.isPaymentProofMandatory}
               />
             ))}
           </Section>
@@ -88,7 +90,14 @@ export default function Orders() {
         {done.length > 0 && (
           <Section title="Selesai">
             {done.map((o) => (
-              <OrderCard key={o.id} o={o} onPay={load} sessionToken={session.sessionToken} qrisUrl={null} />
+              <OrderCard
+                key={o.id}
+                o={o}
+                onPay={load}
+                sessionToken={session.sessionToken}
+                qrisImageUrl={session.qrisImageUrl}
+                proofMandatory={session.isPaymentProofMandatory}
+              />
             ))}
           </Section>
         )}
@@ -109,28 +118,19 @@ function OrderCard({
   highlight,
   onPay,
   sessionToken,
+  qrisImageUrl,
+  proofMandatory,
 }: {
   o: WebOrder;
   highlight?: boolean;
   onPay: () => void;
   sessionToken: string;
-  qrisUrl: string | null;
+  qrisImageUrl: string | null;
+  proofMandatory: boolean;
 }) {
   const step = STATUS_STEP[o.status] ?? 0;
   const cancelled = o.status === 'CANCELLED';
-  const [busy, setBusy] = useState(false);
-
-  async function markPaid() {
-    setBusy(true);
-    try {
-      await api.markPaid(sessionToken, o.id);
-      onPay();
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const [showQris, setShowQris] = useState(false);
 
   return (
     <div
@@ -206,11 +206,10 @@ function OrderCard({
         <div className="mt-2 flex gap-2">
           {o.paymentMethod === 'QRIS_STATIC' ? (
             <button
-              onClick={markPaid}
-              disabled={busy}
-              className="flex-1 rounded-lg bg-brand py-2 text-[12px] font-bold text-white disabled:opacity-50"
+              onClick={() => setShowQris(true)}
+              className="flex-1 rounded-lg bg-brand py-2 text-[12px] font-bold text-white"
             >
-              {busy ? '…' : 'Saya sudah bayar (QRIS)'}
+              Bayar Sekarang (QRIS)
             </button>
           ) : (
             <span className="text-[11px] text-muted">Bayar ke kasir saat pesanan diantar.</span>
@@ -219,6 +218,17 @@ function OrderCard({
       )}
       {cancelled && o.rejectionReason && (
         <div className="mt-2 text-[11px] text-err">Ditolak: {o.rejectionReason}</div>
+      )}
+
+      {showQris && (
+        <QrisPaymentModal
+          order={o}
+          qrisImageUrl={qrisImageUrl}
+          proofMandatory={proofMandatory}
+          sessionToken={sessionToken}
+          onClose={() => setShowQris(false)}
+          onDone={onPay}
+        />
       )}
     </div>
   );

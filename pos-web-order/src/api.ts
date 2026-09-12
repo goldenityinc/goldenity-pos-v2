@@ -60,6 +60,7 @@ export interface MenuResp {
     taxEnabled: boolean;
     taxRatePercentage: number;
     pricesIncludeTax: boolean;
+    isPaymentProofMandatory: boolean;
   };
   categories: MenuCategory[];
   products: MenuProduct[];
@@ -151,6 +152,20 @@ export const api = {
       },
       body: JSON.stringify({ sessionToken, url }),
     }).then(j<WebOrder>),
+
+  // Upload FILE bukti transfer QRIS (base64) → { url }, dipakai sebelum
+  // submitProof di atas. Endpoint terpisah dari admin /uploads (itu butuh
+  // login staff) — lihat WebOrderService.uploadProof di backend.
+  uploadProof: (sessionToken: string, id: string, dataBase64: string, mime: string) =>
+    fetch(`${BASE}/order/${id}/proof-upload`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-session-token': sessionToken,
+        ...tenantHeaders(),
+      },
+      body: JSON.stringify({ sessionToken, dataBase64, mime }),
+    }).then(j<{ url: string }>),
 
   getStatus: (sessionToken: string, id: string) =>
     fetch(`${BASE}/order/${id}/status?sessionToken=${encodeURIComponent(sessionToken)}`, {

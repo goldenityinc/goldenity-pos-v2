@@ -9,7 +9,7 @@ export default function Menu() {
   const session = useStore((s) => s.session)!;
   const addLine = useStore((s) => s.addLine);
   const syncPaymentModes = useStore((s) => s.syncPaymentModes);
-  const syncTaxConfig = useStore((s) => s.syncTaxConfig);
+  const syncMenuConfig = useStore((s) => s.syncMenuConfig);
   const cartCount = useStore((s) => s.cartCount());
   const cartTotal = useStore((s) => s.cartTotal());
 
@@ -25,14 +25,16 @@ export default function Menu() {
       .then((m) => {
         setMenu(m);
         syncPaymentModes(m.paymentModes);
-        syncTaxConfig({
+        syncMenuConfig({
           taxEnabled: m.tenant.taxEnabled,
           taxRatePercentage: m.tenant.taxRatePercentage,
           pricesIncludeTax: m.tenant.pricesIncludeTax,
+          qrisImageUrl: m.tenant.qrisImageUrl,
+          isPaymentProofMandatory: m.tenant.isPaymentProofMandatory,
         });
       })
       .catch((e) => setErr(e.message));
-  }, [session.sessionToken, syncPaymentModes, syncTaxConfig]);
+  }, [session.sessionToken, syncPaymentModes, syncMenuConfig]);
 
   const filtered = useMemo(() => {
     if (!menu) return [];

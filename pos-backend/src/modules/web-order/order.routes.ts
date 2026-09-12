@@ -60,7 +60,15 @@ orderRoutes.post('/:webOrderId/paid', async (req: Request, res: Response) => {
   send(res, await WebOrderService.markPaid(tokenFrom(req), req.params.webOrderId));
 });
 
-// Customer upload bukti transfer QRIS ({ url } dari /api/v1/uploads).
+// Customer upload FILE bukti transfer QRIS (base64) → { url }. Endpoint
+// terpisah dari /api/v1/uploads (itu butuh JWT staff, customer cuma punya
+// sessionToken) — lihat WebOrderService.uploadProof.
+orderRoutes.post('/:webOrderId/proof-upload', async (req: Request, res: Response) => {
+  const publicBase = `${req.protocol}://${req.get('host')}`;
+  send(res, await WebOrderService.uploadProof(tokenFrom(req), req.params.webOrderId, req.body, publicBase));
+});
+
+// Customer upload bukti transfer QRIS ({ url } dari proof-upload di atas).
 orderRoutes.post('/:webOrderId/proof', async (req: Request, res: Response) => {
   send(res, await WebOrderService.submitProof(tokenFrom(req), req.params.webOrderId, req.body));
 });

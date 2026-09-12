@@ -1,10 +1,14 @@
 import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
 import { prisma } from '../../config/database';
 import { ok, fail, type ApiResponse, UserRole } from '../../config/types';
 import type { JwtAuthPayload } from '../../config/types';
 import { resolveEffectiveBranchFilter } from '../../utils/rbac';
 import { emitToBranch } from '../../realtime/socket';
+import { UPLOADS_DIR } from '../upload/upload.routes';
 import {
   computeOrderTotals,
   getTenantTaxConfig,
@@ -265,7 +269,14 @@ export class WebOrderService {
       }),
       prisma.tenant.findUnique({
         where: { id: tenantId },
-        select: { name: true, qrisImageUrl: true, taxEnabled: true, taxRatePercentage: true, pricesIncludeTax: true },
+        select: {
+          name: true,
+          qrisImageUrl: true,
+          taxEnabled: true,
+          taxRatePercentage: true,
+          pricesIncludeTax: true,
+          isPaymentProofMandatory: true,
+        },
       }),
     ]);
 
@@ -276,6 +287,7 @@ export class WebOrderService {
         taxEnabled: tenant?.taxEnabled === true,
         taxRatePercentage: Number(tenant?.taxRatePercentage ?? 11),
         pricesIncludeTax: tenant?.pricesIncludeTax === true,
+        isPaymentProofMandatory: tenant?.isPaymentProofMandatory === true,
       },
       categories,
       products: products.map((p) => ({
@@ -469,6 +481,76 @@ export class WebOrderService {
       data: { paymentStatus: 'PENDING_VERIFICATION' },
     });
     return ok({ paymentStatus: updated.paymentStatus, message: 'Menunggu verifikasi kasir.' });
+  }
+
+  /**
+   * Customer upload FILE bukti transfer QRIS (base64) → hasilkan URL.
+   * `/api/v1/uploads` (upload.routes.ts) butuh JWT staff — customer web order
+   * cuma punya sessionToken, jadi endpoint terpisah ini pakai
+   * `requireActiveSession` + validasi kepemilikan order yang sama seperti
+   * markPaid/submitProof, lalu simpan file dengan logic identik (base64,
+   * ekstensi dari mime, batas 6MB) ke folder uploads yang sama.
+   */
+  static async uploadProof(
+    sessionToken: string,
+    webOrderId: string,
+    raw: unknown,
+    publicBase: string,
+  ): Promise<ApiResponse<any>> {
+    const check = await WebOrderService.requireActiveSession(sessionToken);
+    if (!check.ok) return check.response;
+    const wo = await prisma.webOrder.findFirst({ where: { id: webOrderId, tableSessionId: check.session.id } });
+    if (!wo) return fail('Pesanan tidak ditemukan di sesi ini.', 'NOT_FOUND');
+    if (wo.paymentMethod !== 'QRIS_STATIC') return fail('Bukti transfer hanya untuk metode QRIS.');
+
+    const EXT_BY_MIME: Record<string, string> = {
+      'image/png': 'png',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/webp': 'webp',
+      'image/gif': 'gif',
+    };
+    const MAX_BYTES = 6 * 1024 * 1024;
+    const parsed = z
+      .object({
+        filename: z.string().trim().min(1).max(200).optional(),
+        mime: z.string().trim().optional(),
+        dataBase64: z.string().min(16, 'dataBase64 kosong / tidak valid'),
+      })
+      .safeParse(raw);
+    if (!parsed.success) return fail(`Payload: ${parsed.error.issues[0]?.message}`);
+    const { dataBase64, mime: mimeHint, filename } = parsed.data;
+
+    let mime = (mimeHint ?? '').toLowerCase();
+    let b64 = dataBase64;
+    const dataUriMatch = /^data:([a-z0-9.+/-]+);base64,(.*)$/is.exec(dataBase64);
+    if (dataUriMatch) {
+      mime = dataUriMatch[1].toLowerCase();
+      b64 = dataUriMatch[2];
+    }
+    const ext = EXT_BY_MIME[mime] ?? (filename ? path.extname(filename).replace('.', '').toLowerCase() : '');
+    if (!ext || !Object.values(EXT_BY_MIME).includes(ext)) {
+      return fail('Format gambar tidak didukung (hanya png / jpg / webp / gif).');
+    }
+    let buffer: Buffer;
+    try {
+      buffer = Buffer.from(b64, 'base64');
+    } catch {
+      return fail('dataBase64 gagal di-decode.');
+    }
+    if (buffer.byteLength === 0) return fail('File kosong.');
+    if (buffer.byteLength > MAX_BYTES) {
+      return fail(`Ukuran file ${(buffer.byteLength / 1024 / 1024).toFixed(1)}MB melebihi batas 6MB.`);
+    }
+
+    const name = `proof_${wo.tenantId}_${randomUUID()}.${ext}`;
+    try {
+      await fs.mkdir(UPLOADS_DIR, { recursive: true });
+      await fs.writeFile(path.join(UPLOADS_DIR, name), buffer);
+    } catch (e: any) {
+      return fail(`Gagal menyimpan file: ${e?.message ?? 'unknown'}`);
+    }
+    return ok({ url: `${publicBase}/uploads/${name}`, filename: name, bytes: buffer.byteLength, mime });
   }
 
   /** Customer upload bukti transfer QRIS (URL dari /api/v1/uploads). */
@@ -666,7 +748,14 @@ export class WebOrderService {
         data: {
           status: 'ACCEPTED',
           salesRecordId: sale.id,
-          paymentStatus: paymentMethod === 'CASH' ? wo.paymentStatus : 'PAID',
+          // BUG FIX: sebelumnya SELALU 'PAID' untuk metode non-CASH (QRIS) —
+          // artinya order QRIS langsung tercatat lunas begitu diterima
+          // (termasuk auto-accept), padahal customer belum tentu sudah scan &
+          // bayar sama sekali. "Diterima" (fulfillment/dapur) itu independen
+          // dari status pembayaran — QRIS harus tetap UNPAID sampai customer
+          // klik "Saya sudah bayar" (markPaid) → PENDING_VERIFICATION →
+          // dikonfirmasi kasir (submitProof/kasir review) → baru PAID.
+          paymentStatus: wo.paymentStatus,
         },
         include: webOrderInclude,
       });
