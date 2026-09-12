@@ -251,12 +251,15 @@ class WebOrderPrintService {
         footerText,
       ].join('\n'),
       paperWidthColumns: paperWidthMm >= 80 ? 48 : 32,
-      // BUG FIX: sebelumnya tidak diisi sama sekali → ReceiptData jatuh ke
-      // default `taxEnabled: true`, jadi baris "Pajak (PPn X%)" SELALU
-      // tercetak di struk web order walau tenant sudah matikan PPN di
-      // Pengaturan. Sekarang ikut config toko yang sama dipakai POS cart
-      // checkout (goldenity_payment_modal.dart _mapSaleToReceipt).
-      taxEnabled: _store?.taxEnabled ?? false,
+      // BUG FIX 2: taxEnabled sempat dibaca dari cache _store lokal
+      // (`_store?.taxEnabled`) — kalau fetch cache itu gagal/telat (mis.
+      // race condition saat auto-print), baris "Pajak" ikut hilang WALAU
+      // total pesanan ini sudah benar-benar dikenakan PPN (dihitung server
+      // saat submit, tersimpan di o.taxAmount — independen dari cache toko
+      // lokal). Sekarang deteksi langsung dari o.taxAmount pesanan ini
+      // sendiri — sama seperti pola yang sudah dipakai Riwayat Penjualan
+      // & Orders.tsx (pos-web-order), jauh lebih andal daripada cache.
+      taxEnabled: o.taxAmount > 0,
       taxRatePercentage: _store?.taxRatePercentage ?? 11,
       pricesIncludeTax: _store?.pricesIncludeTax ?? false,
     );
