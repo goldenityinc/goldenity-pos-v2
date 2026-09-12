@@ -433,7 +433,14 @@ class HardwareConnectionService {
       final lastAt = _lastPrintAtByTarget[targetKey];
       if (lastAt != null) {
         final elapsed = DateTime.now().difference(lastAt);
-        const minGap = Duration(milliseconds: 700);
+        // FIX: STATUS_HEAP_CORRUPTION (0xc0000374) teramati di ntdll.dll saat
+        // beberapa web order masuk berurutan cepat, masing-masing memicu 2
+        // print job (struk+dapur) ke printer USB fisik yang sama (semua slot
+        // Default/Dapur/Kasir sering dikonfigurasi ke 1 printer yang sama).
+        // Jeda lama diperbesar sebagai mitigasi — plugin printer USB pihak
+        // ketiga (flutter_pos_printer_platform_image_3) kemungkinan butuh
+        // waktu lebih untuk benar-benar melepas handle sebelum connect ulang.
+        const minGap = Duration(milliseconds: 1500);
         if (elapsed < minGap) {
           await Future<void>.delayed(minGap - elapsed);
         }
@@ -453,7 +460,7 @@ class HardwareConnectionService {
       if (!kIsWeb &&
           Platform.isWindows &&
           config.connectionType == ConnectionType.usb) {
-        await Future<void>.delayed(const Duration(milliseconds: 2500));
+        await Future<void>.delayed(const Duration(milliseconds: 4000));
       }
       onProgress?.call(1.0, 'Berhasil dikirim!');
     });
