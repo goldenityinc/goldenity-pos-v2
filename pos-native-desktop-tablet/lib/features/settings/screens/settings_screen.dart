@@ -19,6 +19,7 @@ import '../../../shared/widgets/goldenity_choice_chip.dart';
 import '../../../shared/widgets/goldenity_image_upload_field.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
+import '../../../shared/widgets/goldenity_section_card.dart';
 import '../../../shared/widgets/goldenity_toggle.dart';
 import '../../../core/models/branch_profile_extended.dart';
 import '../../../core/models/printer_config_profile.dart';
@@ -1402,237 +1403,223 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         children: [
           _buildOfflinePinCard(textTheme),
           const SizedBox(height: GoldenitySpacing.md),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(GoldenityRadius.md),
-              border: Border.all(color: GoldenityColors.border),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.02),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2))
+          GoldenitySectionCard(
+            icon: Icons.store_rounded,
+            iconColor: biz.base,
+            iconBackground: biz.light,
+            title: 'Informasi Toko',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  controller: _storeNameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Toko',
+                    hintText: 'Nama toko Anda',
+                  ),
+                  validator: (v) =>
+                      v!.trim().isEmpty ? 'Nama toko wajib diisi' : null,
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                // Logo + QRIS sejajar (2 kolom) — sesuai Figma.
+                LayoutBuilder(builder: (context, c) {
+                  final logo = GoldenityImageUploadField(
+                    label: 'Logo Toko',
+                    kind: 'logo',
+                    authToken: token,
+                    value: _storeLogoCtrl.text.trim().isEmpty
+                        ? null
+                        : _storeLogoCtrl.text.trim(),
+                    enabled: !_loading,
+                    helperText: 'PNG / JPG, maks 6MB. Tampil di header struk.',
+                    onChanged: (url) =>
+                        setState(() => _storeLogoCtrl.text = url ?? ''),
+                  );
+                  final qris = GoldenityImageUploadField(
+                    label: 'QRIS Statis',
+                    kind: 'qris',
+                    authToken: token,
+                    value: _storeQrisUrlCtrl.text.trim().isEmpty
+                        ? null
+                        : _storeQrisUrlCtrl.text.trim(),
+                    enabled: !_loading,
+                    helperText:
+                        'Ditampilkan saat pelanggan memilih bayar QRIS.',
+                    onChanged: (url) =>
+                        setState(() => _storeQrisUrlCtrl.text = url ?? ''),
+                  );
+                  if (c.maxWidth < 520) {
+                    return Column(children: [
+                      logo,
+                      const SizedBox(height: GoldenitySpacing.md),
+                      qris,
+                    ]);
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: logo),
+                      const SizedBox(width: GoldenitySpacing.md),
+                      Expanded(child: qris),
+                    ],
+                  );
+                }),
+                const SizedBox(height: GoldenitySpacing.md),
+                TextFormField(
+                  controller: _storeAddressCtrl,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Alamat Toko',
+                    hintText: 'Alamat lengkap toko',
+                  ),
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                TextFormField(
+                  controller: _storePhoneCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Nomor Telepon',
+                    hintText: '08xx-xxxx-xxxx',
+                  ),
+                ),
               ],
             ),
-            padding: const EdgeInsets.all(GoldenitySpacing.lg),
-            // Material transparan → SwitchListTile di dalam kartu tetap merender
-            // ink-ripple (hilangkan warning "ListTile ... may be invisible").
-            child: Material(
-              type: MaterialType.transparency,
-              child: Column(
+          ),
+          const SizedBox(height: GoldenitySpacing.md),
+          GoldenitySectionCard(
+            icon: Icons.receipt_long_rounded,
+            iconColor: biz.base,
+            iconBackground: biz.light,
+            title: 'Footer Struk',
+            child: LayoutBuilder(builder: (context, c) {
+              final field = TextFormField(
+                controller: _storeReceiptFooterCtrl,
+                maxLines: 4,
+                onChanged: (_) => setState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Teks Footer (tampil di bawah struk)',
+                  hintText: 'Terima kasih sudah berkunjung!',
+                  helperText:
+                      'Mendukung baris baru (Enter). Tampil di struk 58mm & 80mm.',
+                  helperMaxLines: 2,
+                ),
+              );
+              if (c.maxWidth < 560) {
+                return Column(children: [
+                  field,
+                  const SizedBox(height: GoldenitySpacing.md),
+                  _footerPreview(textTheme),
+                ]);
+              }
+              return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.store_rounded, color: biz.base),
-                      const SizedBox(width: GoldenitySpacing.sm),
-                      Text(
-                        'Informasi Toko',
-                        style: textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  TextFormField(
-                    controller: _storeNameCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Nama Toko',
-                      hintText: 'Nama toko Anda',
-                    ),
-                    validator: (v) =>
-                        v!.trim().isEmpty ? 'Nama toko wajib diisi' : null,
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  // Logo + QRIS sejajar (2 kolom) — sesuai Figma.
-                  LayoutBuilder(builder: (context, c) {
-                    final logo = GoldenityImageUploadField(
-                      label: 'Logo Toko',
-                      kind: 'logo',
-                      authToken: token,
-                      value: _storeLogoCtrl.text.trim().isEmpty
-                          ? null
-                          : _storeLogoCtrl.text.trim(),
-                      enabled: !_loading,
-                      helperText: 'PNG / JPG, maks 6MB. Tampil di header struk.',
-                      onChanged: (url) =>
-                          setState(() => _storeLogoCtrl.text = url ?? ''),
-                    );
-                    final qris = GoldenityImageUploadField(
-                      label: 'QRIS Statis',
-                      kind: 'qris',
-                      authToken: token,
-                      value: _storeQrisUrlCtrl.text.trim().isEmpty
-                          ? null
-                          : _storeQrisUrlCtrl.text.trim(),
-                      enabled: !_loading,
-                      helperText:
-                          'Ditampilkan saat pelanggan memilih bayar QRIS.',
-                      onChanged: (url) =>
-                          setState(() => _storeQrisUrlCtrl.text = url ?? ''),
-                    );
-                    if (c.maxWidth < 520) {
-                      return Column(children: [
-                        logo,
-                        const SizedBox(height: GoldenitySpacing.md),
-                        qris,
-                      ]);
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: logo),
-                        const SizedBox(width: GoldenitySpacing.md),
-                        Expanded(child: qris),
-                      ],
-                    );
-                  }),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  TextFormField(
-                    controller: _storeAddressCtrl,
-                    maxLines: 2,
-                    decoration: const InputDecoration(
-                      labelText: 'Alamat Toko',
-                      hintText: 'Alamat lengkap toko',
-                    ),
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  TextFormField(
-                    controller: _storePhoneCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Nomor Telepon',
-                      hintText: '08xx-xxxx-xxxx',
-                    ),
-                  ),
-                  const SizedBox(height: GoldenitySpacing.lg),
-                  // Footer Struk + pratinjau — sesuai Figma.
-                  Text('Footer Struk',
-                      style: textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  const SizedBox(height: GoldenitySpacing.sm),
-                  LayoutBuilder(builder: (context, c) {
-                    final field = TextFormField(
-                      controller: _storeReceiptFooterCtrl,
-                      maxLines: 4,
-                      onChanged: (_) => setState(() {}),
-                      decoration: const InputDecoration(
-                        labelText: 'Teks Footer (tampil di bawah struk)',
-                        hintText: 'Terima kasih sudah berkunjung!',
-                        helperText:
-                            'Mendukung baris baru (Enter). Tampil di struk 58mm & 80mm.',
-                        helperMaxLines: 2,
-                      ),
-                    );
-                    if (c.maxWidth < 560) {
-                      return Column(children: [
-                        field,
-                        const SizedBox(height: GoldenitySpacing.md),
-                        _footerPreview(textTheme),
-                      ]);
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(flex: 3, child: field),
-                        const SizedBox(width: GoldenitySpacing.md),
-                        Expanded(flex: 2, child: _footerPreview(textTheme)),
-                      ],
-                    );
-                  }),
-                  const SizedBox(height: GoldenitySpacing.lg),
-                  const Divider(),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  // ═══ Metode Pembayaran Web Order (1 toggle, per-cabang) ═══
-                  _webOrderPaymentSection(textTheme, biz),
-                  const SizedBox(height: GoldenitySpacing.lg),
-                  const Divider(),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  _settingToggleRow(
-                    textTheme,
-                    biz,
-                    title: 'Bukti Pembayaran Wajib',
-                    subtitle:
-                        'Jika aktif, pelanggan wajib upload foto bukti pembayaran QRIS di web order sebelum pesanan dikonfirmasi. Jika nonaktif, bukti bersifat opsional.',
-                    value: _storeIsPaymentProofMandatory,
-                    onChanged: _loading
-                        ? null
-                        : (v) =>
-                            setState(() => _storeIsPaymentProofMandatory = v),
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  _settingToggleRow(
-                    textTheme,
-                    biz,
-                    title: 'Blind Close Shift Kasir',
-                    subtitle:
-                        'Jika aktif, kasir tidak melihat ekspektasi uang sistem & selisih saat buka/tutup shift. Ekspektasi baru ditampilkan setelah kasir memasukkan jumlah aktual.',
-                    value: _blindShiftClose,
-                    locked: !_canEditOwnerSettings,
-                    onChanged: (!_canEditOwnerSettings || _loading)
-                        ? null
-                        : (v) => setState(() => _blindShiftClose = v),
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  _settingToggleRow(
-                    textTheme,
-                    biz,
-                    title: 'Aktifkan Pajak (PPN)',
-                    subtitle: _taxEnabled
-                        ? 'Transaksi dikenakan pajak sesuai persentase di bawah.'
-                        : 'Pajak dinonaktifkan — harga produk dianggap sudah final.',
-                    value: _taxEnabled,
-                    locked: !_canEditOwnerSettings,
-                    onChanged: (!_canEditOwnerSettings || _loading)
-                        ? null
-                        : (v) => setState(() => _taxEnabled = v),
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  TextFormField(
-                    decoration: const InputDecoration(
-                      labelText: 'Persentase PPN (%)',
-                      suffixText: '%',
-                      helperText: 'Default 11% (standar PPN UMKM F&B)',
-                    ),
-                    enabled: _canEditOwnerSettings && _taxEnabled && !_loading,
-                    keyboardType: TextInputType.number,
-                    initialValue: _taxRatePercentage.toString(),
-                    onChanged: (s) {
-                      final n = num.tryParse(s);
-                      if (n != null) {
-                        setState(() => _taxRatePercentage = n.clamp(0, 100));
-                      }
-                    },
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(3)
-                    ],
-                  ),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  _settingToggleRow(
-                    textTheme,
-                    biz,
-                    title: 'Harga Sudah Termasuk PPN',
-                    subtitle:
-                        'ON: harga jual produk sudah termasuk pajak (dihitung mundur). OFF: PPN ditambahkan di atas subtotal.',
-                    value: _pricesIncludeTax,
-                    locked: !_canEditOwnerSettings,
-                    onChanged: (!_canEditOwnerSettings || !_taxEnabled || _loading)
-                        ? null
-                        : (v) => setState(() => _pricesIncludeTax = v),
-                  ),
-                  const SizedBox(height: GoldenitySpacing.xl),
-                  SizedBox(
-                    width: double.infinity,
-                    child: GoldenityPrimaryButton(
-                      onPressed: _loading ? null : _updateStore,
-                      label: 'Simpan Pengaturan',
-                      icon: Icons.save_rounded,
-                      backgroundColor: biz.base,
-                      height: 48,
-                    ),
-                  ),
+                  Expanded(flex: 3, child: field),
+                  const SizedBox(width: GoldenitySpacing.md),
+                  Expanded(flex: 2, child: _footerPreview(textTheme)),
                 ],
-              ),
+              );
+            }),
+          ),
+          const SizedBox(height: GoldenitySpacing.md),
+          // Header sendiri sudah ada di dalam _webOrderPaymentSection —
+          // kartu ini polos (tanpa title) supaya tidak dobel header.
+          GoldenitySectionCard(
+            child: _webOrderPaymentSection(textTheme, biz),
+          ),
+          const SizedBox(height: GoldenitySpacing.md),
+          GoldenitySectionCard(
+            icon: Icons.tune_rounded,
+            iconColor: biz.base,
+            iconBackground: biz.light,
+            title: 'Preferensi Transaksi',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _settingToggleRow(
+                  textTheme,
+                  biz,
+                  title: 'Bukti Pembayaran Wajib',
+                  subtitle:
+                      'Jika aktif, pelanggan wajib upload foto bukti pembayaran QRIS di web order sebelum pesanan dikonfirmasi. Jika nonaktif, bukti bersifat opsional.',
+                  value: _storeIsPaymentProofMandatory,
+                  onChanged: _loading
+                      ? null
+                      : (v) =>
+                          setState(() => _storeIsPaymentProofMandatory = v),
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                _settingToggleRow(
+                  textTheme,
+                  biz,
+                  title: 'Blind Close Shift Kasir',
+                  subtitle:
+                      'Jika aktif, kasir tidak melihat ekspektasi uang sistem & selisih saat buka/tutup shift. Ekspektasi baru ditampilkan setelah kasir memasukkan jumlah aktual.',
+                  value: _blindShiftClose,
+                  locked: !_canEditOwnerSettings,
+                  onChanged: (!_canEditOwnerSettings || _loading)
+                      ? null
+                      : (v) => setState(() => _blindShiftClose = v),
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                _settingToggleRow(
+                  textTheme,
+                  biz,
+                  title: 'Aktifkan Pajak (PPN)',
+                  subtitle: _taxEnabled
+                      ? 'Transaksi dikenakan pajak sesuai persentase di bawah.'
+                      : 'Pajak dinonaktifkan — harga produk dianggap sudah final.',
+                  value: _taxEnabled,
+                  locked: !_canEditOwnerSettings,
+                  onChanged: (!_canEditOwnerSettings || _loading)
+                      ? null
+                      : (v) => setState(() => _taxEnabled = v),
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                TextFormField(
+                  decoration: const InputDecoration(
+                    labelText: 'Persentase PPN (%)',
+                    suffixText: '%',
+                    helperText: 'Default 11% (standar PPN UMKM F&B)',
+                  ),
+                  enabled: _canEditOwnerSettings && _taxEnabled && !_loading,
+                  keyboardType: TextInputType.number,
+                  initialValue: _taxRatePercentage.toString(),
+                  onChanged: (s) {
+                    final n = num.tryParse(s);
+                    if (n != null) {
+                      setState(() => _taxRatePercentage = n.clamp(0, 100));
+                    }
+                  },
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(3)
+                  ],
+                ),
+                const SizedBox(height: GoldenitySpacing.md),
+                _settingToggleRow(
+                  textTheme,
+                  biz,
+                  title: 'Harga Sudah Termasuk PPN',
+                  subtitle:
+                      'ON: harga jual produk sudah termasuk pajak (dihitung mundur). OFF: PPN ditambahkan di atas subtotal.',
+                  value: _pricesIncludeTax,
+                  locked: !_canEditOwnerSettings,
+                  onChanged: (!_canEditOwnerSettings || !_taxEnabled || _loading)
+                      ? null
+                      : (v) => setState(() => _pricesIncludeTax = v),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: GoldenitySpacing.lg),
+          SizedBox(
+            width: double.infinity,
+            child: GoldenityPrimaryButton(
+              onPressed: _loading ? null : _updateStore,
+              label: 'Simpan Pengaturan',
+              icon: Icons.save_rounded,
+              backgroundColor: biz.base,
+              height: 48,
             ),
           ),
         ],
