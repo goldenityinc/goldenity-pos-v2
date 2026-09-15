@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/config/api_constants.dart';
@@ -44,6 +45,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   final Map<PrinterSlotDto, List<HardwareDeviceInfo>> _scannedDevices = {};
   final Map<PrinterSlotDto, bool> _scanning = {};
   final Map<PrinterSlotDto, String> _scanMsg = {};
+  // FIX (temuan Andre — ported dari V1 `printer_settings_screen.dart`): tombol
+  // "Test Print" per slot supaya kasir bisa cek koneksi (Bluetooth/USB/WiFi)
+  // + cash drawer langsung dari halaman Pengaturan, sebelum benar-benar
+  // checkout. Test pakai setting yang SEDANG diketik di form (belum tentu
+  // sudah di-Simpan) supaya bisa dicoba dulu sebelum commit.
+  final Map<PrinterSlotDto, bool> _testingPrint = {};
 
   late TabController _tabController;
 
@@ -1213,6 +1220,138 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       });
     } finally {
       if (mounted) setState(() => _scanning[slot] = false);
+    }
+  }
+
+  /// Build a [HardwareConnectionConfig] from whatever is CURRENTLY typed in
+  /// the slot's form (address/port/isBle/connType) — not the last-Saved
+  /// profile — so "Test Print" can verify a connection before committing it.
+  HardwareConnectionConfig? _buildLiveHwConfig(PrinterSlotDto slot) {
+    final connType = _printerConnTypes[slot] ?? PrinterConnectionTypeDto.none;
+    final hwType = switch (connType) {
+      PrinterConnectionTypeDto.bluetooth => ConnectionType.bluetooth,
+      PrinterConnectionTypeDto.usb => ConnectionType.usb,
+      PrinterConnectionTypeDto.network => ConnectionType.network,
+      _ => ConnectionType.none,
+    };
+    if (hwType == ConnectionType.none) return null;
+    final addr = (_printerAddressCtrls[slot]?.text ?? '').trim();
+    if (addr.isEmpty) return null;
+    final isNetwork = hwType == ConnectionType.network;
+    final isUsb = hwType == ConnectionType.usb;
+    String usbName = '';
+    String vid = '';
+    String pid = '';
+    if (isUsb) {
+      final parts = addr.split('|');
+      if (parts.length >= 3) {
+        usbName = parts[0].trim();
+        vid = parts[1].trim();
+        pid = parts[2].trim();
+      } else {
+        usbName = addr;
+      }
+    }
+    final portRaw = _printerPortCtrls[slot]?.text.trim();
+    final port =
+        portRaw != null && portRaw.isNotEmpty ? int.tryParse(portRaw) : null;
+    return HardwareConnectionConfig(
+      connectionType: hwType,
+      deviceName: isUsb ? usbName : '',
+      deviceAddress: isNetwork ? '' : addr,
+      vendorId: vid,
+      productId: pid,
+      isBle: _printerIsBle[slot] ?? false,
+      networkIp: isNetwork ? addr : '',
+      networkPort: isNetwork && port != null && port > 0 ? port : 9100,
+    );
+  }
+
+  /// Small ESC/POS test pattern — ported from V1
+  /// (`bluetooth_printer_service.dart printTestReceipt`). Appends the cash
+  /// drawer kick command too when "Otomatis Buka Cash Drawer" is ON for this
+  /// slot, so one test also verifies the drawer wiring.
+  List<int> _buildTestPrintBytes(PrinterSlotDto slot) {
+    final now = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    final connType = _printerConnTypes[slot] ?? PrinterConnectionTypeDto.none;
+    final addr = (_printerAddressCtrls[slot]?.text ?? '').trim();
+    final ascii = <int>[];
+    void addLine(String text) {
+      for (final ch in text.runes) {
+        ascii.add(ch < 128 ? ch : 63); // non-ASCII -> '?'
+      }
+      ascii.add(10); // LF
+    }
+
+    ascii.addAll([0x1B, 0x40]); // ESC @ — init
+    ascii.addAll([0x1B, 0x61, 0x01]); // ESC a 1 — center align
+    addLine('*** TEST PRINT ***');
+    addLine('Goldenity POS');
+    addLine(now);
+    ascii.addAll([0x1B, 0x61, 0x00]); // ESC a 0 — left align
+    addLine('Slot: ${_slotLabel(slot)}');
+    addLine('Koneksi: ${_connTypeLabel(connType)}');
+    if (addr.isNotEmpty) addLine('Alamat: $addr');
+    addLine('------------------------');
+    addLine('Printer terhubung dan OK!');
+    ascii.addAll([0x0A, 0x0A]); // feed
+    if (_printerAutoOpenDrawer[slot] == true) {
+      addLine('(Mencoba buka cash drawer...)');
+      ascii.addAll(_hwSvc.buildOpenCashDrawerBytes());
+    }
+    ascii.addAll([0x0A]);
+    ascii.addAll([0x1B, 0x69]); // ESC i — cut (if supported)
+    return ascii;
+  }
+
+  Future<void> _runTestPrint(PrinterSlotDto slot) async {
+    if (_testingPrint[slot] == true) return;
+    final config = _buildLiveHwConfig(slot);
+    if (config == null || !config.isConfigured) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: GoldenityColors.warning,
+            content: Text(
+              'Lengkapi tipe koneksi & alamat printer dulu sebelum test print.',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    setState(() => _testingPrint[slot] = true);
+    try {
+      await _hwSvc
+          .sendRawBytes(config, _buildTestPrintBytes(slot))
+          .timeout(const Duration(seconds: 15));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: GoldenityColors.success,
+            content: Text(
+              '✅ Test print terkirim. Cek kertas pada printer'
+              ' (dan cash drawer jika toggle aktif).',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: GoldenityColors.error,
+            content: Text(
+              'Test print gagal: ${e.toString().replaceAll('Exception: ', '')}',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _testingPrint[slot] = false);
     }
   }
 
@@ -2867,6 +3006,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         isBle: _printerIsBle[slot] ?? false,
                         onIsBleChanged: (v) =>
                             setState(() => _printerIsBle[slot] = v),
+                        testingPrint: _testingPrint[slot] ?? false,
+                        onTestPrint:
+                            _loading ? null : () => _runTestPrint(slot),
                         onSave: _loading ? null : () => _upsertPrinter(slot),
                         scanning: _scanning[slot] ?? false,
                         scanMsg: _scanMsg[slot] ?? '',
@@ -2902,6 +3044,8 @@ class _PrinterSlotCard extends StatelessWidget {
   final ValueChanged<bool> onAutoOpenCashDrawerChanged;
   final bool isBle;
   final ValueChanged<bool> onIsBleChanged;
+  final bool testingPrint;
+  final VoidCallback? onTestPrint;
   final VoidCallback? onSave;
   final bool scanning;
   final String scanMsg;
@@ -2925,6 +3069,8 @@ class _PrinterSlotCard extends StatelessWidget {
     required this.onAutoOpenCashDrawerChanged,
     required this.isBle,
     required this.onIsBleChanged,
+    required this.testingPrint,
+    required this.onTestPrint,
     required this.onSave,
     required this.scanning,
     required this.scanMsg,
@@ -3216,6 +3362,40 @@ class _PrinterSlotCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: GoldenitySpacing.md),
+          // FIX (temuan Andre — ported dari V1): tombol Test Print supaya
+          // koneksi Bluetooth/USB/WiFi (+ cash drawer bila togglenya aktif)
+          // bisa dicek langsung dari sini, sebelum checkout sungguhan.
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: OutlinedButton.icon(
+              onPressed:
+                  connType == PrinterConnectionTypeDto.none ? null : onTestPrint,
+              icon: testingPrint
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.receipt_long_outlined, size: 18),
+              label: Text(
+                testingPrint
+                    ? 'Mengirim Test Print...'
+                    : autoOpenCashDrawer
+                        ? 'Test Print + Cash Drawer'
+                        : 'Test Print',
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: biz.base,
+                side: BorderSide(color: biz.base),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: GoldenitySpacing.sm),
           GoldenityPrimaryButton(
             label: 'Simpan Slot $slotLabel',
             icon: Icons.save_rounded,
