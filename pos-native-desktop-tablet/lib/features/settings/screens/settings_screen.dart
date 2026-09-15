@@ -86,6 +86,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   // Ported dari V1 (AppConfigService.autoOpenCashDrawer) — per slot printer,
   // sama pola dgn _printerPaperWidths di atas.
   final Map<PrinterSlotDto, bool> _printerAutoOpenDrawer = {};
+  // FIX (temuan Andre): printer thermal dual-mode (mis. RPP02N_BLE) muncul di
+  // scan classic (bondedDevices) tapi RFCOMM classic-nya tidak stabil untuk
+  // print ("Bluetooth connection lost") — perlu paksa BLE. Tidak ada kolom BE
+  // untuk ini, jadi di-encode sebagai suffix `|ble` pada address (pola sama
+  // dengan encoding USB `nama|vid|pid`), di-parse balik oleh
+  // _convertPrinterProfileToHwConfig / _toHwConfig.
+  final Map<PrinterSlotDto, bool> _printerIsBle = {};
 
   // Perangkat (multi-device)
   List<DeviceInfo> _devices = [];
@@ -931,6 +938,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       if (!_printerAutoOpenDrawer.containsKey(slot)) {
         _printerAutoOpenDrawer[slot] = false;
       }
+      if (!_printerIsBle.containsKey(slot)) {
+        _printerIsBle[slot] = false;
+      }
     }
   }
 
@@ -949,10 +959,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         for (final slot in PrinterSlotDto.values) {
           _printerPaperWidths[slot] = 58;
           _printerAutoOpenDrawer[slot] = false;
+          _printerIsBle[slot] = false;
         }
         for (final p in list) {
           _printerConnTypes[p.slot] = p.connectionType;
-          _printerAddressCtrls[p.slot]?.text = p.address ?? '';
+          var addr = p.address ?? '';
+          final isBle = p.connectionType == PrinterConnectionTypeDto.bluetooth &&
+              addr.toLowerCase().endsWith('|ble');
+          if (isBle) {
+            addr = addr.substring(0, addr.length - '|ble'.length).trim();
+          }
+          _printerAddressCtrls[p.slot]?.text = addr;
+          _printerIsBle[p.slot] = isBle;
           _printerPortCtrls[p.slot]?.text = p.port != null ? '${p.port}' : '';
           // Issue #2 — ukuran kertas sekarang kolom nyata di PrinterConfig BE.
           _printerPaperWidths[p.slot] = p.paperWidth;
@@ -982,7 +1000,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       if (token == null) throw Exception('Sesi tidak ditemukan');
       final settingsApi = ref.read(settingsApiServiceProvider);
       final connType = _printerConnTypes[slot] ?? PrinterConnectionTypeDto.none;
-      final address = _printerAddressCtrls[slot]?.text.trim();
+      var address = _printerAddressCtrls[slot]?.text.trim();
+      if (connType == PrinterConnectionTypeDto.bluetooth &&
+          (_printerIsBle[slot] ?? false) &&
+          address != null &&
+          address.isNotEmpty) {
+        address = '$address|ble';
+      }
       final portRaw = _printerPortCtrls[slot]?.text.trim();
       final port =
           portRaw != null && portRaw.isNotEmpty ? int.tryParse(portRaw) : null;
@@ -1196,6 +1220,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     setState(() {
       if (d.connectionType == ConnectionType.bluetooth) {
         _printerConnTypes[slot] = PrinterConnectionTypeDto.bluetooth;
+        // Scan classic (bondedDevices) selalu isBle=false — kalau printer
+        // ternyata dual-mode/BLE-only, user aktifkan toggle "Sambungkan via
+        // BLE" manual di bawah setelah pilih perangkat.
+        _printerIsBle[slot] = false;
       } else if (d.connectionType == ConnectionType.usb) {
         _printerConnTypes[slot] = PrinterConnectionTypeDto.usb;
       }
@@ -2836,6 +2864,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                         autoOpenCashDrawer: _printerAutoOpenDrawer[slot] ?? false,
                         onAutoOpenCashDrawerChanged: (v) =>
                             setState(() => _printerAutoOpenDrawer[slot] = v),
+                        isBle: _printerIsBle[slot] ?? false,
+                        onIsBleChanged: (v) =>
+                            setState(() => _printerIsBle[slot] = v),
                         onSave: _loading ? null : () => _upsertPrinter(slot),
                         scanning: _scanning[slot] ?? false,
                         scanMsg: _scanMsg[slot] ?? '',
@@ -2869,6 +2900,8 @@ class _PrinterSlotCard extends StatelessWidget {
   final ValueChanged<int> onPaperWidthChanged;
   final bool autoOpenCashDrawer;
   final ValueChanged<bool> onAutoOpenCashDrawerChanged;
+  final bool isBle;
+  final ValueChanged<bool> onIsBleChanged;
   final VoidCallback? onSave;
   final bool scanning;
   final String scanMsg;
@@ -2890,6 +2923,8 @@ class _PrinterSlotCard extends StatelessWidget {
     required this.onPaperWidthChanged,
     required this.autoOpenCashDrawer,
     required this.onAutoOpenCashDrawerChanged,
+    required this.isBle,
+    required this.onIsBleChanged,
     required this.onSave,
     required this.scanning,
     required this.scanMsg,
@@ -3000,6 +3035,22 @@ class _PrinterSlotCard extends StatelessWidget {
             title: 'Otomatis Buka Cash Drawer',
             subtitle: 'Buka laci kasir otomatis setiap transaksi tunai selesai dicetak.',
           ),
+          if (connType == PrinterConnectionTypeDto.bluetooth) ...[
+            const SizedBox(height: GoldenitySpacing.md),
+            // FIX (temuan Andre): printer dual-mode (mis. nama berakhiran
+            // "_BLE" seperti RPP02N_BLE) kadang muncul di scan tapi gagal
+            // print via Bluetooth classic ("Bluetooth connection lost").
+            // Aktifkan toggle ini supaya app konek pakai BLE, bukan RFCOMM.
+            GoldenitySwitchRow(
+              value: isBle,
+              onChanged: onIsBleChanged,
+              activeColor: biz.base,
+              title: 'Sambungkan via BLE',
+              subtitle:
+                  'Aktifkan jika printer gagal print / muncul "Bluetooth connection lost" '
+                  'walau sudah terdeteksi (umum untuk printer bernama "..._BLE").',
+            ),
+          ],
           const SizedBox(height: GoldenitySpacing.md),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,

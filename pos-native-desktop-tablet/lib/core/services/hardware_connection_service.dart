@@ -353,6 +353,16 @@ class HardwareConnectionService {
   <String, DateTime>{};
   static bool includeLogoInThermalReceipt = false;
 
+  /// FIX (temuan Andre — test print RPP02N_BLE): native Android plugin
+  /// `flutter_pos_printer_platform_image_3` (`sendDataByte`) meng-cast
+  /// argumen "bytes" langsung ke `ArrayList<Int>`. Kalau yang dikirim adalah
+  /// `Uint8List` (typed byte buffer — hasil generator ESC/POS), platform
+  /// channel meng-encode-nya sebagai `byte[]` native, bukan ArrayList,
+  /// sehingga `ClassCastException` & print gagal walau koneksi (BLE/classic)
+  /// sudah STATE_CONNECTED. Konversi ke `List<int>` polos dulu sebelum kirim.
+  static List<int> _plainByteList(List<int> src) =>
+      src is Uint8List ? List<int>.from(src) : src;
+
   Future<List<HardwareDeviceInfo>> discoverDevices(
       ConnectionType type, {
         bool isBle = false,
@@ -895,7 +905,7 @@ class HardwareConnectionService {
         final interChunkDelayMs = overrideInterChunkDelayMs ?? 50;
 
         if (payload.length <= chunkSize) {
-          sent = await _printerManager.send(type: printerType, bytes: payload);
+          sent = await _printerManager.send(type: printerType, bytes: _plainByteList(payload));
           debugPrint('[hw ${config.connectionType.name}] send ${payload.length}B (single) -> $sent');
           if (!sent) {
             throw Exception('Data print tidak terkirim ke perangkat.');
@@ -908,7 +918,7 @@ class HardwareConnectionService {
               ? offset + chunkSize
               : payload.length;
           final chunk = payload.sublist(offset, end);
-          sent = await _printerManager.send(type: printerType, bytes: chunk);
+          sent = await _printerManager.send(type: printerType, bytes: _plainByteList(chunk));
           debugPrint('[hw ${config.connectionType.name}] send chunk ${offset ~/ chunkSize + 1} ${chunk.length}B -> $sent');
           if (!sent) {
             throw Exception(
@@ -961,7 +971,7 @@ class HardwareConnectionService {
       debugPrint('[hw ${config.connectionType.name}] dispatch ${bytes.length}B '
           'img=$containsImageCommand winUsb=$isWindowsUsb');
       if (containsImageCommand) {
-        sent = await _printerManager.send(type: printerType, bytes: bytes);
+        sent = await _printerManager.send(type: printerType, bytes: _plainByteList(bytes));
         if (!sent) {
           throw Exception('Data print tidak terkirim ke perangkat.');
         }
@@ -970,7 +980,7 @@ class HardwareConnectionService {
         // Windows USB = RAW job lewat spooler. Kirim SATU dokumen utuh —
         // `EndDocPrinter` yang jamin flush. Memecah jadi banyak chunk =
         // banyak job kecil → printer thermal cetak terpotong-potong.
-        sent = await _printerManager.send(type: printerType, bytes: bytes);
+        sent = await _printerManager.send(type: printerType, bytes: _plainByteList(bytes));
         debugPrint('[hw usb] send ${bytes.length}B (whole win-usb) -> $sent');
         if (!sent) {
           // fallback: sebagian printer USB Windows rewel utk payload besar —
@@ -980,7 +990,7 @@ class HardwareConnectionService {
         }
       } else if (bytes.length <=
           (config.connectionType == ConnectionType.usb ? 512 : 1024)) {
-        sent = await _printerManager.send(type: printerType, bytes: bytes);
+        sent = await _printerManager.send(type: printerType, bytes: _plainByteList(bytes));
         debugPrint('[hw ${config.connectionType.name}] send ${bytes.length}B (whole) -> $sent');
         if (!sent) {
           throw Exception('Data print tidak terkirim ke perangkat.');

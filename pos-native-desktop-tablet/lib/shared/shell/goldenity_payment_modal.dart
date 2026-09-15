@@ -243,9 +243,10 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
       PrinterConnectionTypeDto.network => ConnectionType.network,
       _ => ConnectionType.none,
     };
-    final String addr = (p.address ?? '').trim();
+    var addr = (p.address ?? '').trim();
     final bool isNetwork = hwType == ConnectionType.network;
     final bool isUsb = hwType == ConnectionType.usb;
+    final bool isBluetooth = hwType == ConnectionType.bluetooth;
     String usbName = '';
     String vid = '';
     String pid = '';
@@ -259,12 +260,21 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
         usbName = addr;
       }
     }
+    // FIX (temuan Andre): printer Bluetooth dual-mode (mis. RPP02N_BLE) —
+    // suffix `|ble` diset dari Pengaturan saat toggle "Sambungkan via BLE"
+    // aktif, karena PrinterConfigProfile belum punya kolom isBle sendiri.
+    bool isBle = false;
+    if (isBluetooth && addr.toLowerCase().endsWith('|ble')) {
+      addr = addr.substring(0, addr.length - '|ble'.length).trim();
+      isBle = true;
+    }
     return HardwareConnectionConfig(
       connectionType: hwType,
       deviceName: isUsb ? usbName : '',
       deviceAddress: isNetwork ? '' : addr,
       vendorId: vid,
       productId: pid,
+      isBle: isBle,
       networkIp: isNetwork ? addr : '',
       networkPort: isNetwork && p.port != null && p.port! > 0 ? p.port! : 9100,
     );

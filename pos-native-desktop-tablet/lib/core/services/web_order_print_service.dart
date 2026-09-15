@@ -320,9 +320,10 @@ class WebOrderPrintService {
       PrinterConnectionTypeDto.network => ConnectionType.network,
       _ => ConnectionType.none,
     };
-    final addr = (p.address ?? '').trim();
+    var addr = (p.address ?? '').trim();
     final isNet = t == ConnectionType.network;
     final isUsb = t == ConnectionType.usb;
+    final isBluetooth = t == ConnectionType.bluetooth;
     String usbName = '', vid = '', pid = '';
     if (isUsb && addr.isNotEmpty) {
       final parts = addr.split('|');
@@ -334,12 +335,21 @@ class WebOrderPrintService {
         usbName = addr;
       }
     }
+    // FIX (temuan Andre): printer Bluetooth dual-mode (mis. RPP02N_BLE) —
+    // suffix `|ble` diset dari Pengaturan saat toggle "Sambungkan via BLE"
+    // aktif, karena PrinterConfigProfile belum punya kolom isBle sendiri.
+    bool isBle = false;
+    if (isBluetooth && addr.toLowerCase().endsWith('|ble')) {
+      addr = addr.substring(0, addr.length - '|ble'.length).trim();
+      isBle = true;
+    }
     return HardwareConnectionConfig(
       connectionType: t,
       deviceName: isUsb ? usbName : '',
       deviceAddress: isNet ? '' : addr,
       vendorId: vid,
       productId: pid,
+      isBle: isBle,
       networkIp: isNet ? addr : '',
       networkPort: isNet && (p.port ?? 0) > 0 ? p.port! : 9100,
     );

@@ -59,13 +59,11 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
-        // iWare 32-bit ARM POS hardware prioritized: force armeabi-v7a to be
-        // included in all installer.apk outputs (older Mediatek / Allwinner
-        // boards ship with 32-bit BSPs even on 64-bit SoC) while still
-        // supporting modern arm64 and x86_64 for mobile/tablets.
-        ndk {
-            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
-        }
+        // iWare 32-bit ARM POS hardware prioritized: armeabi-v7a is kept in
+        // `splits.abi.include` below (older Mediatek / Allwinner boards ship
+        // with 32-bit BSPs even on 64-bit SoC) alongside arm64 and x86_64 for
+        // modern mobile/tablets. AGP rejects setting ndk.abiFilters at the
+        // same time as splits.abi, so the ABI list lives in splits only.
     }
 
     splits {

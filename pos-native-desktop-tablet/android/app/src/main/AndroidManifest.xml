@@ -7,7 +7,11 @@
 <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
 <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />
 <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+<!-- Tanpa maxSdkVersion: flutter_pos_printer_platform_image_3 (v1.2.4) mewajibkan
+     ACCESS_FINE_LOCATION di semua versi Android saat cek izin sebelum scan Bluetooth,
+     walau BLUETOOTH_SCAN di atas sudah pakai flag neverForLocation. Tanpa baris ini,
+     scan printer Bluetooth selalu gagal diam-diam (0 perangkat) di Android 12+. -->
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
@@ -57,7 +61,7 @@
             android:exported="false" />
         <!-- Auto-start foreground service SETELAH BOOT COMPLETED (jika toggle ON di SharedPreferences) -->
         <receiver
-            android:name="com.pravera.flutter_foreground_task.receiver.BootReceiver"
+            android:name="com.pravera.flutter_foreground_task.service.RebootReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
