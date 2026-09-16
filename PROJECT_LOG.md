@@ -1,5 +1,65 @@
 # 📜 PROJECT LOG — Goldenity POS V2 (Rebuild, Fase 1)
 
+## [2026-09-16] Pemisahan 2 Project Flutter Terpisah: pos-native-mobile (APK Android Shell 5-tab) + pos-native-desktop-tablet (EXE Windows Shell Sidebar 11-tab)
+
+> **Architectural Decision — Andre Locked (Opsi B):** 2 Flutter projects BERPISAH FISIK, BUKAN single codebase breakpoint switch (Opsi A rename) BUKAN monorepo Melos (Opsi C nanti bulan depan). Tradeoff disadari penuh: business logic (cart/auth/printer/webOrder/inventory CRUD) TERDUPLIKASI 2 codebase → fix bug / fitur baru shared harus di-commit 2x manual per project.
+
+### (A) Latar belakang why pisah
+- Folder `pos-native-mobile/` disiapkan Andre sejak 02-Sep sebagai project Android dedicated, tapi commit `4bc7420` tidak menyadari folder ini ada dan malah implementasi Mobile Shell V2 (10 task P0-P9) DI DALAM `pos-native-desktop-tablet/` sebagai 1 codebase adaptive breakpoint-switch UI Mode 3 Card Otomatis/Tablet/HP.
+- Andre konfirmasi langsung: Mobile APK TERSEPISAH permanen bukan mode app dalam sama.
+- Risiko insiden PROJECT_LOG.md di commit `4bc7420` (7451 baris terhapus → restore full commit `17940b2` oleh Klaude) juga menjadi alasan prefer arsitektur sederhana masing-masing project satu shell tunggal tanpa cabang layout runtime complexity.
+
+### (B) Tabel Aksi Pemisahan (Fork → Identity → Mobile Cut → Desktop Revert → Docs)
+| Phase # | Scope | Aksi Detail | Status |
+|---|---|---|---|
+| PHASE A | FORK IDENTITY | Full copy `pos-native-desktop-tablet/*` → `pos-native-mobile/` exclude folder `windows/`. Fix nested android/android bug path. Security delete 4 files sensitif (goldenity-pos-release.jks, key.properties, local.properties, iml) — TIDAK BOLEH share signing key 2 app. Ubah identity: pubspec `name: goldenity_pos_mobile`, android app/build.gradle.kts `applicationId = com.goldenity.pos.mobile`. Template keystore readme mobile dibuat di `pos-native-mobile/android/KEYSTORE_README_MOBILE.txt` (generate JKS actual Andre manual di `E:\Goldenity\_keystores\` LUAR REPO). | ✅ DONE |
+| PHASE B | MOBILE SHELL ONLY (cut breakpoint machinery) | Hapus `lib/shared/shell/goldenity_app_shell.dart` (shell adaptive). Copy exact Consumer watch logic 3 value providers (auth session / selected branch / webOrderBadge count) dari shell parent lama ke 2 tempat wrapper main.dart MaterialApp home (branches empty + pin pass). Inject constructor value persis sama ke `GoldenityMobileShell` TANPA placeholder 0. Hapus section UI Mode 3 Card di settings_screen.dart state+function+widget+injection 4 blok (commit 4bc7420 tambahan). Cleanup hygiene delete file `goldenity_breakpoint.dart` + constant `StorageKeys.uiModeOverride`. | ✅ DONE. Analyze: 0 lint 2.4s |
+| PHASE C | DESKTOP REVERT BERSIH (tablet baseline) | `git checkout 1b779af -- <7 files exact>` shell parent app_shell.dart + 6 screens (product list/builder/manage | sales history | settings | web orders) — GOLD STANDARD revert 100% karakter persis tanpa edit manual. DELETE 2 mobile-only files permanen dari desktop: `goldenity_mobile_shell.dart` (shared/shell) + `profile_mobile_screen.dart` + folder profile. Diff vs baseline `1b779af` POS-NATIVE-DESKTOP-TABLET/lib = HANYA 3 files: storage_keys (baris 3 non-urgent) + breakpoint ext (baris 7 non-urgent) + `printer_slot_card.dart` public extraction REFACOR VALID DIPERTAHANKAN (sesuai spec 3.3 Line 57). | ✅ DONE. Analyze: 0 lint 5.4s |
+| PHASE D | DOKUMENTASI LOG | Git rm `pos-native-desktop-tablet/MOBILE_UI_TASKLIST_TRAE.md` (sudah ada copy di mobile + header Updated tanggal 2026-09-16 note domisili pindah + tradeoff link SEPARATION doc). Update spec.md `.trae/specs/mobile-shell-v2/` HEADER 3 paragraf updated + Goals 6 point lama single codebase → 2 projects separated tradeoff explicit. **(DOKUMEN INI SENDIRI = ENTRY BARU PREPEND, BUKAN REPLACE FILE)** | ✅ DONE (saat ini menulis dirinya sendiri) |
+
+### (C) 8 File Critical Commitment (path:line traceability)
+1. **pos-native-mobile/pubspec.yaml L1-L2** → name identity mobile unique
+2. **pos-native-mobile/android/app/build.gradle.kts L55-L56** → applicationId: `com.goldenity.pos.mobile` (bisa install berdampingan tablet 1 device)
+3. **pos-native-mobile/lib/main.dart L144-L221** → 2 Consumer() watch 3 providers inject exact ke GoldMobShell constructor
+4. **pos-native-mobile/android/KEYSTORE_README_MOBILE.txt** → template command generate keystore baru LUAR REPO
+5. **pos-native-desktop-tablet/lib/features/settings/widgets/printer_slot_card.dart** → Public reusable 1 declaration (Settings 3x + Profile Mobile 1x) — refactor DIFFER TIDAK di-revert
+6. **pos-native-mobile/SEPARATION_TASKLIST_TRAE.md** → spec master migrasi origin
+7. **.trae/documents/mobile_desktop_separation_plan.md** → Plan document Andre Approved 16 langkah berurutan
+8. **THIS FILE PROJECT_LOG.MD L1-L55** → entry pemisahan ini (PREPEND, BUKAN replace)
+
+### (D) 3 Quality Gate Pass Evidence
+| QG | Cek | Hasil | Bukti Last Output |
+|---|---|---|---|
+| QG1 | Project Mobile Analyze | ✅ PASS 0 lint | `No issues found! (ran in 2.4s)` |
+| QG2 | Project Desktop Analyze | ✅ PASS 0 lint | `No issues found! (ran in 5.4s)` |
+| QG3 | Desktop Diff from 1b779af lib/ | ✅ 3 files saja (non urgent + valid refactor) | storage_keys.dart / goldenity_breakpoint.dart / printer_slot_card.dart |
+
+### (E) 4 Keputusan Andre 7.1 7.2 7.3 7.4 TETAP LOCKED APPLY KE PROJECT pos-native-mobile
+1. 7.1 Inventaris Mobile = FULL Builder varian lengkap (bukan read-only) ✅ di PHASE B fork copy membawa product builder 9 area Row→Column Wrap
+2. 7.2 UI Mode Preview = 3 Card TANPA preview ✅ TAPI sekarang UI Mode DIHAPUS TOTAL dari mobile (phase B delete section setting) karena app dedicated single shell.
+3. 7.3 Printer Slot Mobile = 1 slot Default saja ✅ ProfileMobileScreen inject PrinterSlotCard(slot: Default) 1 kali
+4. 7.4 Urutan 5 Tab: **Penjualan · Web Orders · Riwayat · Inventaris · Profil** ✅ LOCKED IndexedStack 0..4 bottom nav Web Orders badge reactive index 1
+
+### (F) Build APK Step Android Mobile (Mesin Andre dengan Android SDK ter-install)
+```
+cd E:\Goldenity\goldenity-pos-v2\pos-native-mobile
+E:\flutter\bin\flutter.bat pub get
+# [ANDRE MANUAL DULU] Generate keytool JKS mobile baru di E:\Goldenity\_keystores\ (ikuti KEYSTORE_README_MOBILE.txt) + buat android/key.properties
+E:\flutter\bin\flutter.bat build apk --debug --target-platform android-arm64 --no-shrink
+# Output: build/app/outputs/flutter-apk/app-debug.apk
+# Install via adb atau sideload ke HP 7" dapur.
+```
+
+### (G) Definition of Done Checklist — Pemisahan 2 Project
+| DoD # | Item | Status PASS |
+|---|---|---|
+| DoD 1 | Project Mobile valid berdiri: pub get success + analyze 0 lint + appId mobile diff tablet + folder windows/ TIDAK ADA | ✅ PASS |
+| DoD 2 | Mobile HANYA render GoldMobileShell 5-tab TANPA breakpoint switching / UI Mode setting | ✅ PASS (3 grep check 0 hasil: breakpoint isMobile uiModeOverride) |
+| DoD 3 | Desktop-tablet BACK 100% baseline pre 4bc7420: diff cuma 3 file non-critical + printer_slot keep | ✅ PASS |
+| DoD 4 | Kedua project independen TANPA cross import antar folder relative path | ✅ PASS (import 100% relative dalam masing-masing folder) |
+
+---
+
 > **Cara pakai file ini (WAJIB dibaca Trae sebelum mulai coding):**
 > - Entri terbaru selalu ditambahkan di **PALING ATAS**, di bawah baris ini — jangan menimpa/menghapus entri lama.
 > - Setiap kali Trae menyelesaikan satu Story (atau sebagian), tulis entri baru berisi: tanggal, Epic/Story yang dikerjakan (rujuk ID ClickUp), file yang diubah/dibuat (path lengkap), ringkasan perubahan, dan status checklist Anti-Pattern (Bagian "Definition of Done" di bawah).

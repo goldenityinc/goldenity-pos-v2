@@ -1,17 +1,24 @@
-# Goldenity POS V2 — Mobile Shell Full (5-Tab Responsive) Product Requirements Document
+# Goldenity POS V2 — Mobile Shell Full (5-Tab) Product Requirements Document
+
+> **Updated 2026-09-16 (Architectural Decision — Pemisahan 2 Project Flutter)**:
+> Implementasi TIDAK LAGI menggunakan single codebase responsive breakpoint-switching. **Arsitektur FINAL yang diterapkan Andre: 2 PROJECT FLUTTER TERPISAH FISIK** (lihat `.trae/documents/mobile_desktop_separation_plan.md`):
+> - **`pos-native-mobile/`** (Flutter Android APK standalone, ApplicationId `com.goldenity.pos.mobile`) → SELALU render BottomNav 5-tab `GoldenityMobileShell`. **TIDAK ADA breakpoint switching / LayoutBuilder / UI Mode setting.**
+> - **`pos-native-desktop-tablet/`** (Flutter Windows EXE + Tablet APK optional, `com.goldenity.pos`) → SELALU render Sidebar 11-tab `GoldenityAppShell` permanen. Direvert bersih ke baseline commit `1b779af` TANPA kode mobile.
+> 
+> **Tradeoff yang diterima secara sadar**: Business logic (cart/auth/printer/web orders/inventory CRUD) **terduplikasi di 2 codebase**. Fix bug / fitur baru shared logic → harus diperbaiki 2x di masing-masing project. Ini konsekuensi pilihan "project terpisah" vs "1 codebase adaptive" (Opsi B bukan Opsi C Monorepo Melos).
 
 ## Overview
-- **Summary**: Menambahkan shell UI Mobile (5 bottom-nav tab: Penjualan, Web Orders, Riwayat, Inventaris, Profil) ke Flutter POS `pos-native-desktop-tablet/`, yang responsive switch antara `GoldenityAppShell` (Tablet/Desktop: Sidebar kiri + IndexedStack kanan permanen) dan `GoldenityMobileShell` (HP: Full screen IndexedStack + Bottom Nav + Cart Panel Bottom Sheet).
-- **Purpose**: Device Android/Tablet bisa dipakai 2 mode: (a) Tablet >10" (Sidebar), (b) HP 6-8" (Bottom Nav, Cart Bottom Sheet). Kebutuhan utama client: Web Orders receiver tab POSISI #2 (mudah diakses jempol, hindari bentrok Majoo POS utama).
+- **Summary**: Aplikasi Flutter Android TERPISAH (`pos-native-mobile/`) full shell 5 bottom-nav tab: Penjualan, Web Orders, Riwayat, Inventaris, Profil. ApplicationId `com.goldenity.pos.mobile` agar bisa install berdampingan dengan tablet app yang sama di device.
+- **Purpose**: Khusus Device Android HP 6-8" di dapur / floor staff F&B = **Web Order receiver tab POSISI #2 (jempol mudah diakses, hindari bentrok Majoo POS utama kasir)** + quick sale floor pickup + owner inventory check via personal phone.
 - **Target Users**: Kasir HP (penerima Web Order + quick sale) + Owner cek inventaris/riwayat via ponsel pribadi.
 
 ## Goals
-1. **Single Codebase Responsive**: Satu build EXE/APK support HP (360-430dp) + Tablet/Desktop (≥1024dp). UI otomatis switch (manual override via Settings UI Mode juga tersedia).
-2. **UX Mobile 5 Tab Explicit**: Web Orders tab terpisah di posisi #2 bukan tersembunyi di sub-menu (kebutuhan #1 client kitchen receiver hindari bentrok Majoo).
-3. **Zero Logic Duplicate**: Semua business logic (cart, checkout, auto-print, Riverpod providers, inventory CRUD, auth) 100% reuse. Hanya cabang `build()` di widget layout.
-4. **Zero Tablet Regression**: Shell Tablet/Desktop mode berfungsi PERSIS SAMA SEBELUM implementasi mobile (Sidebar, Cart Row, Printer 3 slot). Tidak ada satu pun feature lama yang hilang/rusak.
-5. **Design Token V2 100% Reuse**: Pakai existing `GoldenityColors/GoldenitySpacing/GoldenityRadius/GoldenityTypography/BizColors` TIDAK buat palette/typography baru.
-6. **Inventaris Mobile = FULL Builder**: Sama dengan tablet (varian lengkap, edit/hapus produk, upload gambar placeholder) di scope Fase ini (BUKAN read-only).
+1. **2 Projects Flutter Terpisah Final**: Project `pos-native-mobile/` (APK Android, shell tunggal 5-tab) + project `pos-native-desktop-tablet/` (EXE Windows / Tablet Sidebar 11-tab). Build independen, applicationId beda, TANPA runtime switch mode breakpoint.
+2. **UX Mobile 5 Tab Explicit**: Web Orders tab terpisah di posisi #2 bukan tersembunyi di sub-menu (kebutuhan #1 client kitchen receiver hindari bentrok Majoo — Urutan tab Andre 7.4 LOCKED).
+3. **[ACCEPTED TRADEOFF] Duplikasi Logic Diterima**: Karena pisah project fisik tanpa Monorepo shared package (Opsi C ditunda bulan depan), business logic (cart, checkout, auto-print, Riverpod providers, inventory CRUD, auth) ter-copy fork penuh di 2 project. Fix bug/fitur baru harus diimplement 2x secara manual oleh engineer.
+4. **Zero Tablet Regression**: Project `pos-native-desktop-tablet` DICLEAN REVERT ke baseline `1b779af` (sebelum adaptive code masuk) — Sidebar, Cart Row 400px, Quick Cash 4 testcase, 3 Slot Printer (Default/Dapur/Kasir) berfungsi PERSIS SAMA persis seperti 13 September 2026.
+5. **Design Token V2 100% Reuse**: Dua project pakai existing `GoldenityColors/GoldenitySpacing/GoldenityRadius/GoldenityTypography/BizColors` TIDAK buat palette/typography baru di salah satu project.
+6. **Inventaris Mobile = FULL Builder**: Sama dengan tablet (varian lengkap, 9 area Row→Column Wrap, 360dp 0 RenderFlex overflow) di scope Fase ini (BUKAN read-only — Andre 7.1 Override Non-Goals).
 
 ## Non-Goals
 1. ❌ **Meja Management (Table Assignment)** → fitur tidak ada di V2 scope; tidak dibuat.

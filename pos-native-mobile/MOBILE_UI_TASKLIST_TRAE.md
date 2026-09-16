@@ -1,5 +1,7 @@
 # 📱 TASK PANJANG UNTUK TRAE — V2 Mobile (HP Android) Full Shell
 
+> **Updated 2026-09-16 (Pemisahan 2 Flutter Projects):** Dokumen ini SEKARANG BERLAKU UNTUK project `pos-native-mobile/` (Flutter project TERSEPISAH — APK Android sendiri, ApplicationId `com.goldenity.pos.mobile`). Dokumen ini BUKAN LAGI tentang mode tampilan di dalam `pos-native-desktop-tablet/` (project desktop/tablet EXE Windows). Referensi risiko duplikasi kode business logic dan tradeoff arsitektur → lihat dokumen **SEPARATION_TASKLIST_TRAE.md Bagian 2** di folder ini.
+
 > **Dibuat oleh:** Klaude (AI engineer, sesi debugging Android + printer 2026-09-13 s/d 2026-09-16)
 > **Tanggal:** 2026-09-16
 > **Untuk:** Trae — dikerjakan mandiri, item per item, sementara Andre + Klaude fokus ke setup backend production Railway dan testing lanjutan (stress-test multi-meja, dsb).
