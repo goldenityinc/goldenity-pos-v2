@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/web_order_notification_service.dart';
@@ -116,6 +118,24 @@ class WebOrderListNotifier extends StateNotifier<WebOrderListState> {
           itemCount: o.items.fold<int>(0, (s, it) => s + it.qty),
           autoAccepted: o.status != 'SUBMITTED',
         );
+        // WebOrderNotificationService (local_notifier + SystemSound) TIDAK
+        // JALAN sama sekali di Android (tidak ada implementasi native),
+        // ketahuan lewat log nyata: "MissingPluginException ... channel
+        // local_notifier". Awalnya alert Android hanya ditaruh di FG
+        // background isolate (android_fg_weborder_handler.dart) dengan
+        // asumsi app selalu "beku" begitu di-minimize — TERNYATA SALAH:
+        // Android tidak langsung membekukan timer app yang baru saja
+        // di-minimize (device/OS dependent), jadi poller UI utama INI bisa
+        // saja yang lebih dulu menangkap order baru, bukan FG isolate-nya.
+        // Jadi alert-nya WAJIB ada juga di sini, bukan cuma di FG isolate.
+        if (Platform.isAndroid) {
+          unawaited(_alertAndroid(
+            title: o.status != 'SUBMITTED'
+                ? 'Web order diterima otomatis · Q-${o.queueNumber}'
+                : 'Web order baru · Q-${o.queueNumber}',
+            text: 'Struk & nota dapur sedang dicetak otomatis.',
+          ));
+        }
       }
 
       // 2) berpindah ke ACCEPTED (auto-accept server ATAU kasir tekan Terima)
@@ -144,6 +164,23 @@ class WebOrderListNotifier extends StateNotifier<WebOrderListState> {
     final current = orders.map((o) => o.id).toSet();
     _lastStatus.removeWhere((id, _) => !current.contains(id));
     _lastPay.removeWhere((id, _) => !current.contains(id));
+  }
+
+  /// Bunyi + getar + notifikasi Android — reuse channel foreground-service
+  /// yang sama dgn android_fg_weborder_handler.dart (sudah dikonfigurasi
+  /// playSound+enableVibration+onlyAlertOnce:false). No-op kalau service
+  /// belum aktif (toggle receiver di Settings OFF) — tidak ada channel utk
+  /// digantung alert-nya.
+  Future<void> _alertAndroid({required String title, required String text}) async {
+    try {
+      if (!await FlutterForegroundTask.isRunningService) return;
+      await FlutterForegroundTask.updateService(
+        notificationTitle: title,
+        notificationText: text,
+      );
+    } catch (e) {
+      debugPrint('[web-order] alertAndroid FAIL: $e');
+    }
   }
 
   Future<void> _printAccepted(WebOrder o, AuthSession session) async {
