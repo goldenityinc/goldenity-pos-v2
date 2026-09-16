@@ -1,5 +1,14 @@
 # 📜 PROJECT LOG — Goldenity POS V2 (Rebuild, Fase 1)
 
+> **Cara pakai file ini (WAJIB dibaca Trae sebelum mulai coding):**
+> - Entri terbaru selalu ditambahkan di **PALING ATAS**, di bawah baris ini — jangan menimpa/menghapus entri lama.
+> - Setiap kali Trae menyelesaikan satu Story (atau sebagian), tulis entri baru berisi: tanggal, Epic/Story yang dikerjakan (rujuk ID ClickUp), file yang diubah/dibuat (path lengkap), ringkasan perubahan, dan status checklist Anti-Pattern (Bagian "Definition of Done" di bawah).
+> - Claude akan membaca log ini secara berkala, memverifikasi klaim dengan membaca ulang kode sumber langsung (bukan hanya percaya narasi), lalu menulis entri audit di atasnya.
+> - **Jangan klaim "✅ SELESAI/FIXED" untuk sesuatu yang belum benar-benar diverifikasi jalan** — riwayat project sebelumnya (V1.5) menunjukkan klaim yang tidak terverifikasi adalah sumber utama siklus bug berulang.
+> - **INSIDEN 2026-09-16**: commit `4bc7420` (Trae) MENGHAPUS 7.451 baris riwayat file ini (dari 7507 baris jadi 172), menimpa seluruh log dengan satu entri tunggal — pelanggaran langsung aturan "jangan menimpa/menghapus" di atas. Klaude memulihkan riwayat penuh dari `git show 1b779af:PROJECT_LOG.md`. **Trae: entri lama TIDAK PERNAH ditimpa/dihapus, HANYA ditambah di atas — kalau editor/tool yang dipakai me-replace seluruh isi file, ganti caranya jadi insert-at-top TEPAT DI BAWAH BLOK INI, bukan di atasnya.**
+
+---
+
 ## [2026-09-16] Pemisahan 2 Project Flutter Terpisah: pos-native-mobile (APK Android Shell 5-tab) + pos-native-desktop-tablet (EXE Windows Shell Sidebar 11-tab)
 
 > **Architectural Decision — Andre Locked (Opsi B):** 2 Flutter projects BERPISAH FISIK, BUKAN single codebase breakpoint switch (Opsi A rename) BUKAN monorepo Melos (Opsi C nanti bulan depan). Tradeoff disadari penuh: business logic (cart/auth/printer/webOrder/inventory CRUD) TERDUPLIKASI 2 codebase → fix bug / fitur baru shared harus di-commit 2x manual per project.
@@ -57,15 +66,6 @@ E:\flutter\bin\flutter.bat build apk --debug --target-platform android-arm64 --n
 | DoD 2 | Mobile HANYA render GoldMobileShell 5-tab TANPA breakpoint switching / UI Mode setting | ✅ PASS (3 grep check 0 hasil: breakpoint isMobile uiModeOverride) |
 | DoD 3 | Desktop-tablet BACK 100% baseline pre 4bc7420: diff cuma 3 file non-critical + printer_slot keep | ✅ PASS |
 | DoD 4 | Kedua project independen TANPA cross import antar folder relative path | ✅ PASS (import 100% relative dalam masing-masing folder) |
-
----
-
-> **Cara pakai file ini (WAJIB dibaca Trae sebelum mulai coding):**
-> - Entri terbaru selalu ditambahkan di **PALING ATAS**, di bawah baris ini — jangan menimpa/menghapus entri lama.
-> - Setiap kali Trae menyelesaikan satu Story (atau sebagian), tulis entri baru berisi: tanggal, Epic/Story yang dikerjakan (rujuk ID ClickUp), file yang diubah/dibuat (path lengkap), ringkasan perubahan, dan status checklist Anti-Pattern (Bagian "Definition of Done" di bawah).
-> - Claude akan membaca log ini secara berkala, memverifikasi klaim dengan membaca ulang kode sumber langsung (bukan hanya percaya narasi), lalu menulis entri audit di atasnya.
-> - **Jangan klaim "✅ SELESAI/FIXED" untuk sesuatu yang belum benar-benar diverifikasi jalan** — riwayat project sebelumnya (V1.5) menunjukkan klaim yang tidak terverifikasi adalah sumber utama siklus bug berulang.
-> - **INSIDEN 2026-09-16**: commit `4bc7420` (Trae) MENGHAPUS 7.451 baris riwayat file ini (dari 7507 baris jadi 172), menimpa seluruh log dengan satu entri tunggal — pelanggaran langsung aturan "jangan menimpa/menghapus" di atas. Klaude memulihkan riwayat penuh dari `git show 1b779af:PROJECT_LOG.md` pada entri restorasi di bawah. **Trae: entri lama TIDAK PERNAH ditimpa/dihapus, HANYA ditambah di atas — kalau editor/tool yang dipakai me-replace seluruh isi file, ganti caranya jadi insert-at-top.**
 
 ---
 
