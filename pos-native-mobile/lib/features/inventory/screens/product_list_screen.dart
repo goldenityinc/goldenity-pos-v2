@@ -141,17 +141,83 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
       banners.add(offline);
     }
 
+    final cartTotalItems = ref.watch(cartTotalItemsProvider);
+    final cartGrandTotal = ref.watch(cartGrandTotalProvider);
+
+    void openCartSheet() {
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => Padding(
+          padding: EdgeInsets.only(
+            top: MediaQuery.of(sheetContext).size.height * 0.08,
+          ),
+          child: ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(GoldenityRadius.xl)),
+            child: GoldenityCartPanel(
+              onCheckoutPressed: () {
+                Navigator.of(sheetContext).pop();
+                GoldenityPaymentModal.show(context: context, ref: ref);
+              },
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: GoldenityColors.bg,
+      // pos-native-mobile: keranjang dulu panel permanen di samping grid
+      // (pola tablet) — di lebar HP itu meremas grid produk sampai overflow
+      // parah. Sekarang jadi bar mengambang di bawah + bottom sheet saat
+      // diketuk (lihat MOBILE_UI_TASKLIST_TRAE.md Bagian 4.4).
+      bottomNavigationBar: cartTotalItems > 0
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(GoldenitySpacing.lg, 0,
+                    GoldenitySpacing.lg, GoldenitySpacing.sm),
+                child: Material(
+                  color: biz.base,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+                  elevation: 4,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+                    onTap: openCartSheet,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: GoldenitySpacing.lg,
+                          vertical: GoldenitySpacing.md),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.shopping_cart_rounded,
+                              color: Colors.white, size: 20),
+                          const SizedBox(width: GoldenitySpacing.sm),
+                          Text('Lihat Keranjang ($cartTotalItems)',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 13.5)),
+                          const Spacer(),
+                          Text(_currencyFormatter.format(cartGrandTotal),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13.5)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
       body: SafeArea(
-        child: Row(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const _PosTopBar(),
+            const _PosTopBar(),
                   const SizedBox(height: GoldenitySpacing.md),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
@@ -214,17 +280,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                   ),
                 ],
               ),
-            ),
-            GoldenityCartPanel(
-              onCheckoutPressed: () {
-                GoldenityPaymentModal.show(
-                  context: context,
-                  ref: ref,
-                );
-              },
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -308,37 +363,39 @@ class _PosTopBar extends ConsumerWidget {
         color: GoldenityColors.surface,
         border: Border(bottom: BorderSide(color: GoldenityColors.border)),
       ),
+      // pos-native-mobile: dulu Row ini juga menampung titik+"Online",
+      // ikon+"Tersinkron", dan badge cabang sekaligus — di lebar HP jelas
+      // tidak muat, overflow di kanan. Disederhanakan jadi judul + status
+      // dot kecil (tanpa label teks) + badge cabang + bell saja.
       child: Row(
         children: <Widget>[
           const Icon(Icons.point_of_sale_rounded, size: 18, color: GoldenityColors.text2),
           const SizedBox(width: GoldenitySpacing.sm),
-          const Text('Point of Sale',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: GoldenityColors.text)),
-          const Spacer(),
+          const Expanded(
+            child: Text('Point of Sale',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: GoldenityColors.text)),
+          ),
           Container(
             width: 7,
             height: 7,
+            margin: const EdgeInsets.only(right: GoldenitySpacing.sm),
             decoration: const BoxDecoration(color: GoldenityColors.success, shape: BoxShape.circle),
           ),
-          const SizedBox(width: 5),
-          const Text('Online',
-              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: GoldenityColors.success)),
-          const SizedBox(width: 14),
-          const Icon(Icons.cloud_done_rounded, size: 14, color: GoldenityColors.muted),
-          const SizedBox(width: 4),
-          const Text('Tersinkron',
-              style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: GoldenityColors.muted)),
-          const SizedBox(width: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(
-              color: GoldenityColors.primaryLight,
-              borderRadius: BorderRadius.circular(GoldenityRadius.full),
-              border: Border.all(color: const Color(0xFFBFDBFE)),
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+              decoration: BoxDecoration(
+                color: GoldenityColors.primaryLight,
+                borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: Text(branchName.toUpperCase(),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: const TextStyle(
+                      fontSize: 11.5, fontWeight: FontWeight.w700, color: GoldenityColors.primary, letterSpacing: 0.02)),
             ),
-            child: Text(branchName.toUpperCase(),
-                style: const TextStyle(
-                    fontSize: 11.5, fontWeight: FontWeight.w700, color: GoldenityColors.primary, letterSpacing: 0.02)),
           ),
           const SizedBox(width: 8),
           _BellButton(count: bell),
@@ -643,12 +700,14 @@ class _ProductGridView extends ConsumerWidget {
           ),
           sliver: SliverGrid(
             gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              // Figma POS F&B (arch-sleek): grid 5 kolom, kartu 166×161,
-              // gap 10 — image band 66 + nama/harga + stepper. Rasio 1.03.
+              // pos-native-mobile: rasio 1.0 (kotak sempurna) bikin kartu
+              // overflow ~17px di bagian stepper — konten (image band 66 +
+              // nama + harga + stepper + padding) butuh lebih tinggi dari
+              // lebar. Diturunkan supaya kartu lebih tinggi dari lebar.
               maxCrossAxisExtent: 176,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
-              childAspectRatio: 1.0,
+              childAspectRatio: 0.82,
             ),
             delegate: SliverChildBuilderDelegate(
               (ctx, i) => _ProductCard(

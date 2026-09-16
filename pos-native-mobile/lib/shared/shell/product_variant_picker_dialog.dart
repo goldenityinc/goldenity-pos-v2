@@ -478,12 +478,16 @@ class _VariantPickerBodyState extends ConsumerState<_VariantPickerBody> {
                   children: [
                     Icon(Icons.add_rounded, size: 18, color: canConfirm ? Colors.white : GoldenityColors.disabled),
                     const SizedBox(width: 6),
-                    Text(
-                      'Tambah ke Pesanan',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: canConfirm ? Colors.white : GoldenityColors.disabled,
+                    Flexible(
+                      child: Text(
+                        'Tambah ke Pesanan',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: canConfirm ? Colors.white : GoldenityColors.disabled,
+                        ),
                       ),
                     ),
                     const Spacer(),

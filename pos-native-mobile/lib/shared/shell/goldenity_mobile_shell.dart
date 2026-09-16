@@ -48,6 +48,7 @@ class _GoldenityMobileShellState extends ConsumerState<GoldenityMobileShell> {
     return Scaffold(
       body: IndexedStack(index: _tab, children: _screens),
       bottomNavigationBar: NavigationBar(
+        selectedIndex: _tab,
         backgroundColor: GoldenityColors.surface,
         indicatorColor: biz.base.withValues(alpha: 0.12),
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,

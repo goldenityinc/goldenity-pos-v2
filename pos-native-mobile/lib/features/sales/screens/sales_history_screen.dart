@@ -763,7 +763,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(150),
+          preferredSize: const Size.fromHeight(112),
           child: Column(
             children: [
               Padding(
@@ -873,22 +873,6 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                   ],
                 ),
               ),
-              // ── Table header ──
-              Container(
-                color: GoldenityColors.surface2,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: GoldenitySpacing.lg, vertical: GoldenitySpacing.sm),
-                child: const Row(
-                  children: [
-                    SizedBox(width: 64, child: _ColLabel('ID')),
-                    SizedBox(width: 108, child: _ColLabel('WAKTU')),
-                    Expanded(child: _ColLabel('KASIR / TIPE')),
-                    SizedBox(width: 120, child: _ColLabel('TOTAL', end: true)),
-                    SizedBox(width: 92, child: _ColLabel('STATUS', center: true)),
-                    SizedBox(width: 56),
-                  ],
-                ),
-              ),
               const Divider(height: 1, color: GoldenityColors.border, thickness: 1),
             ],
           ),
@@ -984,54 +968,20 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                                   color: voided ? GoldenityColors.surface2.withValues(alpha: 0.4) : null,
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: GoldenitySpacing.lg, vertical: 10),
-                                  child: Row(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: <Widget>[
-                                      SizedBox(
-                                        width: 64,
-                                        child: Text('#$id',
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              fontWeight: FontWeight.w700,
-                                              color: voided ? GoldenityColors.muted : GoldenityColors.text,
-                                              decoration: voided ? TextDecoration.lineThrough : null,
-                                            )),
-                                      ),
-                                      SizedBox(
-                                        width: 108,
-                                        child: Text(
-                                          DateFormat('dd MMM · HH:mm', 'id_ID').format(createdAt),
-                                          style: const TextStyle(
-                                              fontSize: 12, color: GoldenityColors.text2),
-                                        ),
-                                      ),
-                                      Expanded(
-                                        child: Text(
-                                          '$cashierName · $orderType',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                              fontSize: 12.5, color: GoldenityColors.text2),
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 120,
-                                        child: Text(
-                                          _currencyFormatter.format(totalRaw),
-                                          textAlign: TextAlign.right,
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w800,
-                                            color: voided ? GoldenityColors.muted : GoldenityColors.text,
-                                            decoration: voided ? TextDecoration.lineThrough : null,
-                                            fontFamily: GoldenityTypography.fontFamilyMono,
-                                            fontFeatures: const [FontFeature.tabularFigures()],
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: 92,
-                                        child: Center(
-                                          child: Container(
+                                      Row(
+                                        children: <Widget>[
+                                          Text('#$id',
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w700,
+                                                color: voided ? GoldenityColors.muted : GoldenityColors.text,
+                                                decoration: voided ? TextDecoration.lineThrough : null,
+                                              )),
+                                          const SizedBox(width: GoldenitySpacing.sm),
+                                          Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                             decoration: BoxDecoration(
                                               color: chipBg,
@@ -1043,18 +993,44 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                                                   color: chipFg, fontSize: 10.5, fontWeight: FontWeight.w800),
                                             ),
                                           ),
-                                        ),
+                                          const Spacer(),
+                                          Text(
+                                            _currencyFormatter.format(totalRaw),
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w800,
+                                              color: voided ? GoldenityColors.muted : GoldenityColors.text,
+                                              decoration: voided ? TextDecoration.lineThrough : null,
+                                              fontFamily: GoldenityTypography.fontFamilyMono,
+                                              fontFeatures: const [FontFeature.tabularFigures()],
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      const SizedBox(
-                                        width: 56,
-                                        child: Align(
-                                          alignment: Alignment.centerRight,
-                                          child: Text('Detail',
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: <Widget>[
+                                          Text(
+                                            DateFormat('dd MMM · HH:mm', 'id_ID').format(createdAt),
+                                            style: const TextStyle(
+                                                fontSize: 12, color: GoldenityColors.text2),
+                                          ),
+                                          const SizedBox(width: GoldenitySpacing.xs),
+                                          Expanded(
+                                            child: Text(
+                                              '· $cashierName · $orderType',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                  fontSize: 12.5, color: GoldenityColors.text2),
+                                            ),
+                                          ),
+                                          const Text('Detail',
                                               style: TextStyle(
                                                   fontSize: 11.5,
                                                   fontWeight: FontWeight.w700,
                                                   color: GoldenityColors.primary)),
-                                        ),
+                                        ],
                                       ),
                                     ],
                                   ),

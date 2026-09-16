@@ -712,43 +712,34 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
       ),
       body: Form(
         key: _formKey,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 7,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(GoldenitySpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildBasicInfoCard(textTheme, biz),
-                    const SizedBox(height: GoldenitySpacing.md),
-                    ..._buildGroupCards(textTheme, biz),
-                    const SizedBox(height: GoldenitySpacing.sm),
-                    OutlinedButton.icon(
-                      onPressed: _loading ? null : _addGroup,
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(GoldenityRadius.md)),
-                      ),
-                      icon: const Icon(Icons.add_rounded),
-                      label: Text('Tambah Variant Group',
-                          style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
-                    ),
-                  ],
+        // Mobile: tidak ada layar lebar untuk 2-kolom form+preview seperti
+        // tablet — ditumpuk vertikal (preview di bawah form) supaya kartu
+        // preview & tombolnya tidak diperas ke ~150px lebar (dulu overflow
+        // parah, teks tombol sampai pecah per-karakter).
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(GoldenitySpacing.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildBasicInfoCard(textTheme, biz),
+              const SizedBox(height: GoldenitySpacing.md),
+              ..._buildGroupCards(textTheme, biz),
+              const SizedBox(height: GoldenitySpacing.sm),
+              OutlinedButton.icon(
+                onPressed: _loading ? null : _addGroup,
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(GoldenityRadius.md)),
                 ),
+                icon: const Icon(Icons.add_rounded),
+                label: Text('Tambah Variant Group',
+                    style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
               ),
-            ),
-            Expanded(
-              flex: 5,
-              child: Padding(
-                padding: const EdgeInsets.all(GoldenitySpacing.lg),
-                child: _buildPreview(textTheme, biz, minP, maxP),
-              ),
-            ),
-          ],
+              const SizedBox(height: GoldenitySpacing.lg),
+              _buildPreview(textTheme, biz, minP, maxP),
+            ],
+          ),
         ),
       ),
     );
@@ -1244,22 +1235,16 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                 height: 1.3,
               )),
           const SizedBox(height: GoldenitySpacing.md),
-          if (hasVariants)
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Ringkasan Varian',
-                        style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: GoldenitySpacing.sm),
-                    ..._buildVariantSummary(tt, biz),
-                  ],
-                ),
-              ),
-            )
-          else
-            const Spacer(),
+          // Dulu Expanded+SingleChildScrollView (butuh parent tinggi terbatas
+          // dari Expanded(flex:5) versi tablet). Sekarang _buildPreview ada di
+          // dalam SingleChildScrollView terluar (tinggi tak terbatas) — pakai
+          // Column biasa, halaman-lah yang scroll, bukan bagian ini sendiri.
+          if (hasVariants) ...[
+            Text('Ringkasan Varian',
+                style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+            const SizedBox(height: GoldenitySpacing.sm),
+            ..._buildVariantSummary(tt, biz),
+          ],
           const SizedBox(height: GoldenitySpacing.md),
           Row(
             children: [

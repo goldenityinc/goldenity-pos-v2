@@ -311,96 +311,102 @@ class _ProductRow extends StatelessWidget {
           border: Border.all(color: GoldenityColors.border),
           boxShadow: GoldenityElevation.card,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: 42,
-              height: 42,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: GoldenityColors.surface2,
-                borderRadius: BorderRadius.circular(GoldenityRadius.md),
-              ),
-              child: const Icon(Icons.inventory_2_rounded,
-                  size: 20, color: GoldenityColors.textXMuted),
-            ),
-            const SizedBox(width: GoldenitySpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(p.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                          color: GoldenityColors.text)),
-                  if (sub.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(sub,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 11,
-                            color: GoldenityColors.muted,
-                            fontFamily: GoldenityTypography.fontFamilyMono)),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(width: GoldenitySpacing.md),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            Row(
               children: [
-                Text(priceDisplay,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: GoldenityColors.primary,
-                        fontFamily: GoldenityTypography.fontFamilyMono)),
-                const SizedBox(height: 2),
+                Container(
+                  width: 42,
+                  height: 42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: GoldenityColors.surface2,
+                    borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                  ),
+                  child: const Icon(Icons.inventory_2_rounded,
+                      size: 20, color: GoldenityColors.textXMuted),
+                ),
+                const SizedBox(width: GoldenitySpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(p.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: GoldenityColors.text)),
+                      if (sub.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(sub,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: GoldenityColors.muted,
+                                fontFamily: GoldenityTypography.fontFamilyMono)),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: GoldenitySpacing.sm),
+                GestureDetector(
+                  onTap: onToggleActive,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: p.isActive ? GoldenityColors.successLight : GoldenityColors.surface2,
+                      borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                    ),
+                    child: Text(p.isActive ? 'Aktif' : 'Nonaktif',
+                        style: TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: p.isActive ? GoldenityColors.success : GoldenityColors.muted)),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: GoldenitySpacing.sm),
+            Row(
+              children: [
+                const SizedBox(width: 42 + GoldenitySpacing.md),
+                Expanded(
+                  child: Text(priceDisplay,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: GoldenityColors.primary,
+                          fontFamily: GoldenityTypography.fontFamilyMono)),
+                ),
                 Text('Stok: $stock',
                     style: TextStyle(
                         fontSize: 11,
                         color: stock <= 0 ? GoldenityColors.error : GoldenityColors.muted)),
-              ],
-            ),
-            const SizedBox(width: GoldenitySpacing.md),
-            GestureDetector(
-              onTap: onToggleActive,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: p.isActive ? GoldenityColors.successLight : GoldenityColors.surface2,
-                  borderRadius: BorderRadius.circular(GoldenityRadius.full),
-                ),
-                child: Text(p.isActive ? 'Aktif' : 'Nonaktif',
-                    style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        color: p.isActive ? GoldenityColors.success : GoldenityColors.muted)),
-              ),
-            ),
-            const SizedBox(width: GoldenitySpacing.sm),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                onTap: onEdit,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
+                const SizedBox(width: GoldenitySpacing.md),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                    border: Border.all(color: GoldenityColors.border),
+                    onTap: onEdit,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                        border: Border.all(color: GoldenityColors.border),
+                      ),
+                      child: const Text('Edit',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: GoldenityColors.text2)),
+                    ),
                   ),
-                  child: const Text('Edit',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: GoldenityColors.text2)),
                 ),
-              ),
+              ],
             ),
           ],
         ),

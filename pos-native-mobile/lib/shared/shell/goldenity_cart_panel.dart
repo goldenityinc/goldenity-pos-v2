@@ -71,16 +71,12 @@ class _GoldenityCartPanelState extends ConsumerState<GoldenityCartPanel> {
 
     Future<void>.microtask(() => cartNotifier.ensureTaxConfigCached());
 
-    // FIX (temuan Andre): lebar panel sebelumnya FIXED 340px — di layar
-    // tablet/desktop yang lebih lebar terasa "kekecilan"/non-standard
-    // dibanding proporsi layar. Sekarang dihitung relatif terhadap lebar
-    // layar (±26%), tetap dibatasi min/max supaya tidak terlalu sempit di
-    // layar kecil maupun terlalu lebar di monitor besar.
-    // Figma arch-sleek: panel keranjang lebar tetap 340px.
-    const panelWidth = GoldenityCartPanel.kWidth;
-
+    // pos-native-mobile: panel ini SELALU dipakai di dalam bottom sheet
+    // (lihat product_list_screen.dart) — tidak pernah lagi jadi panel
+    // permanen di samping grid seperti versi tablet, jadi full-width
+    // (double.infinity) alih-alih fixed 340px supaya mengisi bottom sheet.
     return Container(
-      width: panelWidth,
+      width: double.infinity,
       decoration: const BoxDecoration(
         color: GoldenityColors.surface,
         border: Border(
