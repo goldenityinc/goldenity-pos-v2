@@ -12,6 +12,9 @@ function statusFor(result: ApiResponse<any>, okStatus = 200): number {
   const e = result.error ?? '';
   if (result.code === 'NOT_FOUND' || e.includes('tidak ditemukan')) return 404;
   if (result.code === 'FORBIDDEN_ROLE') return 403;
+  // Bukan error server — race legit antara 2 device (mis. tablet + HP) yang
+  // sama-sama poll & accept order yang sama, salah satunya kalah klaim atomik.
+  if (result.code === 'ALREADY_ACCEPTED') return 409;
   if (e.startsWith('Payload') || e.includes('tidak diizinkan') || e.includes('hanya SUBMITTED') || e.includes('tidak bisa dibatalkan')) return 400;
   return 500;
 }
@@ -26,6 +29,9 @@ webOrderRoutes.get('/:id', async (req: Request, res: Response) => {
 });
 webOrderRoutes.post('/:id/accept', async (req: Request, res: Response) => {
   send(res, await WebOrderService.accept(req.user as JwtAuthPayload, req.params.id));
+});
+webOrderRoutes.post('/:id/claim-print', async (req: Request, res: Response) => {
+  send(res, await WebOrderService.claimPrint(req.user as JwtAuthPayload, req.params.id, req.body?.kind));
 });
 webOrderRoutes.post('/:id/reject', async (req: Request, res: Response) => {
   send(res, await WebOrderService.reject(req.user as JwtAuthPayload, req.params.id, req.body));

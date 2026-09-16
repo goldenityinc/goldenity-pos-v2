@@ -1,7 +1,15 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../core/config/api_constants.dart';
+import '../../core/config/storage_keys.dart';
 import '../../core/design/goldenity_colors.dart';
+import '../../core/services/android_fg_weborder_handler.dart';
+import '../../features/auth/providers/auth_provider.dart';
 import '../../features/inventory/screens/product_list_screen.dart';
 import '../../features/profile/screens/profile_mobile_screen.dart';
 import '../../features/web_orders/screens/web_orders_screen.dart';
@@ -39,6 +47,64 @@ class _GoldenityMobileShellState extends ConsumerState<GoldenityMobileShell> {
     ProductManagementListScreen(),
     ProfileMobileScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Auto-start Android FG Web-Order Receiver SETELAH shell mount (after
+      // auth) — sebelumnya cuma bisa dinyalakan manual lewat toggle di
+      // Settings, jadi tidak auto-resume setelah login/restart app seperti
+      // di pos-native-desktop-tablet. Logic sama persis dgn
+      // goldenity_app_shell.dart._GoldenityAppShellState.initState.
+      final session = ref.read(currentSessionProvider);
+      if (session == null) return;
+      final sp = await SharedPreferences.getInstance();
+      await ApiConstants.initialize(sp);
+      if (Platform.isAndroid) {
+        final enabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? false;
+        if (enabled) {
+          bool running = false;
+          try {
+            running = await FlutterForegroundTask.isRunningService;
+          } catch (_) {}
+          if (!running) {
+            try {
+              await _startFgWebOrderService();
+            } catch (_) {}
+          }
+        }
+      }
+    });
+  }
+
+  Future<void> _startFgWebOrderService() async {
+    if (!Platform.isAndroid) return;
+    // Lihat komentar sama di settings_screen.dart._initAndStartFgService —
+    // tanpa ini, notifikasi persisten (+ suara/getar order baru) diam-diam
+    // tidak pernah muncul kalau service ini start duluan sebelum izin ada.
+    final notifStatus = await FlutterForegroundTask.checkNotificationPermission();
+    if (notifStatus != NotificationPermission.granted) {
+      await FlutterForegroundTask.requestNotificationPermission();
+    }
+    FlutterForegroundTask.init(
+      androidNotificationOptions: androidNotificationOptionsForWebOrderFg(),
+      iosNotificationOptions: const IOSNotificationOptions(),
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.nothing(),
+        autoRunOnBoot: true,
+        autoRunOnMyPackageReplaced: true,
+        allowWakeLock: true,
+        allowWifiLock: true,
+      ),
+    );
+    await FlutterForegroundTask.startService(
+      notificationTitle: 'Goldenity POS',
+      notificationText: 'Menerima pesanan web secara otomatis di latar belakang.',
+      notificationIcon: const NotificationIcon(metaDataName: 'launcher_icon'),
+      callback: startFgWebOrderCallback,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

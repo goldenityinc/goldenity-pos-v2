@@ -91,6 +91,9 @@ class WebOrderPrintService {
       (await _retryQueue).clear(order.id);
       return WebOrderPrintResult.skip('sudah dicetak');
     }
+    if (!await _claimPrint(order.id, session, kind: 'accepted')) {
+      return WebOrderPrintResult.skip('diklaim device lain');
+    }
     final res = await _dispatch(order: order, session: session, paidReprint: false);
     final rq = await _retryQueue;
     if (res.anyOk) {
@@ -103,6 +106,25 @@ class WebOrderPrintService {
       await rq.markFailedAttempt(order.id, res.message);
     }
     return res;
+  }
+
+  /// Klaim server sebelum benar2 cetak — cegah double-print kalau 2 device
+  /// (mis. tablet + HP) sama-sama lihat order ini berubah ACCEPTED/PAID lewat
+  /// polling masing2 (flag lokal `_acceptKey`/`_paidKey` tidak cukup, itu
+  /// per-device). Fail-OPEN kalau call ini sendiri error jaringan — device
+  /// tunggal (kasus paling umum) tidak boleh gagal cetak gara2 1 API call
+  /// tambahan ini bermasalah.
+  Future<bool> _claimPrint(
+    String orderId,
+    AuthSession session, {
+    required String kind,
+  }) async {
+    try {
+      return await _webApi.claimPrint(token: session.token, id: orderId, kind: kind);
+    } catch (e) {
+      debugPrint('[web-order print] claimPrint FAIL (fail-open, tetap cetak): $e');
+      return true;
+    }
   }
 
   /// Retry order yang accept-nya sudah sukses tapi cetaknya gagal (printer
@@ -150,6 +172,9 @@ class WebOrderPrintService {
     final sp = await _prefs;
     if (sp.getBool(_paidKey(order.id)) == true) {
       return WebOrderPrintResult.skip('struk lunas sudah dicetak');
+    }
+    if (!await _claimPrint(order.id, session, kind: 'paid')) {
+      return WebOrderPrintResult.skip('diklaim device lain');
     }
     final res = await _dispatch(order: order, session: session, paidReprint: true);
     if (res.anyOk) await sp.setBool(_paidKey(order.id), true);

@@ -234,6 +234,9 @@ class ApiConstants {
   static Uri webOrderVerifyPaymentEndpoint(String id) =>
       Uri.parse('$devBaseUrl$apiV1Prefix/web-orders/$id/verify-payment');
 
+  static Uri webOrderClaimPrintEndpoint(String id) =>
+      Uri.parse('$devBaseUrl$apiV1Prefix/web-orders/$id/claim-print');
+
   // ===== FASE 2: Customer order (tanpa JWT) — dipakai untuk smoke/testing =====
   static Uri orderSessionEndpoint() =>
       Uri.parse('$devBaseUrl$apiV1Prefix/order/session');

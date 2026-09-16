@@ -69,6 +69,13 @@ class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
 
   Future<void> _startFgWebOrderService() async {
     if (!Platform.isAndroid) return;
+    // Lihat komentar sama di settings_screen.dart._initAndStartFgService —
+    // tanpa ini, notifikasi persisten (+ suara/getar order baru) diam-diam
+    // tidak pernah muncul kalau service ini start duluan sebelum izin ada.
+    final notifStatus = await FlutterForegroundTask.checkNotificationPermission();
+    if (notifStatus != NotificationPermission.granted) {
+      await FlutterForegroundTask.requestNotificationPermission();
+    }
     FlutterForegroundTask.init(
       androidNotificationOptions: androidNotificationOptionsForWebOrderFg(),
       iosNotificationOptions: const IOSNotificationOptions(),

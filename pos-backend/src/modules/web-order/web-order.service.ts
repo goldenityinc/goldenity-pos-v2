@@ -649,8 +649,42 @@ export class WebOrderService {
       return await WebOrderService.acceptCore(wo, user.userId, 'manual');
     } catch (e: any) {
       if (e?.code === 'INSUFFICIENT_STOCK') return fail(e.message, 'INSUFFICIENT_STOCK');
+      if (e?.code === 'ALREADY_ACCEPTED') return fail(e.message, 'ALREADY_ACCEPTED');
       throw e;
     }
+  }
+
+  /**
+   * Klaim atomik "hak cetak" lintas-device. `accept()` di atas sudah atomik
+   * soal SIAPA yang berhasil accept, tapi trigger cetak di client ADA DUA
+   * jalur: (1) device yang berhasil accept, (2) device LAIN yang cuma
+   * mengamati transisi status via polling (`WebOrderListNotifier._process`,
+   * `pos-native-*`) — jalur ke-2 ini tidak tahu siapa yang accept, jadi kalau
+   * 2 device sama-sama polling & sama-sama lihat order berubah ke ACCEPTED,
+   * DUA-DUANYA akan cetak (flag "sudah print" tersimpan lokal per-device,
+   * bukan di server). `updateMany WHERE <field> IS NULL` di bawah memberi
+   * SATU device saja hak cetak — device lain yang query setelahnya lihat
+   * `claimed:false` dan WAJIB skip print (bukan retry/error).
+   */
+  static async claimPrint(
+    user: JwtAuthPayload,
+    id: string,
+    kind: unknown,
+  ): Promise<ApiResponse<any>> {
+    const wo = await WebOrderService.findScoped(user, id);
+    if (!wo) return fail('Web order tidak ditemukan', 'NOT_FOUND');
+    const now = new Date();
+    const claim =
+      kind === 'paid'
+        ? await prisma.webOrder.updateMany({
+            where: { id, printPaidClaimedAt: null },
+            data: { printPaidClaimedAt: now },
+          })
+        : await prisma.webOrder.updateMany({
+            where: { id, printAcceptedClaimedAt: null },
+            data: { printAcceptedClaimedAt: now },
+          });
+    return ok({ claimed: claim.count === 1 });
   }
 
   /**
@@ -675,6 +709,28 @@ export class WebOrderService {
     const cashierShiftId = openShift?.id ?? null;
 
     const txBody = async (tx: Prisma.TransactionClient) => {
+      // Klaim atomik SEBELUM apapun lain di transaksi ini. `accept()` di atas
+      // sudah cek `wo.status !== 'SUBMITTED'` tapi itu READ di LUAR transaksi
+      // (TOCTOU) — 2 device (mis. tablet + HP) yang sama-sama poll & accept
+      // order yang sama dalam window ~6 detik bisa lolos cek itu sebelum
+      // salah satu commit, lalu DUA-DUANYA lanjut print (flag "sudah print"
+      // tersimpan lokal per-device, server tidak tahu). `updateMany` dengan
+      // `WHERE status='SUBMITTED'` ini memakai row-lock UPDATE Postgres:
+      // transaksi kedua yang menyentuh row yang sama BLOCK sampai transaksi
+      // pertama commit, lalu WHERE-nya re-evaluated terhadap data yang sudah
+      // committed (status sudah ACCEPTED) → count=0 → klaim gagal → berhenti
+      // sebelum sempat print. Hanya SATU transaksi yang bisa menang.
+      const claim = await tx.webOrder.updateMany({
+        where: { id: wo.id, status: 'SUBMITTED' },
+        data: { status: 'ACCEPTED' },
+      });
+      if (claim.count === 0) {
+        throw Object.assign(
+          new Error('Web order sudah diterima lebih dulu (kemungkinan oleh device/kasir lain).'),
+          { code: 'ALREADY_ACCEPTED' },
+        );
+      }
+
       // Idempotent: kalau SalesRecord dgn referenceId ini sudah ada, pakai itu.
       let sale = await tx.salesRecord.findUnique({ where: { referenceId } });
       // NOTE: urutan update stok DIKUNCI (sort productId) supaya banyak
@@ -746,7 +802,7 @@ export class WebOrderService {
       const updated = await tx.webOrder.update({
         where: { id: wo.id },
         data: {
-          status: 'ACCEPTED',
+          // status sudah 'ACCEPTED' dari klaim atomik di atas.
           salesRecordId: sale.id,
           // BUG FIX: sebelumnya SELALU 'PAID' untuk metode non-CASH (QRIS) —
           // artinya order QRIS langsung tercatat lunas begitu diterima

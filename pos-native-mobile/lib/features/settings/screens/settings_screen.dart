@@ -398,6 +398,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   // ======== Android: FG Web-Order Receiver (toggle) ========
   Future<void> _initAndStartFgService({bool silent = false}) async {
     if (!Platform.isAndroid) return;
+    // WAJIB diminta SEBELUM startService — kalau toggle ini dinyalakan lebih
+    // dulu dari izin notifikasi (jalur lain yg minta izin ini cuma di scan
+    // Bluetooth printer, tidak selalu dilewati user), Android DIAM-DIAM tidak
+    // menampilkan notifikasi persisten sama sekali (termasuk suara/getar saat
+    // ada order baru) — dan servicenya tetap "jalan" tanpa gejala error apapun,
+    // jadi user tidak sadar sampai order beneran masuk saat di-minimize.
+    final notifStatus = await FlutterForegroundTask.checkNotificationPermission();
+    if (notifStatus != NotificationPermission.granted) {
+      await FlutterForegroundTask.requestNotificationPermission();
+    }
     FlutterForegroundTask.init(
       androidNotificationOptions: androidNotificationOptionsForWebOrderFg(),
       iosNotificationOptions: const IOSNotificationOptions(),

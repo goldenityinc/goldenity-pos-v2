@@ -77,4 +77,24 @@ class WebOrderApiService {
         .timeout(ApiConstants.defaultReceiveTimeout);
     _ok(r);
   }
+
+  /// Klaim atomik "hak cetak" lintas-device (lihat WebOrderService.claimPrint
+  /// di backend) — dipanggil SEBELUM benar2 cetak. `claimed:false` artinya
+  /// device lain (mis. tablet vs HP yang sama-sama aktif) sudah menang klaim
+  /// lebih dulu; caller WAJIB skip print, bukan retry.
+  Future<bool> claimPrint({
+    required String token,
+    required String id,
+    required String kind, // 'accepted' | 'paid'
+  }) async {
+    final r = await _client
+        .post(
+          ApiConstants.webOrderClaimPrintEndpoint(id),
+          headers: _h(token),
+          body: jsonEncode({'kind': kind}),
+        )
+        .timeout(ApiConstants.defaultReceiveTimeout);
+    final data = _ok(r);
+    return data['claimed'] == true;
+  }
 }

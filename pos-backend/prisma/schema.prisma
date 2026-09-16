@@ -404,20 +404,20 @@ enum PrinterConnectionType {
 }
 
 model PrinterConfig {
-  id             String                @id @default(uuid())
-  branchId       String
-  deviceId       String? // null = default cabang; non-null = override khusus 1 device (multi-device/cabang)
-  slot           PrinterSlot
-  connectionType PrinterConnectionType @default(none)
-  address        String?
-  port           Int?
-  paperWidth     Int                   @default(58) // 58 | 80 (mm) — lebar kertas thermal per slot
+  id                 String                @id @default(uuid())
+  branchId           String
+  deviceId           String? // null = default cabang; non-null = override khusus 1 device (multi-device/cabang)
+  slot               PrinterSlot
+  connectionType     PrinterConnectionType @default(none)
+  address            String?
+  port               Int?
+  paperWidth         Int                   @default(58) // 58 | 80 (mm) — lebar kertas thermal per slot
   // Ported dari V1 (AppConfigService.autoOpenCashDrawer): kirim perintah ESC/POS
   // buka cash drawer ke printer slot ini setiap transaksi TUNAI selesai dicetak
   // (drawer fisik biasanya terhubung via RJ11/RJ12 ke printer, bukan device terpisah).
-  autoOpenCashDrawer Boolean            @default(false)
-  branch         Branch                @relation(fields: [branchId], references: [id])
-  device         Device?               @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  autoOpenCashDrawer Boolean               @default(false)
+  branch             Branch                @relation(fields: [branchId], references: [id])
+  device             Device?               @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
   @@unique([branchId, deviceId, slot])
   @@index([deviceId])
@@ -527,31 +527,39 @@ model TableSession {
 }
 
 model WebOrder {
-  id              String              @id @default(uuid())
-  tenantId        String
-  branchId        String
-  tableSessionId  String?
-  salesRecordId   BigInt?             @unique // terisi setelah ACCEPTED & masuk pipeline SalesRecord
-  orderType       String              @default("DINE_IN_QR") // string bebas, validasi awal cuma DINE_IN_QR
-  queueNumber     Int
-  status          String              @default("SUBMITTED") // SUBMITTED|ACCEPTED|PREPARING|READY|SERVED|COMPLETED|CANCELLED (CART tidak dipersist di iterasi awal)
-  subtotal        Decimal
-  discountAmount  Decimal             @default(0)
-  taxAmount       Decimal             @default(0)
-  total           Decimal
-  paymentMethod   String              @default("PAY_AT_CASHIER") // QRIS_STATIC | PAY_AT_CASHIER
-  paymentStatus   String              @default("UNPAID") // UNPAID | PENDING_VERIFICATION | PAID
-  paymentProofUrl String? // bukti transfer QRIS yang di-upload customer (untuk dicek kasir)
-  customerNote    String?
-  rejectionReason String?
-  tenant          Tenant              @relation(fields: [tenantId], references: [id])
-  branch          Branch              @relation(fields: [branchId], references: [id])
-  tableSession    TableSession?       @relation(fields: [tableSessionId], references: [id])
-  salesRecord     SalesRecord?        @relation(fields: [salesRecordId], references: [id])
-  items           WebOrderItem[]
-  notifications   NotificationEvent[]
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  id                     String              @id @default(uuid())
+  tenantId               String
+  branchId               String
+  tableSessionId         String?
+  salesRecordId          BigInt?             @unique // terisi setelah ACCEPTED & masuk pipeline SalesRecord
+  orderType              String              @default("DINE_IN_QR") // string bebas, validasi awal cuma DINE_IN_QR
+  queueNumber            Int
+  status                 String              @default("SUBMITTED") // SUBMITTED|ACCEPTED|PREPARING|READY|SERVED|COMPLETED|CANCELLED (CART tidak dipersist di iterasi awal)
+  subtotal               Decimal
+  discountAmount         Decimal             @default(0)
+  taxAmount              Decimal             @default(0)
+  total                  Decimal
+  paymentMethod          String              @default("PAY_AT_CASHIER") // QRIS_STATIC | PAY_AT_CASHIER
+  paymentStatus          String              @default("UNPAID") // UNPAID | PENDING_VERIFICATION | PAID
+  paymentProofUrl        String? // bukti transfer QRIS yang di-upload customer (untuk dicek kasir)
+  customerNote           String?
+  rejectionReason        String?
+  // Klaim atomik cetak lintas-device (tablet + HP bisa aktif bersamaan untuk
+  // branch yang sama) — device yang berhasil set field ini (updateMany WHERE
+  // masih null) yang berhak cetak; device lain yang telat SKIP, cegah double
+  // print struk/nota dapur. Terpisah dari accept() klaim (`status`) karena
+  // trigger cetak ADA DUA: (1) device yang berhasil accept, (2) device lain
+  // yang cuma MENGAMATI transisi status via polling (lihat WebOrderListNotifier).
+  printAcceptedClaimedAt DateTime?
+  printPaidClaimedAt     DateTime?
+  tenant                 Tenant              @relation(fields: [tenantId], references: [id])
+  branch                 Branch              @relation(fields: [branchId], references: [id])
+  tableSession           TableSession?       @relation(fields: [tableSessionId], references: [id])
+  salesRecord            SalesRecord?        @relation(fields: [salesRecordId], references: [id])
+  items                  WebOrderItem[]
+  notifications          NotificationEvent[]
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
 
   @@index([branchId, status, createdAt])
   @@index([tableSessionId])
