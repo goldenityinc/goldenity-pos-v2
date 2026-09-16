@@ -103,7 +103,7 @@ Repo: `E:\Goldenity\goldenity-pointofsales-app`. **Ini referensi POLA/UX, bukan 
 - Tab **Penjualan** → `ProductListScreen` (lihat 4.4 untuk perubahan yang dibutuhkan di dalamnya).
 - Tab **Web Orders** → `WebOrdersScreen` langsung (audit dulu apakah sudah cukup responsive — kemungkinan besar sudah OK karena bentuknya list vertikal, bukan grid+panel seperti POS).
 - Tab **Riwayat** → `SalesHistoryScreen` (audit filter row — `UI_REVAMP_TASKLIST_TRAE.md` Bagian 3.3 menyebut filter-nya "4 dropdown sejajar", ini kemungkinan overflow di lebar HP — jadikan scroll horizontal atau collapsible "Filter" button yang buka bottom sheet).
-- Tab **Inventaris** → `ProductManagementListScreen`, **rekomendasi default: mode ringkas** (lihat/cari produk + quick-edit stok/harga) tanpa fitur builder varian penuh di fase pertama — kalau list-nya (bukan grid) sudah reasonably responsive, mungkin tidak perlu banyak perubahan. Builder produk lengkap dengan varian kompleks direkomendasikan tetap tablet-only untuk sekarang (catat di Bagian 7 sebagai keputusan yang perlu dikonfirmasi Andre, jangan asumsikan).
+- Tab **Inventaris** → `ProductManagementListScreen` **+ full product builder varian** (dikonfirmasi Andre 2026-09-16, lihat Bagian 7 — BUKAN mode ringkas). List produk dan form builder (termasuk editor varian/opsi di `product_builder_screen.dart`) harus dibuat breakpoint-aware: audit setiap `Row` yang mengasumsikan lebar tablet (mis. form field berdampingan, group radio/checkbox varian) dan buat jadi `Column`/`Wrap` di mode mobile. Test ekstra hati-hati untuk overflow di lebar 360-430dp — builder varian punya banyak nested form yang berisiko RenderFlex error di layar sempit.
 - Tab **Profil** → halaman BARU (`lib/features/profile_mobile/screens/mobile_profile_screen.dart` atau lokasi serupa), isi (list menu, bukan form panjang):
   - Info user + cabang aktif + tombol ganti cabang.
   - Toggle **Latar Belakang Web-Order Receiver** (logic sudah ada di `android_fg_weborder_handler.dart` + `goldenity_app_shell.dart`, tinggal expose toggle-nya, sama seperti di `settings_screen.dart` sekarang).
@@ -132,7 +132,7 @@ Ini perubahan paling signifikan. Struktur sekarang (baris ±144-229): `Scaffold(
 - [ ] **P5 — Tab Web Orders**: audit + adjust minor (breakpoint-aware padding kalau perlu).
 - [ ] **P6 — Tab Riwayat**: audit filter row, buat scroll-horizontal/bottom-sheet-filter kalau overflow.
 - [ ] **P7 — Tab Profil**: halaman baru, pakai hasil ekstraksi P3.
-- [ ] **P8 — Tab Inventaris**: mode ringkas (lihat 4.3).
+- [ ] **P8 — Tab Inventaris**: **full product builder** (varian lengkap, sama seperti tablet) — dikonfirmasi Andre 2026-09-16, BUKAN mode ringkas (lihat Bagian 7). Effort lebih besar dari estimasi awal — builder varian (radio/checkbox group, form dinamis per opsi) perlu diuji ekstra hati-hati di lebar 360-430dp supaya tidak overflow/RenderFlex error.
 - [ ] **P9 — QA menyeluruh di Android fisik** (bukan cuma resize window Windows). **WAJIB** — sesi debugging 2026-09-13 s/d 15 membuktikan berkali-kali bahwa bug Android (permission, plugin native, printer) SAMA SEKALI tidak kelihatan kalau cuma di-test di Windows/resize desktop. Kalau tidak ada tablet/HP kosong, minimal test di emulator Android resolusi HP (~390-430dp width) dulu, tapi tandai jelas di log kalau belum dites di device fisik sungguhan.
 
 ---
@@ -141,19 +141,20 @@ Ini perubahan paling signifikan. Struktur sekarang (baris ±144-229): `Scaffold(
 
 - **Manajemen Meja (table management)** di HP — dine-in table service tetap tablet-only untuk sekarang. Kalau ternyata dibutuhkan, itu perlu keputusan terpisah dari Andre (catat di Bagian 7, jangan dikerjakan sendiri).
 - **Endpoint/API backend baru** — task ini murni UI + 1 setting baru yang disimpan lokal (SharedPreferences). Kalau merasa butuh backend baru untuk sesuatu, itu tanda scope sudah keluar dari task ini — stop, catat di Bagian 7.
-- **Product builder varian lengkap di HP** — default-nya read-only/quick-edit saja (lihat 4.3), jangan bangun ulang builder kompleks kecuali dikonfirmasi Andre.
 - **Mengubah `mobile_home_screen.dart` V1** — file itu punya client aktif (AIO EDC) yang jalan sekarang, JANGAN disentuh sama sekali dari task ini.
 
 ---
 
-## 7. Item yang butuh keputusan Andre (isi seiring berjalan, jangan ditebak)
+## 7. Item yang butuh keputusan Andre — **SEMUA SUDAH DIKONFIRMASI 2026-09-16**
 
-Format: `- [ ] Pertanyaan — konteks singkat`
+> Dikonfirmasi langsung oleh Andre ke Klaude (bukan lewat laporan Trae) via pertanyaan resmi, setelah Trae melaporkan hasil audit dokumen ini di sesi terpisah. Keempatnya cocok 100% dengan yang Trae laporkan — dicatat di sini sebagai keputusan final, bukan lagi pertanyaan terbuka.
 
-- [ ] Apakah Inventaris di HP perlu full product builder (dengan varian) di fase ini, atau read-only/quick-edit saja sudah cukup untuk rilis pertama?
-- [ ] Apakah preview proporsi visual "Product List vs Cart Sidebar" (seperti di Figma `180528.png`) perlu dibuat nyata (live preview), atau cukup 3 card pilihan tanpa preview visual?
-- [ ] Apakah tab Profil perlu expose SEMUA slot printer (Default/Dapur/Kasir) atau cukup 1 slot "Default" saja untuk device HP?
-- [ ] Nama & urutan final 5 tab bottom-nav — apakah "Penjualan · Web Orders · Riwayat · Inventaris · Profil" sudah sesuai, atau Andre mau urutan/nama lain?
+- [x] **Inventaris di HP: full product builder (dengan varian), BUKAN read-only.** Sama seperti tablet — lihat perubahan di Bagian 4.3 dan P8 (effort naik, perlu audit responsive builder varian).
+- [x] **Preview proporsi "Product List vs Cart Sidebar": TIDAK perlu live preview.** Cukup 3 card pilihan (Otomatis/Tablet/Handphone) tanpa bar preview visual — hemat waktu implementasi.
+- [x] **Slot printer di tab Profil: cukup 1 slot "Default" saja.** Tidak perlu expose slot Dapur/Kasir terpisah di HP.
+- [x] **Urutan 5 tab bottom-nav sudah final:** Penjualan · Web Orders · Riwayat · Inventaris · Profil — tidak berubah.
+
+Kalau ada keputusan produk BARU yang muncul selama implementasi (di luar 4 item di atas), tambahkan sebagai item baru di bagian ini dengan format `- [ ] Pertanyaan — konteks singkat`, jangan ditebak sendiri.
 
 ---
 
