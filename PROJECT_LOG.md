@@ -9,6 +9,19 @@
 
 ---
 
+## ✂️🆕 [2026-09-16] Claude — **Task baru untuk Trae: pisahkan V2 Mobile jadi project Flutter sendiri (`pos-native-mobile`)**
+
+### 🎯 Konteks:
+Andre mengonfirmasi (dua pertanyaan terpisah ke Klaude, bukan lewat laporan Trae): folder `pos-native-mobile/` sudah dia siapkan sejak 2026-09-02 sebagai **project Flutter TERPISAH**, bukan folder output APK dan bukan mode di dalam `pos-native-desktop-tablet`. Commit `4bc7420` tidak menyadari folder ini ada dan membangun seluruh Mobile Shell V2 (breakpoint switching, `GoldenityMobileShell`, dst) di dalam `pos-native-desktop-tablet`.
+
+### 📄 Dibuat:
+- [`pos-native-mobile/SEPARATION_TASKLIST_TRAE.md`](file:///E:/Goldenity/goldenity-pos-v2/pos-native-mobile/SEPARATION_TASKLIST_TRAE.md) — instruksi lengkap: fork penuh `pos-native-desktop-tablet` → `pos-native-mobile` (bukan `flutter create` dari nol, supaya semua fix Android sesi 2026-09-13 s/d 15 ikut terbawa), lalu potong masing-masing sisi (`pos-native-mobile` jadi mobile-only tanpa breakpoint-switching sama sekali karena sekarang APK terpisah tidak perlu deteksi layar; `pos-native-desktop-tablet` di-revert ke kondisi sebelum `4bc7420`, murni tablet+Windows lagi).
+- Dicatat eksplisit: keputusan "project terpisah" (bukan 1 codebase adaptif) berarti business logic (cart/produk/auth/printer/dll) akan **terduplikasi** di 2 codebase — Andre sudah diberi tahu trade-off ini secara langsung (bukan keputusan diam-diam Trae), risiko maintenance jangka panjang dicatat sebagai tech debt yang disadari.
+
+### ⚠️ Status: dokumen perencanaan, belum dieksekusi. Trae mengerjakan mandiri sesuai Bagian 3 dokumen tersebut.
+
+---
+
 ## 🔴🔧 [2026-09-16] Claude — **Restorasi PROJECT_LOG.md (Trae menimpa 7.451 baris riwayat) + audit klaim commit `4bc7420`**
 
 ### 🎯 Apa yang terjadi:
