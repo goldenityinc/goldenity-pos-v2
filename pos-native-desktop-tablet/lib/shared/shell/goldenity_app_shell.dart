@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/api_constants.dart';
 import '../../../core/config/storage_keys.dart';
+import '../../../core/design/goldenity_breakpoint.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/services/android_fg_weborder_handler.dart';
@@ -24,6 +25,7 @@ import '../../../features/tables/providers/table_provider.dart';
 import '../../../features/tables/screens/table_management_screen.dart';
 import '../../../features/web_orders/providers/web_order_provider.dart';
 import '../../../features/web_orders/screens/web_orders_screen.dart';
+import 'goldenity_mobile_shell.dart';
 import 'goldenity_sidebar.dart';
 
 class GoldenityAppShell extends ConsumerStatefulWidget {
@@ -36,18 +38,28 @@ class GoldenityAppShell extends ConsumerStatefulWidget {
 
 class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
   late GoldenitySidebarTab _tab;
+  late SharedPreferences _sp;
+  bool _spReady = false;
 
   @override
   void initState() {
     super.initState();
     _tab = widget.initialTab;
+    SharedPreferences.getInstance().then((value) {
+      _sp = value;
+      if (mounted) setState(() => _spReady = true);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // Auto-start Android FG Web-Order Receiver SETELAH shell mount (after auth):
       // 1) Session valid — double-check safety (shell hanya render setelah login).
       final session = ref.read(currentSessionProvider);
       if (session == null) return;
       // 2) SP + ApiConstants 3-tier FIRST (KRITIS: SP override > env > default).
-      final sp = await SharedPreferences.getInstance();
+      final sp = _spReady ? _sp : await SharedPreferences.getInstance();
+      if (!_spReady) {
+        _sp = sp;
+        _spReady = true;
+      }
       await ApiConstants.initialize(sp);
       // 3) Android only: if enabled=true dan service belum jalan → start.
       if (Platform.isAndroid) {
@@ -94,6 +106,19 @@ class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
     );
   }
 
+  GoldenityBreakpoint _effectiveLayout(BuildContext context) {
+    if (!_spReady) return context.breakpoint;
+    final override = _sp.getString(StorageKeys.uiModeOverride) ?? 'auto';
+    switch (override) {
+      case 'mobile':
+        return GoldenityBreakpoint.mobile;
+      case 'tablet':
+        return GoldenityBreakpoint.tablet;
+      default:
+        return context.breakpoint;
+    }
+  }
+
   static const _tabOrder = <GoldenitySidebarTab>[
     GoldenitySidebarTab.pos,
     GoldenitySidebarTab.dashboard,
@@ -108,10 +133,57 @@ class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
     GoldenitySidebarTab.settings,
   ];
 
+  int _sidebarTabToMobileIndex(GoldenitySidebarTab tab) {
+    switch (tab) {
+      case GoldenitySidebarTab.pos:
+        return 0;
+      case GoldenitySidebarTab.webOrders:
+        return 1;
+      case GoldenitySidebarTab.salesHistory:
+        return 2;
+      case GoldenitySidebarTab.inventory:
+        return 3;
+      default:
+        return 0;
+    }
+  }
+
+  GoldenitySidebarTab _mobileIndexToSidebarTab(int idx) {
+    switch (idx) {
+      case 0:
+        return GoldenitySidebarTab.pos;
+      case 1:
+        return GoldenitySidebarTab.webOrders;
+      case 2:
+        return GoldenitySidebarTab.salesHistory;
+      case 3:
+        return GoldenitySidebarTab.inventory;
+      default:
+        return GoldenitySidebarTab.pos;
+    }
+  }
+
+  void _switchTab(int idx) {
+    setState(() => _tab = _mobileIndexToSidebarTab(idx));
+  }
+
   @override
   Widget build(BuildContext context) {
     final webBadge = ref.watch(webOrderListProvider).baruCount;
     final tableBadge = ref.watch(tableListProvider).countByStatus('OCCUPIED');
+    final currentSession = ref.watch(currentSessionProvider);
+    final currentBranch = currentSession?.selectedBranch;
+    final effectiveLayout = _effectiveLayout(context);
+    final layout = effectiveLayout;
+    if (layout.isMobile) {
+      return GoldenityMobileShell(
+        initialTab: _sidebarTabToMobileIndex(_tab),
+        onTabChange: _switchTab,
+        webOrderBadge: webBadge,
+        userFullName: currentSession?.user.username ?? 'Kasir',
+        branchName: currentBranch?.name ?? '-',
+      );
+    }
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,

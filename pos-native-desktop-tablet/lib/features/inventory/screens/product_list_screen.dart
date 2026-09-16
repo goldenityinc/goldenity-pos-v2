@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/design/goldenity_breakpoint.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
@@ -44,6 +45,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     final syncQueue = ref.watch(syncQueueNotifierProvider);
     final searchQuery = ref.watch(productSearchQueryProvider);
     final filteredProducts = ref.watch(filteredProductsProvider);
+    final isMobileView = context.breakpoint.isMobile;
 
     final bool showOfflineBanner =
         state.isOfflineMode && state.status == ProductListStatus.success;
@@ -144,88 +146,202 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     return Scaffold(
       backgroundColor: GoldenityColors.bg,
       body: SafeArea(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Column(
+        child: (!isMobileView)
+            ? Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _PosTopBar(),
-                  const SizedBox(height: GoldenitySpacing.md),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(child: _buildSearchBar(context, textTheme, searchQuery)),
-                        const SizedBox(width: GoldenitySpacing.sm),
-                        _KustomButton(
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Item kustom akan tersedia pada pembaruan berikutnya.'),
-                                duration: Duration(seconds: 2),
+                        const _PosTopBar(),
+                        const SizedBox(height: GoldenitySpacing.md),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(child: _buildSearchBar(context, textTheme, searchQuery)),
+                              const SizedBox(width: GoldenitySpacing.sm),
+                              _KustomButton(
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Item kustom akan tersedia pada pembaruan berikutnya.'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
                               ),
-                            );
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: GoldenitySpacing.sm),
+                        _CategoryChips(state: state),
+                        ...banners,
+                        const SizedBox(height: GoldenitySpacing.sm),
+                        Expanded(
+                          child: switch (state.status) {
+                            ProductListStatus.loading => const _LoadingView(),
+                            ProductListStatus.success => filteredProducts.isEmpty
+                                ? _EmptyView(
+                                    hint: searchQuery.trim().isEmpty
+                                        ? null
+                                        : 'Tidak ada produk yang cocok dengan pencarian "${searchQuery.trim()}".',
+                                    onRetry: searchQuery.trim().isEmpty
+                                        ? () => ref
+                                            .read(productListNotifierProvider
+                                                .notifier)
+                                            .load()
+                                        : () => ref
+                                            .read(productSearchQueryProvider
+                                                .notifier)
+                                            .state = '',
+                                  )
+                                : _ProductGridView(
+                                    products: filteredProducts,
+                                    grouped:
+                                        ref.watch(groupedProductsProvider),
+                                    currencyFormatter: _currencyFormatter,
+                                    usedIncludeInactive:
+                                        state.usedIncludeInactiveFallback,
+                                  ),
+                            ProductListStatus.error => _ErrorView(
+                                message: state.errorMessage ??
+                                    'Gagal memuat daftar produk. Silakan coba lagi.',
+                                onRetry: () => ref
+                                    .read(productListNotifierProvider.notifier)
+                                    .load(),
+                              ),
                           },
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: GoldenitySpacing.sm),
-                  _CategoryChips(state: state),
-                  ...banners,
-                  const SizedBox(height: GoldenitySpacing.sm),
-                  Expanded(
-                    child: switch (state.status) {
-                      ProductListStatus.loading => const _LoadingView(),
-                      ProductListStatus.success => filteredProducts.isEmpty
-                          ? _EmptyView(
-                              hint: searchQuery.trim().isEmpty
-                                  ? null
-                                  : 'Tidak ada produk yang cocok dengan pencarian "${searchQuery.trim()}".',
-                              onRetry: searchQuery.trim().isEmpty
-                                  ? () => ref
-                                      .read(productListNotifierProvider
-                                          .notifier)
-                                      .load()
-                                  : () => ref
-                                      .read(productSearchQueryProvider
-                                          .notifier)
-                                      .state = '',
-                            )
-                          : _ProductGridView(
-                              products: filteredProducts,
-                              grouped:
-                                  ref.watch(groupedProductsProvider),
-                              currencyFormatter: _currencyFormatter,
-                              usedIncludeInactive:
-                                  state.usedIncludeInactiveFallback,
-                            ),
-                      ProductListStatus.error => _ErrorView(
-                          message: state.errorMessage ??
-                              'Gagal memuat daftar produk. Silakan coba lagi.',
-                          onRetry: () => ref
-                              .read(productListNotifierProvider.notifier)
-                              .load(),
-                        ),
+                  GoldenityCartPanel(
+                    onCheckoutPressed: () {
+                      GoldenityPaymentModal.show(
+                        context: context,
+                        ref: ref,
+                      );
                     },
                   ),
                 ],
+              )
+            : Stack(
+                children: [
+                  Positioned.fill(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _PosTopBar(),
+                        const SizedBox(height: GoldenitySpacing.md),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.lg),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(child: _buildSearchBar(context, textTheme, searchQuery)),
+                              const SizedBox(width: GoldenitySpacing.sm),
+                              _KustomButton(
+                                onTap: () {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Item kustom akan tersedia pada pembaruan berikutnya.'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: GoldenitySpacing.sm),
+                        _CategoryChips(state: state),
+                        ...banners,
+                        const SizedBox(height: GoldenitySpacing.sm),
+                        Expanded(
+                          child: switch (state.status) {
+                            ProductListStatus.loading => const _LoadingView(),
+                            ProductListStatus.success => filteredProducts.isEmpty
+                                ? _EmptyView(
+                                    hint: searchQuery.trim().isEmpty
+                                        ? null
+                                        : 'Tidak ada produk yang cocok dengan pencarian "${searchQuery.trim()}".',
+                                    onRetry: searchQuery.trim().isEmpty
+                                        ? () => ref
+                                            .read(productListNotifierProvider
+                                                .notifier)
+                                            .load()
+                                        : () => ref
+                                            .read(productSearchQueryProvider
+                                                .notifier)
+                                            .state = '',
+                                  )
+                                : _ProductGridView(
+                                    products: filteredProducts,
+                                    grouped:
+                                        ref.watch(groupedProductsProvider),
+                                    currencyFormatter: _currencyFormatter,
+                                    usedIncludeInactive:
+                                        state.usedIncludeInactiveFallback,
+                                  ),
+                            ProductListStatus.error => _ErrorView(
+                                message: state.errorMessage ??
+                                    'Gagal memuat daftar produk. Silakan coba lagi.',
+                                onRetry: () => ref
+                                    .read(productListNotifierProvider.notifier)
+                                    .load(),
+                              ),
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    bottom: GoldenitySpacing.lg,
+                    right: GoldenitySpacing.lg,
+                    child: FloatingActionButton.extended(
+                      onPressed: () => _openCartBottomSheet(context, ref),
+                      backgroundColor: biz.base,
+                      icon: const Icon(Icons.shopping_cart_checkout_rounded),
+                      label: Consumer(
+                        builder: (ctx, ref, _) {
+                          final cart = ref.watch(cartNotifierProvider).length;
+                          return Text('Keranjang ($cart)');
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            GoldenityCartPanel(
-              onCheckoutPressed: () {
-                GoldenityPaymentModal.show(
-                  context: context,
-                  ref: ref,
-                );
-              },
-            ),
-          ],
-        ),
       ),
+    );
+  }
+
+  Future<void> _openCartBottomSheet(BuildContext context, WidgetRef ref) async {
+    return showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      isScrollControlled: true,
+      backgroundColor: GoldenityColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(GoldenityRadius.xl)),
+      ),
+      builder: (ctx) {
+        return FractionallySizedBox(
+          heightFactor: 0.88,
+          child: GoldenityCartPanel(
+            onCheckoutPressed: () {
+              Navigator.pop(ctx);
+              GoldenityPaymentModal.show(
+                context: context,
+                ref: ref,
+              );
+            },
+          ),
+        );
+      },
     );
   }
 

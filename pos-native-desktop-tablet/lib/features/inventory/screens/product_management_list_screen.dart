@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/design/goldenity_breakpoint.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
@@ -221,6 +222,7 @@ class _ProductManagementListScreenState
 
   Widget _buildList(BuildContext context, TextTheme textTheme,
       GoldenityBizColors biz, List<ProductProfile> products) {
+    final isMobile = context.breakpoint.isMobile;
     if (products.isEmpty) {
       return Center(
         child: Padding(
@@ -254,11 +256,16 @@ class _ProductManagementListScreenState
     return RefreshIndicator(
       onRefresh: _onRefresh,
       color: biz.base,
-      child: ListView.separated(
+      child: GridView.builder(
         padding: const EdgeInsets.all(GoldenitySpacing.lg),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: isMobile ? 2 : 4,
+          crossAxisSpacing: GoldenitySpacing.md,
+          mainAxisSpacing: GoldenitySpacing.md,
+          childAspectRatio: isMobile ? 0.72 : 0.82,
+        ),
         itemCount: products.length,
-        separatorBuilder: (_, __) => const SizedBox(height: GoldenitySpacing.sm),
-        itemBuilder: (context, i) => _ProductRow(
+        itemBuilder: (context, i) => _ProductGridCard(
           p: products[i],
           biz: biz,
           textTheme: textTheme,
@@ -271,10 +278,10 @@ class _ProductManagementListScreenState
   }
 }
 
-/// Baris produk (Figma arch-sleek): thumbnail + nama + "SKU · N grup variasi"
-/// + kanan: harga (mono biru) / Stok: N / pill status / Edit.
-class _ProductRow extends StatelessWidget {
-  const _ProductRow({
+/// Grid card produk (Figma arch-sleek): thumbnail atas + nama + sub info
+/// + bawah: harga / Stok / pill status + tombol Edit.
+class _ProductGridCard extends StatelessWidget {
+  const _ProductGridCard({
     required this.p,
     required this.biz,
     required this.textTheme,
@@ -289,6 +296,7 @@ class _ProductRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = context.breakpoint.isMobile;
     final calc = VariantPriceCalculator.calculate(p);
     final stock = VariantPriceCalculator.effectiveStock(p);
     final priceDisplay = calc.hasVariants && calc.maxPrice != calc.minPrice
@@ -296,7 +304,7 @@ class _ProductRow extends StatelessWidget {
         : VariantPriceCalculator.formatPrice(calc.minPrice);
     final sub = [
       if (p.sku?.isNotEmpty == true) p.sku!,
-      if (calc.hasVariants) '${calc.groupCount} grup variasi',
+      if (calc.hasVariants) '${calc.groupCount} var',
       if (p.category.isNotEmpty) p.category,
     ].join(' · ');
     final inactive = !p.isActive;
@@ -304,105 +312,104 @@ class _ProductRow extends StatelessWidget {
     return Opacity(
       opacity: inactive ? 0.6 : 1.0,
       child: Container(
-        padding: const EdgeInsets.all(GoldenitySpacing.md),
         decoration: BoxDecoration(
           color: GoldenityColors.surface,
           borderRadius: BorderRadius.circular(GoldenityRadius.xl),
           border: Border.all(color: GoldenityColors.border),
           boxShadow: GoldenityElevation.card,
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: GoldenityColors.surface2,
-                borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        child: Padding(
+          padding: const EdgeInsets.all(GoldenitySpacing.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                height: isMobile ? 88 : 104,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: GoldenityColors.surface2,
+                  borderRadius: BorderRadius.circular(GoldenityRadius.lg),
+                ),
+                child: const Icon(Icons.inventory_2_rounded,
+                    size: 40, color: GoldenityColors.textXMuted),
               ),
-              child: const Icon(Icons.inventory_2_rounded,
-                  size: 20, color: GoldenityColors.textXMuted),
-            ),
-            const SizedBox(width: GoldenitySpacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const SizedBox(height: GoldenitySpacing.sm),
+              Text(p.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: GoldenityColors.text)),
+              if (sub.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(sub,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 10.5,
+                        color: GoldenityColors.muted,
+                        fontFamily: GoldenityTypography.fontFamilyMono)),
+              ],
+              const Spacer(),
+              Text(priceDisplay,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: GoldenityColors.primary,
+                      fontFamily: GoldenityTypography.fontFamilyMono)),
+              const SizedBox(height: 2),
+              Row(
                 children: [
-                  Text(p.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                          color: GoldenityColors.text)),
-                  if (sub.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(sub,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 11,
-                            color: GoldenityColors.muted,
-                            fontFamily: GoldenityTypography.fontFamilyMono)),
-                  ],
+                  Text('Stok $stock',
+                      style: TextStyle(
+                          fontSize: 10.5,
+                          color: stock <= 0 ? GoldenityColors.error : GoldenityColors.muted)),
+                  const Spacer(),
+                  GestureDetector(
+                    onTap: onToggleActive,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: p.isActive ? GoldenityColors.successLight : GoldenityColors.surface2,
+                        borderRadius: BorderRadius.circular(GoldenityRadius.full),
+                      ),
+                      child: Text(p.isActive ? 'Aktif' : 'Non',
+                          style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: p.isActive ? GoldenityColors.success : GoldenityColors.muted)),
+                    ),
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(width: GoldenitySpacing.md),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(priceDisplay,
-                    style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: GoldenityColors.primary,
-                        fontFamily: GoldenityTypography.fontFamilyMono)),
-                const SizedBox(height: 2),
-                Text('Stok: $stock',
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: stock <= 0 ? GoldenityColors.error : GoldenityColors.muted)),
-              ],
-            ),
-            const SizedBox(width: GoldenitySpacing.md),
-            GestureDetector(
-              onTap: onToggleActive,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: p.isActive ? GoldenityColors.successLight : GoldenityColors.surface2,
-                  borderRadius: BorderRadius.circular(GoldenityRadius.full),
-                ),
-                child: Text(p.isActive ? 'Aktif' : 'Nonaktif',
-                    style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                        color: p.isActive ? GoldenityColors.success : GoldenityColors.muted)),
-              ),
-            ),
-            const SizedBox(width: GoldenitySpacing.sm),
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                onTap: onEdit,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
+              const SizedBox(height: GoldenitySpacing.xs),
+              SizedBox(
+                height: 30,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                    border: Border.all(color: GoldenityColors.border),
+                    onTap: onEdit,
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                        border: Border.all(color: GoldenityColors.border),
+                      ),
+                      child: const Text('Edit',
+                          style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: GoldenityColors.text2)),
+                    ),
                   ),
-                  child: const Text('Edit',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: GoldenityColors.text2)),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

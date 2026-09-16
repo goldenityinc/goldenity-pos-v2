@@ -29,6 +29,7 @@ import '../../auth/providers/auth_provider.dart';
 import '../../inventory/providers/product_list_provider.dart';
 import '../../sales/providers/cart_provider.dart';
 import '../services/device_api_service.dart';
+import '../widgets/printer_slot_card.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -119,6 +120,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   // Android — Foreground Service Web-Order Receiver (toggle di body).
   bool _fgServiceEnabled = false;
   bool _fgServiceLoading = false;
+
+  // UI Mode Override — 'auto' | 'tablet' | 'mobile'. Default = 'auto' (empty SP).
+  String _uiModeOverride = 'auto';
 
   /// Cabang yang aktif = cabang login (tanpa picker; beda cabang beda printer).
   String? get _loginBranchId {
@@ -536,6 +540,186 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     );
   }
 
+  Future<void> _changeUiMode(String mode) async {
+    if (mode == _uiModeOverride) return;
+    final sp = await SharedPreferences.getInstance();
+    if (mode == 'auto') {
+      await sp.remove(StorageKeys.uiModeOverride);
+    } else {
+      await sp.setString(StorageKeys.uiModeOverride, mode);
+    }
+    final label = switch (mode) {
+      'tablet' => 'Tablet',
+      'mobile' => 'Handphone',
+      _ => 'Otomatis',
+    };
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 2),
+        backgroundColor: GoldenityColors.success,
+        content: Text('Tampilan diubah ke $label — efektif segera'),
+      ),
+    );
+    setState(() => _uiModeOverride = mode);
+  }
+
+  Widget _buildUiModeSection(TextTheme textTheme, GoldenityBizColors biz) {
+    Widget buildCard({
+      required String mode,
+      required IconData icon,
+      required String title,
+      required String subtitle,
+    }) {
+      final selected = _uiModeOverride == mode;
+      return Expanded(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _changeUiMode(mode),
+            borderRadius: BorderRadius.circular(GoldenityRadius.md),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(
+                horizontal: GoldenitySpacing.md,
+                vertical: GoldenitySpacing.lg,
+              ),
+              decoration: BoxDecoration(
+                color: selected
+                    ? biz.base.withValues(alpha: 0.06)
+                    : GoldenityColors.surface,
+                borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                border: Border.all(
+                  color: selected ? biz.base : GoldenityColors.border,
+                  width: selected ? 2 : 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: GoldenityColors.text.withValues(alpha: selected ? 0.12 : 0.05),
+                    blurRadius: selected ? 8 : 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? biz.base.withValues(alpha: 0.14)
+                          : biz.base.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                    ),
+                    child: Icon(icon, size: 24, color: biz.base),
+                  ),
+                  const SizedBox(height: GoldenitySpacing.sm),
+                  Text(
+                    title,
+                    style: textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: GoldenityColors.muted,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: GoldenitySpacing.lg,
+        vertical: GoldenitySpacing.md,
+      ),
+      margin: const EdgeInsets.only(
+        left: GoldenitySpacing.md,
+        right: GoldenitySpacing.md,
+        top: GoldenitySpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: GoldenityColors.surface,
+        borderRadius: BorderRadius.circular(GoldenityRadius.md),
+        border: Border.all(color: GoldenityColors.border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: biz.base.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(GoldenityRadius.md),
+                ),
+                child: Icon(Icons.dashboard_customize_rounded, size: 22, color: biz.base),
+              ),
+              const SizedBox(width: GoldenitySpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Tampilan Antarmuka',
+                      style: textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Pilih layout aplikasi sesuai perangkat atau preferensi.',
+                      style: textTheme.bodySmall
+                          ?.copyWith(color: GoldenityColors.muted),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: GoldenitySpacing.md),
+          Row(
+            children: [
+              buildCard(
+                mode: 'auto',
+                icon: Icons.auto_awesome,
+                title: 'Otomatis',
+                subtitle: 'Sesuaikan dengan ukuran layar',
+              ),
+              const SizedBox(width: GoldenitySpacing.sm),
+              buildCard(
+                mode: 'tablet',
+                icon: Icons.tablet_rounded,
+                title: 'Tablet',
+                subtitle: 'Sidebar kiri permanen',
+              ),
+              const SizedBox(width: GoldenitySpacing.sm),
+              buildCard(
+                mode: 'mobile',
+                icon: Icons.smartphone_rounded,
+                title: 'Handphone',
+                subtitle: 'Bottom navigasi + Cart BottomSheet',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -576,6 +760,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         } catch (_) {}
       }
     }
+    // UI Mode Override — load dari SP, default 'auto' jika kosong.
+    final spUi = await SharedPreferences.getInstance();
+    final saved = spUi.getString(StorageKeys.uiModeOverride);
+    if (!mounted) return;
+    setState(() => _uiModeOverride = (saved == null || saved.isEmpty) ? 'auto' : saved);
   }
 
   @override
@@ -1486,6 +1675,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
         body: Column(
           children: [
             if (_devOptionsVisible) _buildDevOptionsSection(textTheme, biz),
+            _buildUiModeSection(textTheme, biz),
             if (Platform.isAndroid) _buildFgServiceToggleSection(textTheme, biz),
             Expanded(
               child: _loading
@@ -2983,7 +3173,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
                     return Padding(
                       padding:
                           const EdgeInsets.only(bottom: GoldenitySpacing.md),
-                      child: _PrinterSlotCard(
+                      child: PrinterSlotCard(
                         slot: slot,
                         slotLabel: _slotLabel(slot),
                         connType: _printerConnTypes[slot] ??
@@ -3028,384 +3218,4 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   }
 }
 
-class _PrinterSlotCard extends StatelessWidget {
-  final PrinterSlotDto slot;
-  final String slotLabel;
-  final PrinterConnectionTypeDto connType;
-  final TextEditingController addressCtrl;
-  final TextEditingController portCtrl;
-  final String Function(PrinterConnectionTypeDto) connTypeLabelFn;
-  final GoldenityBizColors biz;
-  final TextTheme textTheme;
-  final ValueChanged<PrinterConnectionTypeDto> onConnTypeChanged;
-  final int paperWidthMm;
-  final ValueChanged<int> onPaperWidthChanged;
-  final bool autoOpenCashDrawer;
-  final ValueChanged<bool> onAutoOpenCashDrawerChanged;
-  final bool isBle;
-  final ValueChanged<bool> onIsBleChanged;
-  final bool testingPrint;
-  final VoidCallback? onTestPrint;
-  final VoidCallback? onSave;
-  final bool scanning;
-  final String scanMsg;
-  final List<HardwareDeviceInfo> scannedDevices;
-  final VoidCallback? onAutoScan;
-  final ValueChanged<HardwareDeviceInfo> onApplyDevice;
 
-  const _PrinterSlotCard({
-    required this.slot,
-    required this.slotLabel,
-    required this.connType,
-    required this.addressCtrl,
-    required this.portCtrl,
-    required this.connTypeLabelFn,
-    required this.biz,
-    required this.textTheme,
-    required this.onConnTypeChanged,
-    required this.paperWidthMm,
-    required this.onPaperWidthChanged,
-    required this.autoOpenCashDrawer,
-    required this.onAutoOpenCashDrawerChanged,
-    required this.isBle,
-    required this.onIsBleChanged,
-    required this.testingPrint,
-    required this.onTestPrint,
-    required this.onSave,
-    required this.scanning,
-    required this.scanMsg,
-    required this.scannedDevices,
-    required this.onAutoScan,
-    required this.onApplyDevice,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const connOptions = PrinterConnectionTypeDto.values;
-    return Container(
-      decoration: BoxDecoration(
-        color: GoldenityColors.surface2,
-        borderRadius: BorderRadius.circular(GoldenityRadius.md),
-        border: Border.all(color: GoldenityColors.border),
-      ),
-      padding: const EdgeInsets.all(GoldenitySpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                ),
-                child: Icon(Icons.print_outlined, color: biz.base, size: 20),
-              ),
-              const SizedBox(width: GoldenitySpacing.sm),
-              Expanded(
-                child: Text(
-                  'Slot $slotLabel',
-                  style: textTheme.titleSmall
-                      ?.copyWith(fontWeight: FontWeight.w800),
-                ),
-              ),
-              Chip(
-                backgroundColor: connType == PrinterConnectionTypeDto.none
-                    ? GoldenityColors.surface
-                    : biz.light,
-                side: BorderSide.none,
-                visualDensity: VisualDensity.compact,
-                label: Text(
-                  connTypeLabelFn(connType),
-                  style: textTheme.labelSmall?.copyWith(
-                    color: connType == PrinterConnectionTypeDto.none
-                        ? GoldenityColors.text2
-                        : biz.dark,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: GoldenitySpacing.md),
-          Wrap(
-            spacing: GoldenitySpacing.xs,
-            runSpacing: GoldenitySpacing.xs,
-            children: connOptions.map((t) {
-              final selected = connType == t;
-              return GoldenityChoiceChip(
-                label: connTypeLabelFn(t),
-                selected: selected,
-                activeColor: biz.base,
-                dense: true,
-                onSelected: (_) => onConnTypeChanged(t),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: GoldenitySpacing.md),
-          // FIX (temuan Andre): pilihan ukuran kertas 58mm / 80mm — sebelumnya
-          // sama sekali tidak ada di UI, struk selalu di-generate untuk 58mm.
-          Text(
-            'Ukuran Kertas',
-            style: textTheme.labelSmall?.copyWith(
-              color: GoldenityColors.text2,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: GoldenitySpacing.xs),
-          Wrap(
-            spacing: GoldenitySpacing.xs,
-            runSpacing: GoldenitySpacing.xs,
-            children: [58, 80].map((mm) {
-              final selected = paperWidthMm == mm;
-              return GoldenityChoiceChip(
-                label: '${mm}mm',
-                selected: selected,
-                activeColor: biz.base,
-                dense: true,
-                onSelected: (_) => onPaperWidthChanged(mm),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: GoldenitySpacing.md),
-          // Ported dari V1 (AppConfigService.autoOpenCashDrawer) — drawer
-          // fisik umumnya nyambung via RJ11/RJ12 ke printer slot ini.
-          GoldenitySwitchRow(
-            value: autoOpenCashDrawer,
-            onChanged: connType == PrinterConnectionTypeDto.none
-                ? null
-                : onAutoOpenCashDrawerChanged,
-            activeColor: biz.base,
-            title: 'Otomatis Buka Cash Drawer',
-            subtitle: 'Buka laci kasir otomatis setiap transaksi tunai selesai dicetak.',
-          ),
-          if (connType == PrinterConnectionTypeDto.bluetooth) ...[
-            const SizedBox(height: GoldenitySpacing.md),
-            // FIX (temuan Andre): printer dual-mode (mis. nama berakhiran
-            // "_BLE" seperti RPP02N_BLE) kadang muncul di scan tapi gagal
-            // print via Bluetooth classic ("Bluetooth connection lost").
-            // Aktifkan toggle ini supaya app konek pakai BLE, bukan RFCOMM.
-            GoldenitySwitchRow(
-              value: isBle,
-              onChanged: onIsBleChanged,
-              activeColor: biz.base,
-              title: 'Sambungkan via BLE',
-              subtitle:
-                  'Aktifkan jika printer gagal print / muncul "Bluetooth connection lost" '
-                  'walau sudah terdeteksi (umum untuk printer bernama "..._BLE").',
-            ),
-          ],
-          const SizedBox(height: GoldenitySpacing.md),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: addressCtrl,
-                  enabled: connType != PrinterConnectionTypeDto.none,
-                  decoration: const InputDecoration(
-                    labelText: 'Alamat / MAC / IP Address',
-                    hintText: 'Contoh: 192.168.1.100 atau AA:BB:CC:DD:EE:FF',
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: onAutoScan,
-                icon: Icon(
-                  scanning
-                      ? Icons.wifi_tethering_rounded
-                      : Icons.manage_search_rounded,
-                  size: 18,
-                ),
-                label: scanning
-                    ? const Text('Scan...',
-                        style: TextStyle(fontWeight: FontWeight.w700))
-                    : const Text('Cari',
-                        style: TextStyle(fontWeight: FontWeight.w700)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: scanning
-                      ? GoldenityColors.disabled
-                      : GoldenityColors.primary,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: GoldenityColors.disabled,
-                  disabledForegroundColor: GoldenityColors.text2,
-                  minimumSize: const Size(110, 48),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: GoldenitySpacing.md),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: GoldenitySpacing.md),
-          TextFormField(
-            controller: portCtrl,
-            enabled: connType == PrinterConnectionTypeDto.network,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Port (Network saja)',
-              hintText: 'Contoh: 9100',
-            ),
-          ),
-          if (scanMsg.isNotEmpty) ...[
-            const SizedBox(height: GoldenitySpacing.sm),
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm),
-              child: Text(
-                scanMsg,
-                style: textTheme.bodySmall?.copyWith(
-                  color: scanMsg.toLowerCase().contains('gagal') ||
-                          scanMsg.toLowerCase().contains('tidak ditemukan')
-                      ? GoldenityColors.error
-                      : GoldenityColors.text2,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-          if (scannedDevices.isNotEmpty) ...[
-            const SizedBox(height: GoldenitySpacing.sm),
-            Container(
-              padding: const EdgeInsets.all(GoldenitySpacing.xs),
-              decoration: BoxDecoration(
-                color: GoldenityColors.surface,
-                borderRadius: BorderRadius.circular(GoldenityRadius.lg),
-                border: Border.all(color: GoldenityColors.border),
-              ),
-              child: Column(
-                children: scannedDevices.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final d = entry.value;
-                  return Padding(
-                    padding: EdgeInsets.only(
-                        bottom: i == scannedDevices.length - 1
-                            ? 0
-                            : GoldenitySpacing.xs),
-                    child: Material(
-                      color: GoldenityColors.surface,
-                      borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                        onTap: () => onApplyDevice(d),
-                        child: Padding(
-                          padding: const EdgeInsets.all(GoldenitySpacing.sm),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: GoldenityColors.surface2,
-                                  borderRadius:
-                                      BorderRadius.circular(GoldenityRadius.sm),
-                                ),
-                                alignment: Alignment.center,
-                                child: Icon(
-                                  d.connectionType == ConnectionType.bluetooth
-                                      ? Icons.bluetooth_rounded
-                                      : Icons.usb_rounded,
-                                  size: 16,
-                                  color: GoldenityColors.text2,
-                                ),
-                              ),
-                              const SizedBox(width: GoldenitySpacing.sm),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      d.name.isEmpty
-                                          ? 'Perangkat Tanpa Nama'
-                                          : d.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: textTheme.bodySmall?.copyWith(
-                                        fontWeight: FontWeight.w700,
-                                        color: GoldenityColors.text,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      [
-                                        connectionTypeLabel(d.connectionType),
-                                        if (d.address.isNotEmpty) d.address,
-                                        if (d.vendorId != null &&
-                                            d.productId != null)
-                                          'USB: ${d.vendorId}/${d.productId}',
-                                      ].join('  ·  '),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: textTheme.labelSmall?.copyWith(
-                                          color: GoldenityColors.text2),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: GoldenitySpacing.sm),
-                              const Icon(Icons.chevron_right_rounded,
-                                  size: 18, color: GoldenityColors.muted),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-          const SizedBox(height: GoldenitySpacing.md),
-          // FIX (temuan Andre — ported dari V1): tombol Test Print supaya
-          // koneksi Bluetooth/USB/WiFi (+ cash drawer bila togglenya aktif)
-          // bisa dicek langsung dari sini, sebelum checkout sungguhan.
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: OutlinedButton.icon(
-              onPressed:
-                  connType == PrinterConnectionTypeDto.none ? null : onTestPrint,
-              icon: testingPrint
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.receipt_long_outlined, size: 18),
-              label: Text(
-                testingPrint
-                    ? 'Mengirim Test Print...'
-                    : autoOpenCashDrawer
-                        ? 'Test Print + Cash Drawer'
-                        : 'Test Print',
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: biz.base,
-                side: BorderSide(color: biz.base),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(GoldenityRadius.md),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: GoldenitySpacing.sm),
-          GoldenityPrimaryButton(
-            label: 'Simpan Slot $slotLabel',
-            icon: Icons.save_rounded,
-            backgroundColor: biz.base,
-            shadow: GoldenityElevation.btnPrimary,
-            height: 44,
-            onPressed: onSave,
-          ),
-        ],
-      ),
-    );
-  }
-}

@@ -11,3 +11,10 @@ extension BreakpointExtension on BuildContext {
     return GoldenityBreakpoint.signage;
   }
 }
+
+extension GoldenityBreakpointExtension on GoldenityBreakpoint {
+  bool get isMobile => this == GoldenityBreakpoint.mobile;
+  bool get isTabletOrLarger => this != GoldenityBreakpoint.mobile;
+  double get fontScaleFactor => index == 0 ? 0.94 : 1.0;
+  double get spacingScaleFactor => index == 0 ? 0.85 : 1.0;
+}

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/design/goldenity_breakpoint.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_elevation.dart';
 import '../../../core/design/goldenity_radius.dart';
@@ -26,6 +27,7 @@ class _WebOrdersScreenState extends ConsumerState<WebOrdersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = context.breakpoint.isMobile;
     final state = ref.watch(webOrderListProvider);
     final notifier = ref.read(webOrderListProvider.notifier);
 
@@ -76,7 +78,10 @@ class _WebOrdersScreenState extends ConsumerState<WebOrdersScreen> {
                   onRefresh: notifier.load,
                   color: GoldenityColors.primary,
                   child: ListView(
-                    padding: const EdgeInsets.all(GoldenitySpacing.lg),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? GoldenitySpacing.sm : GoldenitySpacing.lg,
+                      vertical: GoldenitySpacing.lg,
+                    ),
                     children: [
                       Row(
                         children: [

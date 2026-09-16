@@ -12,6 +12,7 @@ import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
 import '../../../core/design/goldenity_typography.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../core/design/goldenity_breakpoint.dart';
 import '../../../shared/widgets/goldenity_modal.dart';
 import '../../../shared/widgets/goldenity_page_header.dart';
 import '../../../shared/widgets/goldenity_primary_button.dart';
@@ -728,6 +729,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final biz = Theme.of(context).extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
+    final isMobile = context.breakpoint.isMobile;
     final filtered = _filtered;
     final dateLabel = (_filterStartDate != null || _filterEndDate != null)
         ? '${_filterStartDate != null ? DateFormat('dd/MM/yyyy', 'id_ID').format(_filterStartDate!) : 'Awal'} — ${_filterEndDate != null ? DateFormat('dd/MM/yyyy', 'id_ID').format(_filterEndDate!) : 'Sekarang'}'
@@ -846,32 +848,63 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
               // ── Filter status tabs (Figma: Semua / Lunas / Void / Pending) ──
               Padding(
                 padding: const EdgeInsets.fromLTRB(GoldenitySpacing.lg, 0, GoldenitySpacing.lg, GoldenitySpacing.sm),
-                child: Row(
-                  children: [
-                    for (final t in <(String, String)>[
-                      ('', 'Semua'),
-                      ('DONE', 'Selesai'),
-                      ('VOIDED', 'Void'),
-                      ('PENDING', 'Pending'),
-                    ]) ...[
-                      _StatusTab(
-                        label: t.$2,
-                        count: _sales.where((s) {
-                          final st = s['status']?.toString() ?? 'COMPLETED';
-                          return switch (t.$1) {
-                            '' => true,
-                            'VOIDED' => st == 'VOIDED',
-                            'PENDING' => st == 'PENDING' || st == 'PARTIAL',
-                            _ => st == 'COMPLETED' || st == 'DONE' || st == 'PAID',
-                          };
-                        }).length,
-                        active: _statusFilter == t.$1,
-                        onTap: () => setState(() => _statusFilter = t.$1),
+                child: isMobile
+                    ? SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: GoldenitySpacing.sm),
+                        child: Row(
+                          children: [
+                            for (final t in <(String, String)>[
+                              ('', 'Semua'),
+                              ('DONE', 'Selesai'),
+                              ('VOIDED', 'Void'),
+                              ('PENDING', 'Pending'),
+                            ]) ...[
+                              _StatusTab(
+                                label: t.$2,
+                                count: _sales.where((s) {
+                                  final st = s['status']?.toString() ?? 'COMPLETED';
+                                  return switch (t.$1) {
+                                    '' => true,
+                                    'VOIDED' => st == 'VOIDED',
+                                    'PENDING' => st == 'PENDING' || st == 'PARTIAL',
+                                    _ => st == 'COMPLETED' || st == 'DONE' || st == 'PAID',
+                                  };
+                                }).length,
+                                active: _statusFilter == t.$1,
+                                onTap: () => setState(() => _statusFilter = t.$1),
+                              ),
+                              const SizedBox(width: GoldenitySpacing.xs),
+                            ],
+                          ],
+                        ),
+                      )
+                    : Row(
+                        children: [
+                          for (final t in <(String, String)>[
+                            ('', 'Semua'),
+                            ('DONE', 'Selesai'),
+                            ('VOIDED', 'Void'),
+                            ('PENDING', 'Pending'),
+                          ]) ...[
+                            _StatusTab(
+                              label: t.$2,
+                              count: _sales.where((s) {
+                                final st = s['status']?.toString() ?? 'COMPLETED';
+                                return switch (t.$1) {
+                                  '' => true,
+                                  'VOIDED' => st == 'VOIDED',
+                                  'PENDING' => st == 'PENDING' || st == 'PARTIAL',
+                                  _ => st == 'COMPLETED' || st == 'DONE' || st == 'PAID',
+                                };
+                              }).length,
+                              active: _statusFilter == t.$1,
+                              onTap: () => setState(() => _statusFilter = t.$1),
+                            ),
+                            const SizedBox(width: GoldenitySpacing.xs),
+                          ],
+                        ],
                       ),
-                      const SizedBox(width: GoldenitySpacing.xs),
-                    ],
-                  ],
-                ),
               ),
               // ── Table header ──
               Container(

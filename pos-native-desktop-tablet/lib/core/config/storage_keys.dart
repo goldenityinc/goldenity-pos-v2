@@ -20,4 +20,7 @@ class StorageKeys {
 
   // Android Foreground Service — toggle enable/disable (persist di SP).
   static const String fgServiceEnabled = 'fg_service_enabled';
+
+  // UI Mode Override — paksa tampilan tablet/mobile terlepas dari ukuran layar.
+  static const String uiModeOverride = 'ui_mode_override';
 }

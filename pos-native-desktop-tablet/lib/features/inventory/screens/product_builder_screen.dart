@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/design/goldenity_breakpoint.dart';
 import '../../../core/design/goldenity_colors.dart';
 import '../../../core/design/goldenity_radius.dart';
 import '../../../core/design/goldenity_spacing.dart';
@@ -359,6 +360,7 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
     if (_loading) return;
     final theme = Theme.of(context);
     final tt = theme.textTheme;
+    final isMobile = context.breakpoint.isMobile;
     const radiusLarge = Radius.circular(GoldenityRadius.lg);
     final choice = await showModalBottomSheet<String>(
       context: context,
@@ -386,35 +388,68 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: GoldenitySpacing.lg),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.pop(ctx, 'VARIAN'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.lg),
-                          side: BorderSide(color: GoldenityBizColors.fnb.base, width: 2),
-                          foregroundColor: GoldenityBizColors.fnb.dark,
+                if (isMobile)
+                  Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(ctx, 'VARIAN'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.lg),
+                            side: BorderSide(color: GoldenityBizColors.fnb.base, width: 2),
+                            foregroundColor: GoldenityBizColors.fnb.dark,
+                          ),
+                          icon: Icon(Icons.inventory_2_rounded, color: GoldenityBizColors.fnb.base),
+                          label: Text('Varian', style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
                         ),
-                        icon: Icon(Icons.inventory_2_rounded, color: GoldenityBizColors.fnb.base),
-                        label: Text('Varian', style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
                       ),
-                    ),
-                    const SizedBox(width: GoldenitySpacing.md),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.pop(ctx, 'OPSI'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.lg),
-                          side: const BorderSide(color: GoldenityColors.success, width: 2),
-                          foregroundColor: GoldenityColors.success,
+                      const SizedBox(height: GoldenitySpacing.md),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(ctx, 'OPSI'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.lg),
+                            side: const BorderSide(color: GoldenityColors.success, width: 2),
+                            foregroundColor: GoldenityColors.success,
+                          ),
+                          icon: const Icon(Icons.tune_rounded, color: GoldenityColors.success),
+                          label: Text('Opsi', style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
                         ),
-                        icon: const Icon(Icons.tune_rounded, color: GoldenityColors.success),
-                        label: Text('Opsi', style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(ctx, 'VARIAN'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.lg),
+                            side: BorderSide(color: GoldenityBizColors.fnb.base, width: 2),
+                            foregroundColor: GoldenityBizColors.fnb.dark,
+                          ),
+                          icon: Icon(Icons.inventory_2_rounded, color: GoldenityBizColors.fnb.base),
+                          label: Text('Varian', style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                      const SizedBox(width: GoldenitySpacing.md),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(ctx, 'OPSI'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.lg),
+                            side: const BorderSide(color: GoldenityColors.success, width: 2),
+                            foregroundColor: GoldenityColors.success,
+                          ),
+                          icon: const Icon(Icons.tune_rounded, color: GoldenityColors.success),
+                          label: Text('Opsi', style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                    ],
+                  ),
                 const SizedBox(height: GoldenitySpacing.md),
               ],
             ),
@@ -662,6 +697,7 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final biz = theme.extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb;
+    final isMobile = context.breakpoint.isMobile;
     final title = widget.isCreate ? 'Tambah Produk Baru' : 'Edit Produk';
     final subtitle = widget.isCreate
         ? 'Isi data dasar, varian, dan stok. Pratinjau di kanan.'
@@ -712,12 +748,8 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
       ),
       body: Form(
         key: _formKey,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 7,
-              child: SingleChildScrollView(
+        child: isMobile
+            ? SingleChildScrollView(
                 padding: const EdgeInsets.all(GoldenitySpacing.lg),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -737,24 +769,55 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                       label: Text('Tambah Variant Group',
                           style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
                     ),
+                    const SizedBox(height: GoldenitySpacing.md),
+                    _buildPreview(textTheme, biz, minP, maxP),
                   ],
                 ),
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 7,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(GoldenitySpacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildBasicInfoCard(textTheme, biz),
+                          const SizedBox(height: GoldenitySpacing.md),
+                          ..._buildGroupCards(textTheme, biz),
+                          const SizedBox(height: GoldenitySpacing.sm),
+                          OutlinedButton.icon(
+                            onPressed: _loading ? null : _addGroup,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                            ),
+                            icon: const Icon(Icons.add_rounded),
+                            label: Text('Tambah Variant Group',
+                                style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    flex: 5,
+                    child: Padding(
+                      padding: const EdgeInsets.all(GoldenitySpacing.lg),
+                      child: _buildPreview(textTheme, biz, minP, maxP),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            Expanded(
-              flex: 5,
-              child: Padding(
-                padding: const EdgeInsets.all(GoldenitySpacing.lg),
-                child: _buildPreview(textTheme, biz, minP, maxP),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
   Widget _buildBasicInfoCard(TextTheme tt, GoldenityBizColors biz) {
+    final isMobile = context.breakpoint.isMobile;
     return Container(
       padding: const EdgeInsets.all(GoldenitySpacing.lg),
       decoration: BoxDecoration(
@@ -775,19 +838,17 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: GoldenitySpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
+          if (isMobile)
+            Column(
+              children: [
+                TextFormField(
                   controller: _skuCtrl,
                   decoration: const InputDecoration(
                       labelText: 'SKU / Kode Produk', hintText: 'Opsional'),
                   onChanged: (_) => setState(() {}),
                 ),
-              ),
-              const SizedBox(width: GoldenitySpacing.md),
-              Expanded(
-                child: TextFormField(
+                const SizedBox(height: GoldenitySpacing.sm),
+                TextFormField(
                   controller: _priceCtrl,
                   decoration: const InputDecoration(
                     labelText: 'Harga Jual (sebelum pajak) *',
@@ -803,9 +864,40 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                   },
                   onChanged: (_) => setState(() {}),
                 ),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _skuCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'SKU / Kode Produk', hintText: 'Opsional'),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: GoldenitySpacing.md),
+                Expanded(
+                  child: TextFormField(
+                    controller: _priceCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Harga Jual (sebelum pajak) *',
+                      prefixText: 'Rp ',
+                      hintText: '0',
+                    ),
+                    keyboardType: TextInputType.number,
+                    validator: (v) {
+                      final cleaned = (v ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+                      final n = num.tryParse(cleaned);
+                      if (n == null || n < 0) return 'Harga tidak valid';
+                      return null;
+                    },
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: GoldenitySpacing.sm),
           TextFormField(
             controller: _stockCtrl,
@@ -830,11 +922,11 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: GoldenitySpacing.sm),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Consumer(
+          if (isMobile)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Consumer(
                   builder: (ctx, wRef, _) {
                     final listState = wRef.watch(productListNotifierProvider);
                     final allCats = listState.categories;
@@ -888,23 +980,98 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                     );
                   },
                 ),
-              ),
-              const SizedBox(width: GoldenitySpacing.sm),
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: IconButton.filled(
-                  onPressed: _loading ? null : _showAddCategoryInlineDialog,
-                  icon: const Icon(Icons.add_rounded, size: 22),
-                  style: IconButton.styleFrom(
-                    backgroundColor: (Theme.of(context).extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb).base,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                const SizedBox(height: GoldenitySpacing.sm),
+                SizedBox(
+                  width: double.infinity,
+                  child: IconButton.filled(
+                    onPressed: _loading ? null : _showAddCategoryInlineDialog,
+                    icon: const Icon(Icons.add_rounded, size: 22),
+                    style: IconButton.styleFrom(
+                      backgroundColor: (Theme.of(context).extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb).base,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                    ),
+                    tooltip: 'Buat Kategori Baru',
                   ),
-                  tooltip: 'Buat Kategori Baru',
                 ),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Consumer(
+                    builder: (ctx, wRef, _) {
+                      final listState = wRef.watch(productListNotifierProvider);
+                      final allCats = listState.categories;
+                      final options = <CategoryProfile>[
+                        ...allCats.where((c) => c.isActive),
+                        if (_selectedCategory != null && !allCats.any((c) => c.id == _selectedCategory!.id)) _selectedCategory!,
+                      ];
+                      final seen = <String>{};
+                      final deduped = options.where((c) => seen.add(c.id)).toList()
+                        ..sort((a, b) {
+                          final so = a.sortOrder.compareTo(b.sortOrder);
+                          if (so != 0) return so;
+                          return a.name.compareTo(b.name);
+                        });
+                      return DropdownButtonFormField<CategoryProfile?>(
+                        initialValue: deduped.any((c) => c.id == _selectedCategory?.id) ? _selectedCategory : null,
+                        decoration: const InputDecoration(
+                          labelText: 'Kategori',
+                          hintText: 'Pilih atau buat baru',
+                        ),
+                        isExpanded: true,
+                        items: [
+                          const DropdownMenuItem<CategoryProfile?>(
+                            value: null,
+                            child: Text('— Tanpa Kategori —', style: TextStyle(color: GoldenityColors.text2)),
+                          ),
+                          ...deduped.map((c) => DropdownMenuItem<CategoryProfile?>(
+                            value: c,
+                            child: Row(
+                              children: [
+                                Expanded(child: Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                const SizedBox(width: GoldenitySpacing.xs),
+                                if (!c.isActive)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: GoldenityColors.warning.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                                    ),
+                                    child: const Text('Nonaktif', style: TextStyle(fontSize: 11, color: GoldenityColors.warning, fontWeight: FontWeight.w700)),
+                                  ),
+                              ],
+                            ),
+                          )),
+                        ],
+                        onChanged: _loading
+                            ? null
+                            : (v) {
+                                setState(() => _selectedCategory = v);
+                              },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: GoldenitySpacing.sm),
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: IconButton.filled(
+                    onPressed: _loading ? null : _showAddCategoryInlineDialog,
+                    icon: const Icon(Icons.add_rounded, size: 22),
+                    style: IconButton.styleFrom(
+                      backgroundColor: (Theme.of(context).extension<GoldenityBizColors>() ?? GoldenityBizColors.fnb).base,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                    ),
+                    tooltip: 'Buat Kategori Baru',
+                  ),
+                ),
+              ],
+            ),
           const SizedBox(height: GoldenitySpacing.sm),
           GoldenitySwitchRow(
             value: _isActive,
@@ -931,6 +1098,7 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
   }
 
   List<Widget> _buildGroupCards(TextTheme tt, GoldenityBizColors biz) {
+    final isMobile = context.breakpoint.isMobile;
     final result = <Widget>[];
     for (int i = 0; i < _groups.length; i++) {
       final g = _groups[i];
@@ -948,33 +1116,72 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
           children: [
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
-                  decoration: BoxDecoration(
-                    color: biz.light,
-                    borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                  ),
-                  child: Text('Grup #${i + 1}',
-                      style: tt.labelSmall
-                          ?.copyWith(color: biz.dark, fontWeight: FontWeight.w800)),
+                Expanded(
+                  child: isMobile
+                      ? Wrap(
+                          spacing: GoldenitySpacing.xs,
+                          runSpacing: GoldenitySpacing.xs,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
+                              decoration: BoxDecoration(
+                                color: biz.light,
+                                borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                              ),
+                              child: Text('Grup #${i + 1}',
+                                  style: tt.labelSmall
+                                      ?.copyWith(color: biz.dark, fontWeight: FontWeight.w800)),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
+                              decoration: BoxDecoration(
+                                color: g.isOpsi
+                                    ? GoldenityColors.success.withValues(alpha: 0.12)
+                                    : biz.base.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(GoldenityRadius.xs),
+                              ),
+                              child: Text(g.isOpsi ? 'Opsi' : 'Varian',
+                                  style: tt.labelSmall?.copyWith(
+                                      color: g.isOpsi ? GoldenityColors.success : biz.base,
+                                      fontWeight: FontWeight.w800)),
+                            ),
+                          ],
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
+                              decoration: BoxDecoration(
+                                color: biz.light,
+                                borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                              ),
+                              child: Text('Grup #${i + 1}',
+                                  style: tt.labelSmall
+                                      ?.copyWith(color: biz.dark, fontWeight: FontWeight.w800)),
+                            ),
+                            const SizedBox(width: GoldenitySpacing.xs),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
+                              decoration: BoxDecoration(
+                                color: g.isOpsi
+                                    ? GoldenityColors.success.withValues(alpha: 0.12)
+                                    : biz.base.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(GoldenityRadius.xs),
+                              ),
+                              child: Text(g.isOpsi ? 'Opsi' : 'Varian',
+                                  style: tt.labelSmall?.copyWith(
+                                      color: g.isOpsi ? GoldenityColors.success : biz.base,
+                                      fontWeight: FontWeight.w800)),
+                            ),
+                          ],
+                        ),
                 ),
-                const SizedBox(width: GoldenitySpacing.xs),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
-                  decoration: BoxDecoration(
-                    color: g.isOpsi
-                        ? GoldenityColors.success.withValues(alpha: 0.12)
-                        : biz.base.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(GoldenityRadius.xs),
-                  ),
-                  child: Text(g.isOpsi ? 'Opsi' : 'Varian',
-                      style: tt.labelSmall?.copyWith(
-                          color: g.isOpsi ? GoldenityColors.success : biz.base,
-                          fontWeight: FontWeight.w800)),
-                ),
-                const Spacer(),
                 IconButton(
                   onPressed: _loading ? null : () => _removeGroup(i),
                   icon: const Icon(Icons.delete_outline_rounded, color: GoldenityColors.error),
@@ -1042,30 +1249,45 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                   ),
                   child: Column(
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: 5,
-                            child: TextFormField(
-                              controller: o.labelCtrl,
-                              decoration: InputDecoration(
-                                isDense: true,
-                                labelText: 'Opsi #${j + 1} Label',
-                                hintText: g.isOpsi
-                                    ? 'Contoh: Sedang, Pedas, Tanpa Gula'
-                                    : 'Contoh: Large, Keju, Extra Shot',
-                              ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Label tidak boleh kosong'
-                                  : null,
-                              onChanged: (_) => setState(() {}),
+                      if (isMobile)
+                        Column(
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: o.labelCtrl,
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      labelText: 'Opsi #${j + 1} Label',
+                                      hintText: g.isOpsi
+                                          ? 'Contoh: Sedang, Pedas, Tanpa Gula'
+                                          : 'Contoh: Large, Keju, Extra Shot',
+                                    ),
+                                    validator: (v) => (v == null || v.trim().isEmpty)
+                                        ? 'Label tidak boleh kosong'
+                                        : null,
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                ),
+                                const SizedBox(width: GoldenitySpacing.xs),
+                                Tooltip(
+                                  message: 'Hapus opsi',
+                                  child: IconButton(
+                                    onPressed: g.options.length <= 1 || _loading
+                                        ? null
+                                        : () => _removeOption(i, j),
+                                    icon: Icon(Icons.close_rounded,
+                                        color: g.options.length <= 1
+                                            ? GoldenityColors.text2
+                                            : GoldenityColors.error),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: GoldenitySpacing.sm),
-                          Expanded(
-                            flex: 3,
-                            child: AbsorbPointer(
+                            const SizedBox(height: GoldenitySpacing.xs),
+                            AbsorbPointer(
                               absorbing: g.isOpsi,
                               child: Opacity(
                                 opacity: g.isOpsi ? 0.4 : 1.0,
@@ -1082,72 +1304,156 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: GoldenitySpacing.xs),
-                          Tooltip(
-                            message: 'Hapus opsi',
-                            child: IconButton(
-                              onPressed: g.options.length <= 1 || _loading
-                                  ? null
-                                  : () => _removeOption(i, j),
-                              icon: Icon(Icons.close_rounded,
-                                  color: g.options.length <= 1
-                                      ? GoldenityColors.text2
-                                      : GoldenityColors.error),
+                          ],
+                        )
+                      else
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              flex: 5,
+                              child: TextFormField(
+                                controller: o.labelCtrl,
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  labelText: 'Opsi #${j + 1} Label',
+                                  hintText: g.isOpsi
+                                      ? 'Contoh: Sedang, Pedas, Tanpa Gula'
+                                      : 'Contoh: Large, Keju, Extra Shot',
+                                ),
+                                validator: (v) => (v == null || v.trim().isEmpty)
+                                    ? 'Label tidak boleh kosong'
+                                    : null,
+                                onChanged: (_) => setState(() {}),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: GoldenitySpacing.sm),
+                            Expanded(
+                              flex: 3,
+                              child: AbsorbPointer(
+                                absorbing: g.isOpsi,
+                                child: Opacity(
+                                  opacity: g.isOpsi ? 0.4 : 1.0,
+                                  child: TextFormField(
+                                    controller: o.priceCtrl,
+                                    enabled: !g.isOpsi,
+                                    decoration: InputDecoration(
+                                      isDense: true,
+                                      labelText: g.isOpsi ? '+Harga (gratis)' : '+Harga',
+                                      prefixText: 'Rp ',
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: GoldenitySpacing.xs),
+                            Tooltip(
+                              message: 'Hapus opsi',
+                              child: IconButton(
+                                onPressed: g.options.length <= 1 || _loading
+                                    ? null
+                                    : () => _removeOption(i, j),
+                                icon: Icon(Icons.close_rounded,
+                                    color: g.options.length <= 1
+                                        ? GoldenityColors.text2
+                                        : GoldenityColors.error),
+                              ),
+                            ),
+                          ],
+                        ),
                       const SizedBox(height: GoldenitySpacing.xs),
                       AbsorbPointer(
                         absorbing: g.isOpsi,
                         child: Opacity(
                           opacity: g.isOpsi ? 0.4 : 1.0,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: GoldenitySwitchRow(
-                                  dense: true,
-                                  value: g.isOpsi ? false : o.trackStock,
-                                  onChanged: (_loading || g.isOpsi)
-                                      ? null
-                                      : (v) => setState(() => o.trackStock = v),
-                                  title: 'Lacak Stok',
-                                ),
-                              ),
-                              if (o.trackStock)
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(left: GoldenitySpacing.sm),
-                                    child: AbsorbPointer(
-                                      absorbing: g.isOpsi,
-                                      child: Opacity(
-                                        opacity: g.isOpsi ? 0.4 : 1.0,
-                                        child: TextFormField(
-                                          controller: o.stockCtrl,
-                                          enabled: !g.isOpsi,
-                                          decoration: const InputDecoration(
-                                            isDense: true,
-                                            labelText: 'Stok Awal',
-                                            counterText: '',
+                          child: isMobile
+                              ? Column(
+                                  children: [
+                                    GoldenitySwitchRow(
+                                      dense: true,
+                                      value: g.isOpsi ? false : o.trackStock,
+                                      onChanged: (_loading || g.isOpsi)
+                                          ? null
+                                          : (v) => setState(() => o.trackStock = v),
+                                      title: 'Lacak Stok',
+                                    ),
+                                    if (o.trackStock) ...[
+                                      const SizedBox(height: GoldenitySpacing.xs),
+                                      AbsorbPointer(
+                                        absorbing: g.isOpsi,
+                                        child: Opacity(
+                                          opacity: g.isOpsi ? 0.4 : 1.0,
+                                          child: TextFormField(
+                                            controller: o.stockCtrl,
+                                            enabled: !g.isOpsi,
+                                            decoration: const InputDecoration(
+                                              isDense: true,
+                                              labelText: 'Stok Awal',
+                                              counterText: '',
+                                            ),
+                                            keyboardType: TextInputType.number,
+                                            validator: (v) {
+                                              if (g.isOpsi) return null;
+                                              if (!o.trackStock) return null;
+                                              final n = num.tryParse((v ?? '0')
+                                                  .replaceAll(RegExp(r'[^0-9\-]'), ''));
+                                              if (n == null || n < 0) return 'Stok >= 0';
+                                              return null;
+                                            },
+                                            onChanged: (_) => setState(() {}),
                                           ),
-                                          keyboardType: TextInputType.number,
-                                          validator: (v) {
-                                            if (g.isOpsi) return null;
-                                            if (!o.trackStock) return null;
-                                            final n = num.tryParse((v ?? '0')
-                                                .replaceAll(RegExp(r'[^0-9\-]'), ''));
-                                            if (n == null || n < 0) return 'Stok >= 0';
-                                            return null;
-                                          },
-                                          onChanged: (_) => setState(() {}),
                                         ),
                                       ),
+                                    ],
+                                  ],
+                                )
+                              : Row(
+                                  children: [
+                                    Expanded(
+                                      child: GoldenitySwitchRow(
+                                        dense: true,
+                                        value: g.isOpsi ? false : o.trackStock,
+                                        onChanged: (_loading || g.isOpsi)
+                                            ? null
+                                            : (v) => setState(() => o.trackStock = v),
+                                        title: 'Lacak Stok',
+                                      ),
                                     ),
-                                  ),
+                                    if (o.trackStock)
+                                      Expanded(
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(left: GoldenitySpacing.sm),
+                                          child: AbsorbPointer(
+                                            absorbing: g.isOpsi,
+                                            child: Opacity(
+                                              opacity: g.isOpsi ? 0.4 : 1.0,
+                                              child: TextFormField(
+                                                controller: o.stockCtrl,
+                                                enabled: !g.isOpsi,
+                                                decoration: const InputDecoration(
+                                                  isDense: true,
+                                                  labelText: 'Stok Awal',
+                                                  counterText: '',
+                                                ),
+                                                keyboardType: TextInputType.number,
+                                                validator: (v) {
+                                                  if (g.isOpsi) return null;
+                                                  if (!o.trackStock) return null;
+                                                  final n = num.tryParse((v ?? '0')
+                                                      .replaceAll(RegExp(r'[^0-9\-]'), ''));
+                                                  if (n == null || n < 0) return 'Stok >= 0';
+                                                  return null;
+                                                },
+                                                onChanged: (_) => setState(() {}),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                            ],
-                          ),
                         ),
                       ),
                     ],
@@ -1176,6 +1482,7 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
   }
 
   Widget _buildPreview(TextTheme tt, GoldenityBizColors biz, num minP, num maxP) {
+    final isMobile = context.breakpoint.isMobile;
     final hasVariants = _groups.isNotEmpty;
     final priceLabel = hasVariants && maxP != minP
         ? '${VariantPriceCalculator.formatPrice(minP)}\n– ${VariantPriceCalculator.formatPrice(maxP)}'
@@ -1192,30 +1499,60 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
       padding: const EdgeInsets.all(GoldenitySpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
             children: [
-              Text('Pratinjau Produk',
-                  style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
-                decoration: BoxDecoration(
-                  color: (_isActive ? biz.base : GoldenityColors.text2).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(GoldenityRadius.sm),
-                ),
-                child: Text(_isActive ? 'Aktif' : 'Draft',
-                    style: tt.labelSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: _isActive ? biz.dark : GoldenityColors.text2,
-                    )),
+              Expanded(
+                child: isMobile
+                    ? Wrap(
+                        spacing: GoldenitySpacing.xs,
+                        runSpacing: GoldenitySpacing.xs,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text('Pratinjau Produk',
+                              style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
+                            decoration: BoxDecoration(
+                              color: (_isActive ? biz.base : GoldenityColors.text2).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                            ),
+                            child: Text(_isActive ? 'Aktif' : 'Draft',
+                                style: tt.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: _isActive ? biz.dark : GoldenityColors.text2,
+                                )),
+                          ),
+                        ],
+                      )
+                    : Row(
+                        children: [
+                          Text('Pratinjau Produk',
+                              style: tt.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: GoldenitySpacing.sm, vertical: GoldenitySpacing.xs),
+                            decoration: BoxDecoration(
+                              color: (_isActive ? biz.base : GoldenityColors.text2).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(GoldenityRadius.sm),
+                            ),
+                            child: Text(_isActive ? 'Aktif' : 'Draft',
+                                style: tt.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: _isActive ? biz.dark : GoldenityColors.text2,
+                                )),
+                          ),
+                        ],
+                      ),
               ),
             ],
           ),
           const SizedBox(height: GoldenitySpacing.md),
           Container(
-            height: 180,
+            height: isMobile ? 160 : 180,
             width: double.infinity,
             decoration: BoxDecoration(
               color: biz.light,
@@ -1223,7 +1560,7 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
               border: Border.all(color: biz.base.withValues(alpha: 0.2)),
             ),
             alignment: Alignment.center,
-            child: Icon(Icons.inventory_2_rounded, size: 64, color: biz.dark),
+            child: Icon(Icons.inventory_2_rounded, size: isMobile ? 56 : 64, color: biz.dark),
           ),
           const SizedBox(height: GoldenitySpacing.md),
           Text(productName,
@@ -1245,76 +1582,150 @@ class _ProductBuilderScreenState extends ConsumerState<ProductBuilderScreen> {
               )),
           const SizedBox(height: GoldenitySpacing.md),
           if (hasVariants)
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Ringkasan Varian',
-                        style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: GoldenitySpacing.sm),
-                    ..._buildVariantSummary(tt, biz),
-                  ],
-                ),
-              ),
+            SizedBox(
+              height: isMobile ? 180 : null,
+              child: isMobile
+                  ? SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Ringkasan Varian',
+                              style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: GoldenitySpacing.sm),
+                          ..._buildVariantSummary(tt, biz),
+                        ],
+                      ),
+                    )
+                  : Expanded(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Ringkasan Varian',
+                                style: tt.labelLarge?.copyWith(fontWeight: FontWeight.w800)),
+                            const SizedBox(height: GoldenitySpacing.sm),
+                            ..._buildVariantSummary(tt, biz),
+                          ],
+                        ),
+                      ),
+                    ),
             )
           else
-            const Spacer(),
+            if (!isMobile) const Spacer(),
           const SizedBox(height: GoldenitySpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _loading ? null : () => Navigator.of(context).pop(),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+          if (isMobile)
+            Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _loading ? null : () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                    ),
+                    child: const Text('Batal'),
                   ),
-                  child: const Text('Batal'),
                 ),
-              ),
-              const SizedBox(width: GoldenitySpacing.md),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _loading ? null : () => _submit(true),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                const SizedBox(height: GoldenitySpacing.sm),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _loading ? null : () => _submit(true),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                    ),
+                    child: const Text('Simpan Draft',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
                   ),
-                  child: const Text('Simpan Draft',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
                 ),
-              ),
-              const SizedBox(width: GoldenitySpacing.md),
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: _loading ? null : () => _submit(false),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: GoldenityColors.success,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                const SizedBox(height: GoldenitySpacing.sm),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _loading ? null : () => _submit(false),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: GoldenityColors.success,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                    ),
+                    icon: _loading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check_rounded),
+                    label: Text(_loading ? 'Menyimpan...' : 'Publikasikan',
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
                   ),
-                  icon: _loading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.check_rounded),
-                  label: Text(_loading ? 'Menyimpan...' : 'Publikasikan',
-                      style: const TextStyle(fontWeight: FontWeight.w800)),
                 ),
-              ),
-            ],
-          ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _loading ? null : () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                    ),
+                    child: const Text('Batal'),
+                  ),
+                ),
+                const SizedBox(width: GoldenitySpacing.md),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _loading ? null : () => _submit(true),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                    ),
+                    child: const Text('Simpan Draft',
+                        style: TextStyle(fontWeight: FontWeight.w700)),
+                  ),
+                ),
+                const SizedBox(width: GoldenitySpacing.md),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _loading ? null : () => _submit(false),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: GoldenityColors.success,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: GoldenitySpacing.md),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(GoldenityRadius.md)),
+                    ),
+                    icon: _loading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.check_rounded),
+                    label: Text(_loading ? 'Menyimpan...' : 'Publikasikan',
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
