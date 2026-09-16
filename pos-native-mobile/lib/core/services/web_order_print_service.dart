@@ -12,7 +12,9 @@ import '../models/store_settings_profile.dart';
 import '../../features/inventory/services/settings_api_service.dart';
 import '../../features/sales/utils/receipt_generator.dart';
 import '../../features/web_orders/models/web_order.dart';
+import '../../features/web_orders/services/web_order_api_service.dart';
 import 'hardware_connection_service.dart';
+import 'web_order_print_retry_queue.dart';
 
 /// Cetak Struk Kasir + Nota Dapur untuk WEB ORDER langsung dari POS.
 ///
@@ -29,11 +31,15 @@ class WebOrderPrintService {
 
   final SettingsApiService _settingsApi = SettingsApiService();
   final HardwareConnectionService _hw = HardwareConnectionService();
+  final WebOrderApiService _webApi = WebOrderApiService();
 
   SharedPreferences? _sp;
   Future<SharedPreferences> get _prefs async => _sp ??= await SharedPreferences.getInstance();
   CapabilityProfile? _cap;
   Future<CapabilityProfile> get _capability async => _cap ??= await CapabilityProfile.load();
+  WebOrderPrintRetryQueue? _rq;
+  Future<WebOrderPrintRetryQueue> get _retryQueue async =>
+      _rq ??= await WebOrderPrintRetryQueue.open();
 
   // Cache info toko (alamat + footer + logo) — di-refresh tiap 5 menit.
   StoreSettingsProfile? _store;
@@ -82,11 +88,57 @@ class WebOrderPrintService {
     if (order.id.isEmpty) return WebOrderPrintResult.skip('no id');
     final sp = await _prefs;
     if (sp.getBool(_acceptKey(order.id)) == true) {
+      (await _retryQueue).clear(order.id);
       return WebOrderPrintResult.skip('sudah dicetak');
     }
     final res = await _dispatch(order: order, session: session, paidReprint: false);
-    if (res.anyOk) await sp.setBool(_acceptKey(order.id), true);
+    final rq = await _retryQueue;
+    if (res.anyOk) {
+      await sp.setBool(_acceptKey(order.id), true);
+      await rq.clear(order.id);
+    } else {
+      // Order.accept() sudah TERLANJUR sukses di server sebelum print ini
+      // dipanggil (lihat pemanggil) — kalau tidak diantrikan di sini, job
+      // cetak yang gagal HILANG PERMANEN karena order tak lagi PENDING_ACCEPT.
+      await rq.markFailedAttempt(order.id, res.message);
+    }
     return res;
+  }
+
+  /// Retry order yang accept-nya sudah sukses tapi cetaknya gagal (printer
+  /// offline / WiFi putus / kertas habis saat [printAccepted] dipanggil).
+  /// Dipanggil periodik oleh poller UI (kirim [knownOrders] hasil fetch yang
+  /// sudah ada, hemat 1 API call) maupun poller FG isolate (fetch sendiri).
+  Future<void> retryPendingPrints({
+    required AuthSession session,
+    List<WebOrder>? knownOrders,
+  }) async {
+    final rq = await _retryQueue;
+    final ready = rq.getReady();
+    if (ready.isEmpty) return;
+    try {
+      final orders = knownOrders ??
+          await _webApi.list(
+            token: session.token,
+            branchId: session.selectedBranchId ?? session.user.branchId,
+            status: 'ACCEPTED',
+          );
+      final byId = {for (final o in orders) o.id: o};
+      for (final entry in ready) {
+        final id = entry['orderId'] as String? ?? '';
+        if (id.isEmpty) continue;
+        final order = byId[id];
+        if (order == null) {
+          // Order sudah tidak ACCEPTED lagi (dibatalkan / sudah diproses
+          // manual oleh kasir lewat layar Web Orders) — berhenti retry.
+          await rq.clear(id);
+          continue;
+        }
+        await printAccepted(order: order, session: session);
+      }
+    } catch (e) {
+      debugPrint('[web-order print] retryPendingPrints FAIL: $e');
+    }
   }
 
   /// Cetak ulang HANYA Struk Kasir saat order jadi LUNAS.

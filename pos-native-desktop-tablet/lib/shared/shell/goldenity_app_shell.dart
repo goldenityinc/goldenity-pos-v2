@@ -70,13 +70,7 @@ class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
   Future<void> _startFgWebOrderService() async {
     if (!Platform.isAndroid) return;
     FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'weborder_fg',
-        channelName: 'Web-Order Receiver',
-        channelDescription: 'Menerima & mencetak pesanan web di latar belakang.',
-        priority: NotificationPriority.HIGH,
-        channelImportance: NotificationChannelImportance.HIGH,
-      ),
+      androidNotificationOptions: androidNotificationOptionsForWebOrderFg(),
       iosNotificationOptions: const IOSNotificationOptions(),
       foregroundTaskOptions: ForegroundTaskOptions(
         eventAction: ForegroundTaskEventAction.nothing(),

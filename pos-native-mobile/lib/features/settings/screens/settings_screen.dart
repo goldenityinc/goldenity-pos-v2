@@ -399,14 +399,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
   Future<void> _initAndStartFgService({bool silent = false}) async {
     if (!Platform.isAndroid) return;
     FlutterForegroundTask.init(
-      androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'weborder_fg',
-        channelName: 'Web-Order Receiver',
-        channelDescription:
-            'Menerima & mencetak pesanan web di latar belakang.',
-        priority: NotificationPriority.HIGH,
-        channelImportance: NotificationChannelImportance.HIGH,
-      ),
+      androidNotificationOptions: androidNotificationOptionsForWebOrderFg(),
       iosNotificationOptions: const IOSNotificationOptions(),
       foregroundTaskOptions: ForegroundTaskOptions(
         eventAction: ForegroundTaskEventAction.nothing(),

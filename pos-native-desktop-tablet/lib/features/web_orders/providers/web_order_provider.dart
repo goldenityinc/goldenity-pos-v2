@@ -71,6 +71,13 @@ class WebOrderListNotifier extends StateNotifier<WebOrderListState> {
           .read(webOrderApiServiceProvider)
           .list(token: token, branchId: session?.selectedBranchId);
       _process(orders);
+      if (session != null) {
+        // Retry order yang accept-nya sudah sukses tapi cetaknya sempat
+        // gagal (printer offline / kertas habis) — reuse list yang barusan
+        // di-fetch, tak perlu API call tambahan.
+        unawaited(WebOrderPrintService.instance
+            .retryPendingPrints(session: session, knownOrders: orders));
+      }
       state = WebOrderListState(orders: orders, loading: false);
     } catch (e) {
       if (silent && state.orders.isNotEmpty) return;
