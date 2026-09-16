@@ -8,6 +8,30 @@
 
 ---
 
+## 📱🆕 [2026-09-16] Claude — **Task baru untuk Trae: V2 Mobile (HP Android) full shell**
+
+### 🎯 Konteks (Verbatim Andre):
+```
+Aku ada ide untuk V2 mobile opsi 2, supaya trae saja kerjakan itu full kamu buatkan
+detail dokumentasi, dan itu kamu juga pakai design token dan sistem V2 sementara
+kita fokus dengan production sistem ini dan testing sisanya
+```
+Latar belakang: (1) tablet client sekarang dipakai Majoo, HP Android jadi alternatif
+device supaya tidak bentrok — minimal untuk terima/konfirmasi Web Order; (2) V1
+(`goldenity-pointofsales-app`) sudah punya versi mobile yang battle-tested di
+perangkat AIO EDC, jadi Andre mau V2 juga punya versi mobile FULL (bukan cuma
+layar tipis) untuk strategi client baru/migrasi ke depan.
+
+### 📄 Dibuat:
+- [`pos-native-desktop-tablet/MOBILE_UI_TASKLIST_TRAE.md`](file:///E:/Goldenity/goldenity-pos-v2/pos-native-desktop-tablet/MOBILE_UI_TASKLIST_TRAE.md) — dokumen task lengkap untuk Trae: shell mobile 5-tab (Penjualan/Web Orders/Riwayat/Inventaris/Profil) via bottom-nav, breakpoint pakai `GoldenityBreakpoint` yang SUDAH ADA di `lib/core/design/goldenity_breakpoint.dart` (baru dipakai di `style_guide_screen.dart` sebelumnya, belum pernah di-wire ke navigasi sungguhan), reuse penuh provider/screen V2 existing (bukan duplikasi logic seperti pola V1), referensi pola dari V1 (`lib/core/utils/responsive.dart`, `main.dart` L18449-18467, `mobile_home_screen.dart`) sebagai UX SAJA (bukan kode yang di-copy), dan konfirmasi bahwa Figma (`UI Design/Screenshot 2026-09-05 180528.png`) sudah merencanakan toggle "Tampilan Antarmuka: Otomatis/Tablet/Handphone".
+
+### ⚠️ Belum dikerjakan sama sekali — murni dokumen perencanaan.
+Andre + Klaude fokus ke setup backend production Railway dan testing (stress-test
+multi-meja) selagi Trae mengerjakan task ini secara mandiri, item per item sesuai
+prioritas di Bagian 5 dokumen tersebut.
+
+---
+
 ## 🛠️🟢 [2026-09-13] Claude — **Koreksi: pubspec version dikembalikan 1.0.0 → 2.0.0 (salah ketik Andre di request Trae)**
 
 ### 🎯 Objective (Verbatim Andre):
