@@ -423,7 +423,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
       notificationTitle: 'Goldenity POS',
       notificationText:
           'Menerima pesanan web secara otomatis di latar belakang.',
-      notificationIcon: const NotificationIcon(metaDataName: 'launcher_icon'),
+      notificationIcon: const NotificationIcon(
+          metaDataName: 'com.goldenity.pos.ForegroundServiceIcon'),
       callback: startFgWebOrderCallback,
     );
     if (!silent && mounted) {

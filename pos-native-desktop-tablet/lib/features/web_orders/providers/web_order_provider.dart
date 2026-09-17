@@ -178,9 +178,10 @@ class WebOrderListNotifier extends StateNotifier<WebOrderListState> {
         notificationTitle: title,
         notificationText: text,
         // WAJIB — lihat komentar sama di android_fg_weborder_handler.dart:
-        // tanpa ini Android CRASH TOTAL app (bukan cuma gagal diam2), bukti
-        // nyata dari logcat device fisik.
-        notificationIcon: const NotificationIcon(metaDataName: 'launcher_icon'),
+        // metaDataName harus PERSIS nama <meta-data> di manifest (bukan nama
+        // resource), salah pakai 'launcher_icon' sebelumnya CRASH TOTAL app.
+        notificationIcon: const NotificationIcon(
+            metaDataName: 'com.goldenity.pos.ForegroundServiceIcon'),
       );
     } catch (e) {
       debugPrint('[web-order] alertAndroid FAIL: $e');

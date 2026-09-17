@@ -149,12 +149,14 @@ class FgWebOrderTaskHandler extends TaskHandler {
                 : '${orders.length} web order baru diterima',
             notificationText: 'Struk & nota dapur sedang dicetak otomatis.',
             // WAJIB diisi ulang — updateService() TIDAK mewarisi icon dari
-            // startService() sebelumnya. Tanpa ini Android menolak notifikasi
-            // ("Invalid notification (no valid small icon)") dan CRASH TOTAL
-            // seluruh proses app (bukan cuma service-nya) — ditemukan via
-            // logcat crash nyata di device fisik (FATAL EXCEPTION: main,
-            // Unable to start service ... ForegroundService.updateNotification).
-            notificationIcon: const NotificationIcon(metaDataName: 'launcher_icon'),
+            // startService() sebelumnya. metaDataName HARUS PERSIS SAMA dgn
+            // android:name di <meta-data> AndroidManifest.xml (BUKAN nama
+            // resource) — sempat salah pakai 'launcher_icon' (nama resource,
+            // bukan nama meta-data), native getIconResId() jadi return 0
+            // ("no valid small icon"), CRASH TOTAL app tiap ada order baru
+            // (dibuktikan via logcat crash nyata di device fisik).
+            notificationIcon: const NotificationIcon(
+                metaDataName: 'com.goldenity.pos.ForegroundServiceIcon'),
           );
         } catch (e) {
           debugPrint('[fg web-order] updateService (alert) FAIL: $e');
