@@ -148,6 +148,13 @@ class FgWebOrderTaskHandler extends TaskHandler {
                 ? 'Web order diterima · Q-${orders.first.queueNumber}'
                 : '${orders.length} web order baru diterima',
             notificationText: 'Struk & nota dapur sedang dicetak otomatis.',
+            // WAJIB diisi ulang — updateService() TIDAK mewarisi icon dari
+            // startService() sebelumnya. Tanpa ini Android menolak notifikasi
+            // ("Invalid notification (no valid small icon)") dan CRASH TOTAL
+            // seluruh proses app (bukan cuma service-nya) — ditemukan via
+            // logcat crash nyata di device fisik (FATAL EXCEPTION: main,
+            // Unable to start service ... ForegroundService.updateNotification).
+            notificationIcon: const NotificationIcon(metaDataName: 'launcher_icon'),
           );
         } catch (e) {
           debugPrint('[fg web-order] updateService (alert) FAIL: $e');
