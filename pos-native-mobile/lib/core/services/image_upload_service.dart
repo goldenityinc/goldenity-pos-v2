@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import '../config/api_constants.dart';
 
@@ -42,12 +43,44 @@ class ImageUploadService {
 
   static const int maxBytes = 6 * 1024 * 1024;
 
-  /// Buka dialog "Open File" Windows lewat PowerShell (tanpa plugin native →
-  /// tidak butuh Developer Mode / symlink). Return null kalau user batal.
+  /// Pilih gambar dari disk (Windows) atau galeri (Android). Return null
+  /// kalau user batal.
   Future<PickedImage?> pickImageFromDisk() async {
+    if (Platform.isAndroid) return _pickImageAndroid();
     if (!Platform.isWindows) {
-      throw UnsupportedError('Pilih gambar hanya didukung di Windows desktop untuk saat ini.');
+      throw UnsupportedError('Pilih gambar hanya didukung di Windows desktop / Android untuk saat ini.');
     }
+    return _pickImageWindows();
+  }
+
+  /// BUG FIX: sebelumnya method ini SELALU throw UnsupportedError kalau bukan
+  /// Windows — upload QRIS/logo/foto produk 100% tidak bisa jalan sama sekali
+  /// di APK Android (tidak pernah diimplementasikan), padahal tablet ini
+  /// sekarang juga di-build untuk Android. Pakai `image_picker` (galeri
+  /// bawaan Android, tidak butuh permission runtime tambahan di Android 13+
+  /// karena lewat system Photo Picker).
+  Future<PickedImage?> _pickImageAndroid() async {
+    final picker = ImagePicker();
+    final xfile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    if (xfile == null) return null;
+
+    final bytes = await xfile.readAsBytes();
+    if (bytes.isEmpty) throw Exception('File kosong.');
+    if (bytes.length > maxBytes) {
+      throw Exception(
+        'Ukuran ${(bytes.length / 1024 / 1024).toStringAsFixed(1)}MB melebihi batas 6MB.',
+      );
+    }
+    final name = xfile.name.isNotEmpty ? xfile.name : xfile.path.split('/').last;
+    final ext = name.contains('.') ? name.split('.').last.toLowerCase() : '';
+    final mime = _mimeByExt[ext] ?? xfile.mimeType;
+    if (mime == null || !_mimeByExt.containsValue(mime)) {
+      throw Exception('Format tidak didukung (hanya png / jpg / webp / gif).');
+    }
+    return PickedImage(path: xfile.path, filename: name, bytes: bytes, mime: mime);
+  }
+
+  Future<PickedImage?> _pickImageWindows() async {
     const script = r'''
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 $dlg = New-Object System.Windows.Forms.OpenFileDialog
