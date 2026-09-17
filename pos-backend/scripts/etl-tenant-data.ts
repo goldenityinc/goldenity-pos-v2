@@ -92,9 +92,15 @@ async function main() {
     process.exit(1);
   }
 
+  // BUG FIX: tenantId WAJIB dikirim ke kedua fetcher ini. Tanpanya,
+  // fetchV1Categories/fetchV1Products tidak menambahkan WHERE tenant_id sama
+  // sekali (lihat _shared.ts) — kalau sumbernya adalah DB bersama multi-tenant
+  // (bukan 1 DB fisik per tenant V1), ini menyedot data SEMUA tenant lain.
+  // Ketahuan lewat --dry-run terhadap admin-core: 78 produk volcan yang benar
+  // seharusnya, tapi tanpa fix ini muncul 860+ produk dari tenant lain.
   const [v1Categories, v1Products] = await Promise.all([
-    fetchV1Categories(v1Url),
-    fetchV1Products(v1Url),
+    fetchV1Categories(v1Url, t.tenantId),
+    fetchV1Products(v1Url, t.tenantId),
   ]);
 
   // Gabungkan nama kategori dari tabel `categories` (kalau ada) + nilai teks

@@ -87,6 +87,13 @@ async function main() {
     const db = new PrismaClient({ datasourceUrl: reg.dbUrl });
     // V2 Branch.id is ALWAYS a real UUID — never the V1 bigint. Resolve by name.
     const v1ToV2Branch = await buildV1ToV2BranchIdMap(db, t.tenantId, v1Branches);
+    // BUG FIX: `tables.branch_id` di V1 sering NULL untuk tenant 1-cabang
+    // (sama seperti `products.branch_id` — lihat etl-tenant-data.ts) tapi
+    // script ini sebelumnya langsung skip tabel tanpa branch_id, bukan
+    // fallback ke cabang utama. Ketahuan nyata: volcan (1 cabang, Bogor) —
+    // 21/21 meja punya branch_id NULL, semua ke-skip sebelum fix ini.
+    const mainV1Branch = v1Branches.find((b) => b.isMain) ?? v1Branches[0];
+    const mainV2BranchId = mainV1Branch ? v1ToV2Branch.get(mainV1Branch.id) ?? null : null;
     const byTableId: Record<string, { branchId: string; qrToken: string }> = {};
     const byKey: Record<string, { branchId: string; qrToken: string }> = {};
     let created = 0;
@@ -94,11 +101,11 @@ async function main() {
     let missed = 0;
     try {
       for (const vt of v1Tables) {
-        if (!vt.branchId || !vt.tableNumber) {
+        if (!vt.tableNumber) {
           missed++;
           continue;
         }
-        const v2BranchId = v1ToV2Branch.get(vt.branchId);
+        const v2BranchId = (vt.branchId ? v1ToV2Branch.get(vt.branchId) : null) ?? mainV2BranchId;
         if (!v2BranchId) {
           console.warn(`  ~ ${slug}: branch V1 #${vt.branchId} tidak ketemu padanan V2 (nama beda?) — table ${vt.tableNumber} dilewati`);
           missed++;
