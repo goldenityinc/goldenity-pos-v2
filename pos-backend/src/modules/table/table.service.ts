@@ -388,13 +388,21 @@ export class TableService {
         where: { tableId, status: 'ACTIVE' },
         data: { status: 'CLOSED', closedAt: new Date() },
       });
+      // BUG FIX (konfirmasi Andre): JANGAN rotasi qrToken di sini. Tenant
+      // pakai QR STATIS tercetak di sticker fisik per meja — kalau qrToken
+      // ikut dirotasi tiap tutup sesi, sticker itu cuma valid utk 1 sesi
+      // pertama lalu rusak permanen (customer berikutnya scan sticker yang
+      // sama dapat "QR meja tidak valid" dari startSession). Rotasi tetap
+      // tersedia manual lewat endpoint regenerateQr (di atas) utk kasus
+      // sticker hilang/disalahgunakan — closeSession tidak boleh memicu itu
+      // otomatis.
       const table = await tx.diningTable.update({
         where: { id: tableId },
-        data: { status: 'AVAILABLE', qrToken: randomToken() },
+        data: { status: 'AVAILABLE' },
       });
       return { closedSessions: closed.count, qrToken: table.qrToken };
     });
-    return ok({ ...result, message: `${result.closedSessions} sesi ditutup, meja AVAILABLE, token QR dirotasi.` });
+    return ok({ ...result, message: `${result.closedSessions} sesi ditutup, meja AVAILABLE.` });
   }
 
   private static async findScopedTable(user: JwtAuthPayload, tableId: string) {
