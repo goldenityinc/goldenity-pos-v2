@@ -30,12 +30,27 @@ export default function SessionGate() {
   const [checking, setChecking] = useState(true);
   const [tableCode, setTableCode] = useState<string | null>(null);
 
-  // Sudah ada sesi valid → langsung ke menu.
+  // Sudah ada sesi valid tersimpan (localStorage) DAN qrToken baru di URL →
+  // verifikasi dulu ini meja yang SAMA sebelum auto-skip ke /menu.
+  //
+  // BUG FIX: sebelumnya di sini cuma `api.getSession(session.sessionToken)`
+  // lalu langsung nav('/menu') — TIDAK PERNAH cek apakah qrToken di URL yang
+  // baru cocok dengan meja sesi lama. Akibatnya: customer yang sudah pernah
+  // scan meja A, lalu scan QR meja B di browser yang sama, tetap nyangkut di
+  // sesi meja A (localStorage session masih valid, jadi langsung "lolos").
+  // Ditemukan nyata saat testing tablet: scan Meja BAR 2 tetap ke Meja BAR 1.
+  //
+  // Fix: panggil `startSession(qrToken)` lagi, bukan `getSession`. Backend
+  // (`WebOrderService.startSession`) idempotent PER MEJA — sesi ACTIVE utk
+  // meja yang SAMA di-reuse (customer tidak kehilangan sesi/keranjang), meja
+  // BEDA otomatis dapat sesi barunya sendiri. Jadi ini sekaligus jadi
+  // verifikasi DAN perbaikan — bukan cuma deteksi.
   useEffect(() => {
     (async () => {
-      if (session?.sessionToken) {
+      if (session?.sessionToken && qrToken) {
         try {
-          await api.getSession(session.sessionToken);
+          const r = await api.startSession({ qrToken, customerName: session.customerName });
+          setSession(r, session.customerName);
           nav('/menu', { replace: true });
           return;
         } catch {
