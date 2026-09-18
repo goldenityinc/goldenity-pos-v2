@@ -17,7 +17,12 @@ const PAYMENT_OPTIONS: { value: WebOrderPaymentMode; label: string; hint: string
   },
 ];
 
-type Draft = { id?: string; name: string; webOrderPaymentMode: WebOrderPaymentMode };
+type Draft = {
+  id?: string;
+  name: string;
+  webOrderPaymentMode: WebOrderPaymentMode;
+  qrisImageUrl: string | null;
+};
 
 export default function BranchesPage() {
   const toast = useToast();
@@ -25,6 +30,7 @@ export default function BranchesPage() {
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingQris, setUploadingQris] = useState(false);
   const [toDelete, setToDelete] = useState<Branch | null>(null);
 
   const load = () => {
@@ -41,7 +47,11 @@ export default function BranchesPage() {
     if (!draft) return;
     setSaving(true);
     try {
-      const payload = { name: draft.name.trim(), webOrderPaymentMode: draft.webOrderPaymentMode };
+      const payload = {
+        name: draft.name.trim(),
+        webOrderPaymentMode: draft.webOrderPaymentMode,
+        qrisImageUrl: draft.qrisImageUrl,
+      };
       if (draft.id) await api.updateBranch(draft.id, payload);
       else await api.createBranch(payload as never);
       toast.push('Cabang disimpan', 'ok');
@@ -54,12 +64,31 @@ export default function BranchesPage() {
     }
   };
 
+  const uploadQris = async (file: File) => {
+    if (!draft) return;
+    setUploadingQris(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+      const { url } = await api.uploadFile(dataUrl, 'qris');
+      setDraft((d) => (d ? { ...d, qrisImageUrl: url } : d));
+    } catch (e) {
+      toast.push(e instanceof Error ? e.message : 'Gagal upload QRIS', 'err');
+    } finally {
+      setUploadingQris(false);
+    }
+  };
+
   return (
     <Shell
       title="Cabang"
       subtitle="Daftar cabang & metode pembayaran web order per cabang"
       actions={
-        <Button onClick={() => setDraft({ name: '', webOrderPaymentMode: 'QRIS_AND_CASHIER' })}>
+        <Button onClick={() => setDraft({ name: '', webOrderPaymentMode: 'QRIS_AND_CASHIER', qrisImageUrl: null })}>
           <Icon.plus width={16} height={16} />
           Tambah Cabang
         </Button>
@@ -86,15 +115,24 @@ export default function BranchesPage() {
                   </div>
                   <div>
                     <div className="text-[14px] font-semibold text-ink">{b.name}</div>
-                    <div className="mt-0.5">
+                    <div className="mt-0.5 flex items-center gap-1.5">
                       <Badge tone={mode === 'QRIS_ONLY' ? 'warn' : 'ok'}>
                         {mode === 'QRIS_ONLY' ? 'QRIS saja' : 'QRIS + Kasir'}
+                      </Badge>
+                      <Badge tone={b.qrisImageUrl ? 'ok' : 'neutral'}>
+                        {b.qrisImageUrl ? 'QRIS cabang sendiri' : 'Pakai QRIS default'}
                       </Badge>
                     </div>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setDraft({ id: b.id, name: b.name, webOrderPaymentMode: mode })}>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setDraft({ id: b.id, name: b.name, webOrderPaymentMode: mode, qrisImageUrl: b.qrisImageUrl })
+                    }
+                  >
                     Edit
                   </Button>
                   <Button size="sm" variant="danger" onClick={() => setToDelete(b)}>
@@ -126,6 +164,52 @@ export default function BranchesPage() {
         {draft && (
           <div className="flex flex-col gap-4">
             <Input label="Nama Cabang" autoFocus value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            <div>
+              <span className="mb-1.5 block text-[12px] font-semibold text-ink2">QRIS Cabang Ini</span>
+              <p className="mb-2 text-[12px] leading-snug text-muted">
+                Kode QRIS statis milik cabang ini — dipakai saat pelanggan bayar via QRIS di cabang ini. Kosongkan untuk pakai QRIS default toko.
+              </p>
+              <div className="flex items-center gap-3">
+                {draft.qrisImageUrl ? (
+                  <img
+                    src={draft.qrisImageUrl}
+                    alt="QRIS cabang"
+                    className="h-20 w-20 rounded-md border border-line object-contain bg-white"
+                  />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-md border border-dashed border-line2 text-[11px] text-muted">
+                    Belum ada
+                  </div>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <label className="cursor-pointer">
+                    <span className="inline-flex items-center rounded-md border border-line px-3 py-1.5 text-[12px] font-semibold text-ink hover:border-brand">
+                      {uploadingQris ? 'Mengunggah…' : draft.qrisImageUrl ? 'Ganti Gambar' : 'Unggah Gambar'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      disabled={uploadingQris}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (file) uploadQris(file);
+                      }}
+                    />
+                  </label>
+                  {draft.qrisImageUrl && (
+                    <button
+                      type="button"
+                      className="text-left text-[12px] font-semibold text-err hover:underline"
+                      onClick={() => setDraft({ ...draft, qrisImageUrl: null })}
+                    >
+                      Hapus QRIS
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
             <div>
               <span className="mb-1.5 block text-[12px] font-semibold text-ink2">Metode Pembayaran Web Order</span>
               <div className="flex flex-col gap-2">

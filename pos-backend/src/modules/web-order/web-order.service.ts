@@ -252,7 +252,7 @@ export class WebOrderService {
     const branchId = check.session.table.branchId;
     const tenantId = check.session.table.branch.tenantId;
 
-    const [products, categories, tenant] = await Promise.all([
+    const [products, categories, tenant, branch] = await Promise.all([
       prisma.product.findMany({
         where: {
           tenantId,
@@ -278,12 +278,15 @@ export class WebOrderService {
           isPaymentProofMandatory: true,
         },
       }),
+      // QRIS per cabang (Branch.qrisImageUrl) diprioritaskan di atas QRIS
+      // tenant — cabang tanpa QRIS sendiri jatuh ke QRIS default toko.
+      prisma.branch.findUnique({ where: { id: branchId }, select: { qrisImageUrl: true } }),
     ]);
 
     return ok({
       tenant: {
         name: tenant?.name ?? '',
-        qrisImageUrl: tenant?.qrisImageUrl ?? null,
+        qrisImageUrl: branch?.qrisImageUrl ?? tenant?.qrisImageUrl ?? null,
         taxEnabled: tenant?.taxEnabled === true,
         taxRatePercentage: Number(tenant?.taxRatePercentage ?? 11),
         pricesIncludeTax: tenant?.pricesIncludeTax === true,
