@@ -39,7 +39,7 @@ val hasValidReleaseSigning =
 
 android {
     namespace = "com.goldenity.pos"
-    compileSdk = 34
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
