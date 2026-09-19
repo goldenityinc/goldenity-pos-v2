@@ -122,6 +122,16 @@ kronologis:
    Ditambahkan di `BranchesPage.tsx` + checkout customer (`web-order.service.ts getMenu()`)
    sekarang prefer QRIS cabang, fallback ke QRIS tenant.
 
+9. **Edit/toggle aktif produk migrasi gagal "clientReferenceId format UUID tidak valid"** (2026-09-19,
+   dilaporkan Andre sebagai "bug APK" — BUKAN Android, direproduksi via curl ke production). 78
+   produk volcan hasil ETL punya `clientReferenceId = v1-product-<id V1>` (tag idempotensi ETL),
+   tapi `Create/UpdateProductSchema` di `product.service.ts` cuma menerima UUID; app mengirim balik
+   seluruh produk saat update. Fix: `clientReferenceIdSchema` menerima UUID ATAU `/^v1-product-\d+$/`
+   (commit `f13548d`, sudah di `main`, terverifikasi HTTP 200 di production). Windows "aman" karena
+   dites dengan produk asli V2 (UUID). **Pelajaran**: kalau ada laporan "hanya error di APK/di
+   tenant X", cek dulu perbedaan DATA antar tenant sebelum curiga platform. Backoffice juga
+   sekarang punya tombol Aktifkan/Nonaktifkan + checkbox "Produk aktif" di `InventoryPage.tsx`.
+
 Semua fix di atas (kecuali no. 8 yang backend-only + web-backoffice) berlaku untuk **KEDUA**
 project Flutter (`pos-native-desktop-tablet` DAN `pos-native-mobile`) — keduanya adalah fork
 terpisah tanpa shared package, jadi setiap fix Dart HARUS di-copy manual ke keduanya (sudah
