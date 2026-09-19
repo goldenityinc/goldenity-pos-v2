@@ -51,6 +51,11 @@ process.on('uncaughtException', (err: Error) => {
 });
 
 const app = express();
+// Di belakang proxy Railway (TLS diterminasi di edge). Tanpa ini req.protocol
+// selalu 'http' → URL upload (QRIS/logo/foto) tersimpan `http://…` dan DIBLOKIR
+// browser (mixed content) di halaman web order yang https. Ditemukan nyata di
+// production volcan: QRIS tidak tampil sama sekali di web order.
+app.set('trust proxy', 1);
 const PORT = process.env.PORT ?? 3001;
 
 app.use(helmet());
