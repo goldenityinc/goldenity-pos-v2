@@ -86,6 +86,7 @@ export default function InventoryPage() {
   const [saving, setSaving] = useState(false);
   const [formErr, setFormErr] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<Product | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -171,6 +172,22 @@ export default function InventoryPage() {
     }
   };
 
+  // Aktif/nonaktif 1-klik. Kirim body PARSIAL ({ isActive }) — bukan seluruh
+  // produk — supaya tidak ikut memvalidasi ulang field lain yang tak berubah.
+  const toggleActive = async (p: Product) => {
+    const next = !p.isActive;
+    setTogglingId(p.id);
+    try {
+      await api.updateProduct(p.id, { isActive: next });
+      setRows((rs) => rs.map((r) => (r.id === p.id ? { ...r, isActive: next } : r)));
+      toast.push(next ? `"${p.name}" diaktifkan` : `"${p.name}" dinonaktifkan`, 'ok');
+    } catch (e) {
+      toast.push(e instanceof Error ? e.message : 'Gagal mengubah status', 'err');
+    } finally {
+      setTogglingId(null);
+    }
+  };
+
   const cols: Column<Product>[] = [
     {
       key: 'name',
@@ -199,7 +216,7 @@ export default function InventoryPage() {
       key: 'status',
       header: 'Status',
       align: 'center',
-      render: (p) => (p.isActive ? <Badge tone="ok">Aktif</Badge> : <Badge tone="neutral">Arsip</Badge>),
+      render: (p) => (p.isActive ? <Badge tone="ok">Aktif</Badge> : <Badge tone="neutral">Nonaktif</Badge>),
     },
     {
       key: 'act',
@@ -207,6 +224,9 @@ export default function InventoryPage() {
       align: 'right',
       render: (p) => (
         <div className="flex justify-end gap-2">
+          <Button size="sm" variant="outline" loading={togglingId === p.id} onClick={() => toggleActive(p)}>
+            {p.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+          </Button>
           <Button size="sm" variant="outline" onClick={() => openEdit(p)}>
             Edit
           </Button>
@@ -253,7 +273,7 @@ export default function InventoryPage() {
         </select>
         <label className="flex items-center gap-2 text-[13px] text-ink2">
           <input type="checkbox" className="h-4 w-4 accent-brand" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-          Tampilkan arsip
+          Tampilkan nonaktif
         </label>
       </div>
 
@@ -331,6 +351,19 @@ export default function InventoryPage() {
                   <Input label="Stok saat ini" mono type="number" value={draft.stock} onChange={(e) => setDraft({ ...draft, stock: e.target.value })} />
                 </div>
               )}
+            </div>
+
+            <div className="rounded-md border border-line bg-surface2 p-3">
+              <label className="flex items-center gap-2 text-[13px] font-semibold text-ink2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-brand"
+                  checked={draft.isActive}
+                  onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })}
+                />
+                Produk aktif (tampil di kasir &amp; web order)
+              </label>
+              <p className="mt-1 text-[12px] text-muted">Nonaktifkan untuk menyembunyikan produk tanpa menghapus riwayat penjualannya.</p>
             </div>
 
             <Textarea label="Deskripsi (opsional)" rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />

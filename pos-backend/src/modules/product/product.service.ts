@@ -5,6 +5,24 @@ import type { JwtAuthPayload } from '../../config/types';
 import type { Product } from '@prisma/client';
 import { resolveEffectiveBranchFilter } from '../../utils/rbac';
 
+// clientReferenceId = kunci idempotensi produk. Client V2 mengirim UUID, TAPI
+// produk hasil migrasi V1->V2 (scripts/etl-tenant-data.ts) diberi tag stabil
+// `v1-product-<id V1>` supaya ETL bisa di-rerun tanpa duplikat. Sebelumnya
+// skema hanya menerima UUID, jadi SEMUA edit (termasuk toggle aktif/nonaktif)
+// produk migrasi ditolak dengan "clientReferenceId format UUID tidak valid"
+// karena client mengirim balik seluruh produk apa adanya. Ditemukan nyata di
+// produksi tenant volcan (78 produk migrasi).
+const V1_MIGRATION_REF = /^v1-product-\d+$/;
+const clientReferenceIdSchema = z
+  .string({ invalid_type_error: 'clientReferenceId harus string' })
+  .trim()
+  .refine(
+    (v) => z.string().uuid().safeParse(v).success || V1_MIGRATION_REF.test(v),
+    'clientReferenceId format UUID tidak valid',
+  )
+  .optional()
+  .nullable();
+
 const CreateProductSchema = z.object({
   name: z
     .string({ required_error: 'name wajib diisi', invalid_type_error: 'name wajib diisi' })
@@ -47,12 +65,7 @@ const CreateProductSchema = z.object({
         .nullable()
     ),
   tenantId: z.string({ invalid_type_error: 'tenantId harus string UUID' }).uuid('tenantId format UUID tidak valid').optional(),
-  clientReferenceId: z
-    .string({ invalid_type_error: 'clientReferenceId harus string UUID' })
-    .trim()
-    .uuid('clientReferenceId format UUID tidak valid')
-    .optional()
-    .nullable(),
+  clientReferenceId: clientReferenceIdSchema,
 });
 
 const UpdateProductSchema = z.object({
@@ -93,12 +106,7 @@ const UpdateProductSchema = z.object({
         .optional()
         .nullable()
     ),
-  clientReferenceId: z
-    .string({ invalid_type_error: 'clientReferenceId harus string UUID' })
-    .trim()
-    .uuid('clientReferenceId format UUID tidak valid')
-    .optional()
-    .nullable(),
+  clientReferenceId: clientReferenceIdSchema,
 });
 
 type CreateProductInput = z.infer<typeof CreateProductSchema>;
