@@ -103,7 +103,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
       // date filter
       final createdAtRaw = s['createdAt']?.toString();
       if (createdAtRaw != null) {
-        final parsed = DateTime.tryParse(createdAtRaw);
+        final parsed = DateTime.tryParse(createdAtRaw)?.toLocal();
         if (parsed != null) {
           final d = DateTime(parsed.year, parsed.month, parsed.day);
           if (_filterStartDate != null) {
@@ -249,7 +249,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
     final (chipBg, chipFg) = _statusColor(statusRaw);
     final createdAtRaw = sale['createdAt']?.toString();
     final createdAt = createdAtRaw != null && DateTime.tryParse(createdAtRaw) != null
-        ? DateTime.tryParse(createdAtRaw)!
+        ? DateTime.tryParse(createdAtRaw)!.toLocal()
         : DateTime.now();
     final cashierName = sale['cashierName']?.toString() ?? 'Kasir';
     final paymentMethod = sale['paymentMethod']?.toString() ?? 'CASH';
@@ -968,7 +968,7 @@ class _SalesHistoryScreenState extends ConsumerState<SalesHistoryScreen> {
                               final createdAtRaw = sale['createdAt']?.toString();
                               DateTime createdAt = DateTime.now();
                               if (createdAtRaw != null) {
-                                final tryParse = DateTime.tryParse(createdAtRaw);
+                                final tryParse = DateTime.tryParse(createdAtRaw)?.toLocal();
                                 if (tryParse != null) createdAt = tryParse;
                               }
                               final statusRaw = sale['status']?.toString() ?? 'COMPLETED';

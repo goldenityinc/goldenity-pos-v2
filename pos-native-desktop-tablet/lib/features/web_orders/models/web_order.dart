@@ -135,7 +135,7 @@ class WebOrder {
       cashChange: j['cashChange'] == null ? null : _num(j['cashChange']),
       tableCode: table?['code']?.toString(),
       customerName: j['customerName'] as String?,
-      createdAt: DateTime.tryParse('${j['createdAt']}'),
+      createdAt: DateTime.tryParse('${j['createdAt']}')?.toLocal(),
       items: ((j['items'] as List<dynamic>?) ?? const [])
           .whereType<Map<String, dynamic>>()
           .map(WebOrderItem.fromJson)

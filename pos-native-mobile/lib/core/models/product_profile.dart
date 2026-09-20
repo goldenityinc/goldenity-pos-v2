@@ -127,10 +127,10 @@ class ProductProfile {
       isActive: json['isActive'] as bool? ?? true,
       imageUrl: json['imageUrl'] as String?,
       createdAt: createdAtRaw != null
-          ? DateTime.tryParse(createdAtRaw.toString()) ?? DateTime.now()
+          ? DateTime.tryParse(createdAtRaw.toString())?.toLocal() ?? DateTime.now()
           : DateTime.now(),
       updatedAt: updatedAtRaw != null
-          ? DateTime.tryParse(updatedAtRaw.toString()) ?? DateTime.now()
+          ? DateTime.tryParse(updatedAtRaw.toString())?.toLocal() ?? DateTime.now()
           : DateTime.now(),
       branch: branchRaw is Map<String, dynamic>
           ? BranchProfile.fromJson(branchRaw)

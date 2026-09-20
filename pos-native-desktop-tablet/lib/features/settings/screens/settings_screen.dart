@@ -566,7 +566,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen>
     // Android — FG Web-Order Receiver: sync SP enabled ↔ actual service state.
     if (Platform.isAndroid) {
       final sp = await SharedPreferences.getInstance();
-      final spEnabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? false;
+      final spEnabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? true;
       bool actualRunning = false;
       try {
         actualRunning = await FlutterForegroundTask.isRunningService;

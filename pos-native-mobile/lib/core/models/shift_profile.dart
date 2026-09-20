@@ -32,7 +32,7 @@ class ShiftSalesItemSummary {
       total: num.parse((json['total'] ?? 0).toString()),
       paymentMethod: json['paymentMethod'] as String? ?? '',
       createdAt: createdAtRaw != null
-          ? DateTime.tryParse(createdAtRaw.toString()) ?? DateTime.now()
+          ? DateTime.tryParse(createdAtRaw.toString())?.toLocal() ?? DateTime.now()
           : DateTime.now(),
       status: json['status'] as String? ?? '',
       cashReceived: json['cashReceived'] != null
@@ -113,10 +113,10 @@ class ShiftProfile {
       branchId: shiftSrc['branchId'] as String? ?? '',
       cashierId: shiftSrc['cashierId'] as String? ?? '',
       openedAt: openedAtRaw != null
-          ? DateTime.tryParse(openedAtRaw.toString()) ?? DateTime.now()
+          ? DateTime.tryParse(openedAtRaw.toString())?.toLocal() ?? DateTime.now()
           : DateTime.now(),
       closedAt: closedAtRaw != null
-          ? DateTime.tryParse(closedAtRaw.toString())
+          ? DateTime.tryParse(closedAtRaw.toString())?.toLocal()
           : null,
       status: parseShiftStatus((shiftSrc['status'] as String?) ?? 'OPEN'),
       openingCash: num.parse((shiftSrc['openingCash'] ?? 0).toString()),
@@ -134,10 +134,10 @@ class ShiftProfile {
       cashierName: shiftSrc['cashierName'] as String?,
       branchName: shiftSrc['branchName'] as String?,
       createdAt: createdAtRaw != null
-          ? DateTime.tryParse(createdAtRaw.toString()) ?? DateTime.now()
+          ? DateTime.tryParse(createdAtRaw.toString())?.toLocal() ?? DateTime.now()
           : DateTime.now(),
       updatedAt: updatedAtRaw != null
-          ? DateTime.tryParse(updatedAtRaw.toString()) ?? DateTime.now()
+          ? DateTime.tryParse(updatedAtRaw.toString())?.toLocal() ?? DateTime.now()
           : DateTime.now(),
       salesRecords: salesRecordsRaw
           ?.map((e) => ShiftSalesItemSummary.fromJson(e as Map<String, dynamic>))

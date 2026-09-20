@@ -31,10 +31,10 @@ class CategoryProfile {
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       isActive: json['isActive'] as bool? ?? true,
       createdAt: createdAtRaw != null
-          ? DateTime.tryParse(createdAtRaw.toString())
+          ? DateTime.tryParse(createdAtRaw.toString())?.toLocal()
           : null,
       updatedAt: updatedAtRaw != null
-          ? DateTime.tryParse(updatedAtRaw.toString())
+          ? DateTime.tryParse(updatedAtRaw.toString())?.toLocal()
           : null,
       productCount: (json['productCount'] as num?)?.toInt() ?? 0,
       activeProductCount: (json['activeProductCount'] as num?)?.toInt() ?? 0,

@@ -51,7 +51,7 @@ class _GoldenityAppShellState extends ConsumerState<GoldenityAppShell> {
       await ApiConstants.initialize(sp);
       // 3) Android only: if enabled=true dan service belum jalan → start.
       if (Platform.isAndroid) {
-        final enabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? false;
+        final enabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? true;
         if (enabled) {
           bool running = false;
           try {

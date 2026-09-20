@@ -62,7 +62,7 @@ class _GoldenityMobileShellState extends ConsumerState<GoldenityMobileShell> {
       final sp = await SharedPreferences.getInstance();
       await ApiConstants.initialize(sp);
       if (Platform.isAndroid) {
-        final enabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? false;
+        final enabled = sp.getBool(StorageKeys.fgServiceEnabled) ?? true;
         if (enabled) {
           bool running = false;
           try {

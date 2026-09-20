@@ -34,7 +34,7 @@ class BranchWithPrintersProfile extends BranchProfile {
       qrisImageUrl: json['qrisImageUrl'] as String?,
       printerConfigs: pcs,
       createdAt: createdAtRaw != null
-          ? DateTime.tryParse(createdAtRaw.toString())
+          ? DateTime.tryParse(createdAtRaw.toString())?.toLocal()
           : null,
       webOrderPaymentMode:
           json['webOrderPaymentMode'] as String? ?? 'QRIS_AND_CASHIER',

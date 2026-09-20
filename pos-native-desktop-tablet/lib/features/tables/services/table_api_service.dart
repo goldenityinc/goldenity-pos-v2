@@ -161,7 +161,7 @@ class TableApiService {
             body: jsonEncode({
               'name': name,
               'phone': phone,
-              'reservedAt': reservedAt.toIso8601String(),
+              'reservedAt': reservedAt.toUtc().toIso8601String(),
               'guests': guests,
               if (note != null && note.isNotEmpty) 'note': note,
             }))

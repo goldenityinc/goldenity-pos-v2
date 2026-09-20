@@ -61,10 +61,10 @@ class StoreSettingsProfile {
       webOrderAutoAccept: (json['webOrderAutoAccept'] as bool?) ?? false,
       taxSettings: json['taxSettings'],
       createdAt: createdAtRaw != null
-          ? DateTime.tryParse(createdAtRaw.toString()) ?? DateTime.now()
+          ? DateTime.tryParse(createdAtRaw.toString())?.toLocal() ?? DateTime.now()
           : DateTime.now(),
       updatedAt: updatedAtRaw != null
-          ? DateTime.tryParse(updatedAtRaw.toString()) ?? DateTime.now()
+          ? DateTime.tryParse(updatedAtRaw.toString())?.toLocal() ?? DateTime.now()
           : DateTime.now(),
     );
   }

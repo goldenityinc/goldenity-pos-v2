@@ -104,7 +104,7 @@ class _PaymentDialogBodyState extends ConsumerState<_PaymentDialogBody> {
     if (v == null) return DateTime.now();
     if (v is DateTime) return v;
     if (v is String) {
-      final parsed = DateTime.tryParse(v);
+      final parsed = DateTime.tryParse(v)?.toLocal();
       return parsed ?? DateTime.now();
     }
     return DateTime.now();

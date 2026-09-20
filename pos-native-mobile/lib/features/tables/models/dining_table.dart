@@ -54,8 +54,8 @@ class TableSessionBrief {
         id: j['id']?.toString() ?? '',
         customerName: j['customerName'] as String?,
         customerPhone: j['customerPhone'] as String?,
-        openedAt: DateTime.tryParse('${j['openedAt']}'),
-        expiresAt: DateTime.tryParse('${j['expiresAt']}'),
+        openedAt: DateTime.tryParse('${j['openedAt']}')?.toLocal(),
+        expiresAt: DateTime.tryParse('${j['expiresAt']}')?.toLocal(),
         orderCount: (j['orderCount'] as num?)?.toInt() ?? 0,
         orders: ((j['orders'] as List<dynamic>?) ?? const [])
             .whereType<Map<String, dynamic>>()
@@ -85,7 +85,7 @@ class TableReservationBrief {
         id: j['id']?.toString() ?? '',
         name: j['name']?.toString() ?? '',
         phone: j['phone']?.toString() ?? '',
-        reservedAt: DateTime.tryParse('${j['reservedAt']}'),
+        reservedAt: DateTime.tryParse('${j['reservedAt']}')?.toLocal(),
         guests: (j['guests'] as num?)?.toInt() ?? 1,
         note: j['note'] as String?,
       );
@@ -210,7 +210,7 @@ class WebOrderInSession {
         taxAmount: _num(j['taxAmount']),
         total: _num(j['total']),
         customerNote: j['customerNote'] as String?,
-        createdAt: DateTime.tryParse('${j['createdAt']}'),
+        createdAt: DateTime.tryParse('${j['createdAt']}')?.toLocal(),
         items: ((j['items'] as List<dynamic>?) ?? const [])
             .whereType<Map<String, dynamic>>()
             .map(WebOrderLineItem.fromJson)

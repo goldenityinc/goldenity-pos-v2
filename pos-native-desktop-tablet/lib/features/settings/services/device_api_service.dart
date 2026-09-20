@@ -32,7 +32,7 @@ class DeviceInfo {
         role: j['role']?.toString() ?? 'BOTH',
         isActive: j['isActive'] as bool? ?? true,
         branchId: j['branchId'] as String?,
-        lastSeenAt: DateTime.tryParse('${j['lastSeenAt']}'),
+        lastSeenAt: DateTime.tryParse('${j['lastSeenAt']}')?.toLocal(),
       );
 }
 
