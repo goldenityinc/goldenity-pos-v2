@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/sales/repositories/sales_offline_queue.dart';
 import '../../features/web_orders/services/web_order_api_service.dart';
 import '../config/api_constants.dart';
+import '../errors/session_expired_exception.dart';
 import '../models/auth_session.dart';
 import 'web_order_notification_service.dart';
 import 'web_order_print_service.dart';
@@ -55,6 +56,70 @@ class FgWebOrderTaskHandler extends TaskHandler {
   WebOrderApiService? _webApi;
   SalesOfflineQueue? _queue;
 
+  /// Token yang sudah ditolak server (401) — jangan ditembak lagi tiap 6 detik
+  /// (sempat ribuan 401 berturut-turut tanpa ada yang sadar). Poll lanjut
+  /// otomatis begitu user login ulang dan token di SharedPreferences berganti.
+  String? _rejectedToken;
+  bool _sessionLostNotified = false;
+
+  static const _iconMeta = NotificationIcon(
+      metaDataName: 'com.goldenity.pos.ForegroundServiceIcon');
+
+  /// Ambil sesi TERBARU dari SharedPreferences tiap poll. Isolate ini punya
+  /// salinan memori sendiri — tanpa reload, setelah user login ulang service
+  /// tetap memakai token lama yang sudah mati dan order web tak pernah masuk
+  /// lagi sampai app di-kill manual.
+  Future<AuthSession?> _refreshSession() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.reload();
+      final fresh = AuthSession.loadFromSharedPreferences(sp);
+      if (fresh == null || !fresh.isValid) {
+        _session = null;
+        await _notifySessionLost(
+            fresh == null ? 'Belum login' : 'Sesi login habis');
+        return null;
+      }
+      if (fresh.token == _rejectedToken) {
+        await _notifySessionLost('Sesi login ditolak server');
+        return null;
+      }
+      if (_sessionLostNotified) {
+        _sessionLostNotified = false;
+        await _updateNotification(
+          'Goldenity POS',
+          'Menerima pesanan web secara otomatis di latar belakang.',
+        );
+      }
+      _session = fresh;
+      return fresh;
+    } catch (e) {
+      debugPrint('[fg web-order] refreshSession FAIL: $e');
+      return _session;
+    }
+  }
+
+  Future<void> _notifySessionLost(String reason) async {
+    if (_sessionLostNotified) return;
+    _sessionLostNotified = true;
+    await _updateNotification(
+      '$reason — order web TIDAK masuk',
+      'Buka aplikasi Goldenity POS dan login ulang.',
+    );
+  }
+
+  Future<void> _updateNotification(String title, String text) async {
+    try {
+      await FlutterForegroundTask.updateService(
+        notificationTitle: title,
+        notificationText: text,
+        notificationIcon: _iconMeta,
+      );
+    } catch (e) {
+      debugPrint('[fg web-order] updateService FAIL: $e');
+    }
+  }
+
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     try {
@@ -62,17 +127,12 @@ class FgWebOrderTaskHandler extends TaskHandler {
       final sp = await SharedPreferences.getInstance();
       await ApiConstants.initialize(sp);
 
-      // 2) Session required — jika belum login / expired → STOP timer auto-start.
+      // 2) Sesi TIDAK lagi jadi syarat start: timer tetap hidup walau belum
+      // login / sudah expired, dan tiap poll memuat ulang sesi terbaru
+      // (_refreshSession). Dulu `return` di sini = service jalan tanpa timer
+      // selamanya, dan tak pernah pulih setelah user login ulang.
       final session = AuthSession.loadFromSharedPreferences(sp);
-      if (session == null) {
-        debugPrint('[fg web-order] STOP: belum ada session login di SP.');
-        return;
-      }
-      if (!session.isValid) {
-        debugPrint('[fg web-order] STOP: session login expired (>24 jam).');
-        return;
-      }
-      _session = session;
+      if (session != null && session.isValid) _session = session;
 
       // 3) Hive.initFlutter WAJIB di FG Isolate (tidak share memory main UI).
       try {
@@ -97,7 +157,7 @@ class FgWebOrderTaskHandler extends TaskHandler {
       );
 
       debugPrint(
-          '[fg web-order] STARTED (starter=$starter): branch=${session.selectedBranchId ?? session.user.branchId ?? session.tenant.name}');
+          '[fg web-order] STARTED (starter=$starter): session=${_session == null ? "belum ada/expired" : (_session!.selectedBranchId ?? _session!.user.branchId ?? _session!.tenant.name)}');
     } catch (e) {
       debugPrint('[fg web-order] onStart FAIL: $e');
     }
@@ -108,9 +168,10 @@ class FgWebOrderTaskHandler extends TaskHandler {
 
   /// Poll 6-detik: list(status: PENDING_ACCEPT) → accept + printAccepted + notif.
   Future<void> _pollPendingAccepts() async {
-    final s = _session;
     final api = _webApi;
-    if (s == null || api == null) return;
+    if (api == null) return;
+    final s = await _refreshSession();
+    if (s == null) return;
     try {
       final orders = await api.list(
         token: s.token,
@@ -162,11 +223,17 @@ class FgWebOrderTaskHandler extends TaskHandler {
           debugPrint('[fg web-order] updateService (alert) FAIL: $e');
         }
       }
+    } on SessionExpiredException {
+      _rejectedToken = s.token;
+      await _notifySessionLost('Sesi login habis');
+      return;
     } catch (e) {
       debugPrint('[fg web-order] poll FAIL: $e');
     }
     try {
       await WebOrderPrintService.instance.retryPendingPrints(session: s);
+    } on SessionExpiredException {
+      _rejectedToken = s.token;
     } catch (e) {
       debugPrint('[fg web-order] retryPendingPrints FAIL: $e');
     }
@@ -174,9 +241,10 @@ class FgWebOrderTaskHandler extends TaskHandler {
 
   /// Flush 30-detik: SalesOfflineQueue.getReady() → POST /sales idempotent.
   Future<void> _flushPendingSales() async {
-    final s = _session;
     final q = _queue;
-    if (s == null || q == null) return;
+    if (q == null) return;
+    final s = _session;
+    if (s == null || s.token == _rejectedToken) return;
     try {
       final ready = q.getReady();
       if (ready.isEmpty) return;
@@ -202,6 +270,11 @@ class FgWebOrderTaskHandler extends TaskHandler {
               .timeout(ApiConstants.defaultReceiveTimeout);
           if (resp.statusCode >= 200 && resp.statusCode < 300) {
             await q.dequeue(refId);
+          } else if (resp.statusCode == 401) {
+            // Token mati: JANGAN markRetry (membakar jatah retry penjualan
+            // offline) — biarkan antre utuh sampai user login ulang.
+            _rejectedToken = s.token;
+            return;
           } else {
             await q.markRetry(refId, 'HTTP ${resp.statusCode}');
           }

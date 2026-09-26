@@ -2,7 +2,9 @@ import jwt, { type SignOptions, type VerifyOptions } from 'jsonwebtoken';
 import type { JwtAuthPayload } from './types';
 
 const DEFAULT_SECRET = 'dev_only_insecure_replace_me_please_32bytes!!';
-const DEFAULT_EXPIRES_IN = '24h';
+// 30 hari: perangkat kasir menyala terus berhari-hari; 24 jam membuat sesi mati
+// diam-diam di jam sibuk (poller 401 tanpa notifikasi — insiden volcan 2026-09-26).
+const DEFAULT_EXPIRES_IN = '30d';
 
 export function getJwtConfig() {
   const secret = process.env.JWT_SECRET?.trim() || DEFAULT_SECRET;

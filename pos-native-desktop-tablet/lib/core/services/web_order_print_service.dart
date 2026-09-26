@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../errors/session_expired_exception.dart';
 import '../models/auth_session.dart';
 import '../models/printer_config_profile.dart';
 import '../models/store_settings_profile.dart';
@@ -81,9 +82,15 @@ class WebOrderPrintService {
   }
 
   /// Cetak Struk Kasir + Nota Dapur untuk order yang baru DITERIMA. Idempotent.
+  ///
+  /// [fromRetry] = dipanggil dari antrean retry: klaim server sudah DIPEGANG
+  /// device ini dari percobaan pertama (klaim itu sekali-pakai) — mengklaim
+  /// ulang pasti ditolak dan retry tak akan pernah mencetak, sementara entri
+  /// antrean tak pernah keluar (sempat menembak `claim-print` ~200x/order).
   Future<WebOrderPrintResult> printAccepted({
     required WebOrder order,
     required AuthSession session,
+    bool fromRetry = false,
   }) async {
     if (order.id.isEmpty) return WebOrderPrintResult.skip('no id');
     final sp = await _prefs;
@@ -91,7 +98,9 @@ class WebOrderPrintService {
       (await _retryQueue).clear(order.id);
       return WebOrderPrintResult.skip('sudah dicetak');
     }
-    if (!await _claimPrint(order.id, session, kind: 'accepted')) {
+    if (!fromRetry && !await _claimPrint(order.id, session, kind: 'accepted')) {
+      // Device lain yang mencetak — tak ada yang perlu di-retry di sini.
+      await (await _retryQueue).clear(order.id);
       return WebOrderPrintResult.skip('diklaim device lain');
     }
     final res = await _dispatch(order: order, session: session, paidReprint: false);
@@ -156,8 +165,10 @@ class WebOrderPrintService {
           await rq.clear(id);
           continue;
         }
-        await printAccepted(order: order, session: session);
+        await printAccepted(order: order, session: session, fromRetry: true);
       }
+    } on SessionExpiredException {
+      rethrow; // biar poller yang menangani (logout / notifikasi sesi habis)
     } catch (e) {
       debugPrint('[web-order print] retryPendingPrints FAIL: $e');
     }

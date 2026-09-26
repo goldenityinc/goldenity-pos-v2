@@ -26,16 +26,41 @@ class AuthSession {
     this.selectedBranchId,
   });
 
+  /// Umur token sesuai `expiresIn` dari server ("24h", "30d", "3600"), supaya
+  /// perubahan masa berlaku di backend (env `JWT_EXPIRES_IN`) otomatis diikuti
+  /// aplikasi tanpa build ulang. Fallback 24 jam kalau formatnya tak dikenali.
+  Duration get lifetime => parseTokenLifetime(expiresIn);
+
   bool get isValid {
     final diff = DateTime.now().difference(loginTime);
-    return diff <= const Duration(hours: 24);
+    return diff <= lifetime;
   }
 
   Duration get remainingLifetime {
-    const maxLife = Duration(hours: 24);
+    final maxLife = lifetime;
     final used = DateTime.now().difference(loginTime);
     if (used >= maxLife) return Duration.zero;
     return maxLife - used;
+  }
+
+  static Duration parseTokenLifetime(String raw) {
+    const fallback = Duration(hours: 24);
+    final m = RegExp(r'^\s*(\d+)\s*([smhdw]?)\s*$', caseSensitive: false).firstMatch(raw);
+    if (m == null) return fallback;
+    final n = int.tryParse(m.group(1)!) ?? 0;
+    if (n <= 0) return fallback;
+    switch ((m.group(2) ?? '').toLowerCase()) {
+      case 'm':
+        return Duration(minutes: n);
+      case 'h':
+        return Duration(hours: n);
+      case 'd':
+        return Duration(days: n);
+      case 'w':
+        return Duration(days: n * 7);
+      default:
+        return Duration(seconds: n); // angka polos = detik (konvensi jsonwebtoken)
+    }
   }
 
   String get bearerAuthorizationHeader => '$tokenType $token';

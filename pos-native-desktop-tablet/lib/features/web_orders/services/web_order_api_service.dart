@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/api_constants.dart';
+import '../../../core/errors/session_expired_exception.dart';
 import '../models/web_order.dart';
 
 class WebOrderApiService {
@@ -17,6 +18,7 @@ class WebOrderApiService {
       };
 
   Map<String, dynamic> _ok(http.Response r) {
+    if (r.statusCode == 401) throw const SessionExpiredException();
     Map<String, dynamic> data;
     try {
       data = jsonDecode(r.body) as Map<String, dynamic>;

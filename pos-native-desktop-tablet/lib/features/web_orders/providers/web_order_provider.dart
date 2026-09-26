@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/errors/session_expired_exception.dart';
 import '../../../core/services/web_order_notification_service.dart';
 import '../../../core/services/web_order_print_service.dart';
 import '../../../core/models/auth_session.dart';
@@ -63,24 +64,46 @@ class WebOrderListNotifier extends StateNotifier<WebOrderListState> {
     super.dispose();
   }
 
+  /// Token mati (24 jam lewat / server 401): berhenti polling dan kembalikan
+  /// user ke layar login dengan pesan jelas — jangan diam-diam gagal tiap 6
+  /// detik sementara order web menumpuk tanpa notifikasi.
+  ///
+  /// Timer SENGAJA tidak dibatalkan: provider ini tidak di-recreate saat login
+  /// ulang, jadi poller harus tetap hidup (tick tanpa sesi = no-op) supaya
+  /// order web langsung terbaca lagi begitu user login kembali.
+  void _expireSession() {
+    _ref.read(authNotifierProvider.notifier).logout(
+          markExpired: true,
+          message:
+              'Sesi login telah habis. Silakan login kembali agar order web tetap masuk.',
+        );
+  }
+
   Future<void> load({bool silent = false}) async {
     if (!silent) state = state.copyWith(loading: true, error: null);
     try {
       final session = _ref.read(currentSessionProvider);
-      final token = session?.token;
-      if (token == null) throw Exception('Sesi tidak ditemukan');
+      if (session == null) {
+        if (silent) return; // sudah logout / belum login — tunggu login ulang
+        throw Exception('Sesi tidak ditemukan');
+      }
+      if (!session.isValid) {
+        _expireSession();
+        return;
+      }
       final orders = await _ref
           .read(webOrderApiServiceProvider)
-          .list(token: token, branchId: session?.selectedBranchId);
+          .list(token: session.token, branchId: session.selectedBranchId);
       _process(orders);
-      if (session != null) {
-        // Retry order yang accept-nya sudah sukses tapi cetaknya sempat
-        // gagal (printer offline / kertas habis) — reuse list yang barusan
-        // di-fetch, tak perlu API call tambahan.
-        unawaited(WebOrderPrintService.instance
-            .retryPendingPrints(session: session, knownOrders: orders));
-      }
+      // Retry order yang accept-nya sudah sukses tapi cetaknya sempat
+      // gagal (printer offline / kertas habis) — reuse list yang barusan
+      // di-fetch, tak perlu API call tambahan.
+      unawaited(WebOrderPrintService.instance
+          .retryPendingPrints(session: session, knownOrders: orders)
+          .catchError((Object _) {}));
       state = WebOrderListState(orders: orders, loading: false);
+    } on SessionExpiredException {
+      _expireSession();
     } catch (e) {
       if (silent && state.orders.isNotEmpty) return;
       state = state.copyWith(
