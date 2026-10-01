@@ -74,10 +74,14 @@ class FgWebOrderTaskHandler extends TaskHandler {
       final sp = await SharedPreferences.getInstance();
       await sp.reload();
       final fresh = AuthSession.loadFromSharedPreferences(sp);
-      if (fresh == null || !fresh.isValid) {
+      // SENGAJA TIDAK mengecek fresh.isValid (jam dinding device) — sama
+      // seperti web_order_provider.dart, device yang jam-nya baru dikoreksi
+      // NTP bisa bikin ini false padahal token baru saja diterbitkan server.
+      // Satu-satunya sumber kebenaran adalah 401 dari server (_rejectedToken
+      // di bawah, diisi oleh SessionExpiredException dari poll sungguhan).
+      if (fresh == null) {
         _session = null;
-        await _notifySessionLost(
-            fresh == null ? 'Belum login' : 'Sesi login habis');
+        await _notifySessionLost('Belum login');
         return null;
       }
       if (fresh.token == _rejectedToken) {
@@ -132,7 +136,7 @@ class FgWebOrderTaskHandler extends TaskHandler {
       // (_refreshSession). Dulu `return` di sini = service jalan tanpa timer
       // selamanya, dan tak pernah pulih setelah user login ulang.
       final session = AuthSession.loadFromSharedPreferences(sp);
-      if (session != null && session.isValid) _session = session;
+      if (session != null) _session = session; // valid/tidaknya dicek via 401 server, bukan jam device
 
       // 3) Hive.initFlutter WAJIB di FG Isolate (tidak share memory main UI).
       try {

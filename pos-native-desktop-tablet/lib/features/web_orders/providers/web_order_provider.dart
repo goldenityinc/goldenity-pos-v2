@@ -87,10 +87,13 @@ class WebOrderListNotifier extends StateNotifier<WebOrderListState> {
         if (silent) return; // sudah logout / belum login — tunggu login ulang
         throw Exception('Sesi tidak ditemukan');
       }
-      if (!session.isValid) {
-        _expireSession();
-        return;
-      }
+      // SENGAJA TIDAK mengecek session.isValid (jam dinding device) di sini —
+      // insiden produksi 2026-10-01: device yang jam-nya baru koreksi NTP
+      // setelah reinstall bikin isValid salah jadi false detik-detik setelah
+      // login sukses → user "ketendang" balik ke login tiap ~1 menit TANPA
+      // request ke server sama sekali (device yang memutuskan, bukan server).
+      // Satu-satunya sumber kebenaran valid/tidaknya token adalah respons 401
+      // dari server (SessionExpiredException di bawah) — bukan jam device.
       final orders = await _ref
           .read(webOrderApiServiceProvider)
           .list(token: session.token, branchId: session.selectedBranchId);
