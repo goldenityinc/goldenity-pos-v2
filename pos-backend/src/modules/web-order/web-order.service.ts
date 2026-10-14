@@ -612,7 +612,12 @@ export class WebOrderService {
       return fail('Role ini tidak punya scope cabang untuk melihat web order.');
     }
     const statusFilter = typeof query.status === 'string' ? query.status.trim().toUpperCase() : '';
-    if (statusFilter) where.status = statusFilter;
+    // Alias: layanan background di aplikasi (android_fg_weborder_handler) memakai nama
+    // 'PENDING_ACCEPT', padahal status di DB 'SUBMITTED' — filter lama selalu kosong,
+    // sehingga layanan itu tidak pernah menerima/mencetak/membunyikan alert (insiden
+    // volcan 2026-10-12: order SUBMITTED menggantung 2 hari). Dipetakan di sini supaya APK
+    // yang sudah terpasang ikut benar tanpa perlu build ulang.
+    if (statusFilter) where.status = statusFilter === 'PENDING_ACCEPT' ? 'SUBMITTED' : statusFilter;
 
     const rows = await prisma.webOrder.findMany({
       where,
