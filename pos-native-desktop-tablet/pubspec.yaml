@@ -40,6 +40,12 @@ dependencies:
   flutter_foreground_task: ^8.12.0
   open_filex: ^4.6.0
 
+# Salinan lokal plugin printer yang DI-PATCH supaya channel Bluetooth terpasang juga di engine
+# headless (foreground service) — lihat komentar PATCH di FlutterPosPrinterPlatformPlugin.kt.
+dependency_overrides:
+  flutter_pos_printer_platform_image_3:
+    path: third_party/flutter_pos_printer_platform_image_3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

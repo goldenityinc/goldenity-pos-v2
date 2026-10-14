@@ -164,6 +164,24 @@ class WebOrderListNotifier extends StateNotifier<WebOrderListState> {
         }
       }
 
+      // 1b) pelanggan menekan "Saya sudah bayar" → kasir harus cek bukti & verifikasi.
+      //     Sebelumnya TIDAK ADA alert sama sekali → pembayaran terlihat telat 5–36 menit
+      //     (insiden volcan 2026-10-03/12).
+      final claimedPay = o.paymentStatus == 'PENDING_VERIFICATION' &&
+          prevPay != 'PENDING_VERIFICATION' &&
+          !o.isDone &&
+          (prevPay != null || (prevStatus == null && fresh));
+      if (claimedPay) {
+        WebOrderNotificationService.instance
+            .paymentClaimed(queueNumber: o.queueNumber, tableCode: o.tableCode);
+        if (Platform.isAndroid) {
+          unawaited(_alertAndroid(
+            title: 'Pelanggan sudah bayar · Q-${o.queueNumber}',
+            text: 'Cek bukti pembayaran & verifikasi di Web Orders.',
+          ));
+        }
+      }
+
       // 2) berpindah ke ACCEPTED (auto-accept server ATAU kasir tekan Terima)
       //    → cetak Struk Kasir + Nota Dapur dari POS.
       final becameAccepted = o.status == 'ACCEPTED' &&

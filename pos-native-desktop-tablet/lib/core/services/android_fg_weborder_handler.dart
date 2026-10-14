@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../features/sales/repositories/sales_offline_queue.dart';
+import '../../features/web_orders/models/web_order.dart';
 import '../../features/web_orders/services/web_order_api_service.dart';
 import '../config/api_constants.dart';
 import '../errors/session_expired_exception.dart';
@@ -170,62 +171,100 @@ class FgWebOrderTaskHandler extends TaskHandler {
   @override
   void onRepeatEvent(DateTime timestamp) {}
 
-  /// Poll 6-detik: list(status: PENDING_ACCEPT) → accept + printAccepted + notif.
+  // Order yang sudah ditangani isolate ini (accept/cetak) — jangan diproses ulang tiap poll.
+  final Set<String> _handledAccepted = <String>{};
+  // Order yang pembayarannya sudah dialertkan ("pelanggan sudah bayar").
+  final Set<String> _payAlerted = <String>{};
+  bool _polling = false;
+
+  static const Duration _printWindow = Duration(minutes: 15);
+  static const Duration _alertWindow = Duration(minutes: 3);
+  static const Duration _payWindow = Duration(minutes: 90);
+
+  /// Poll 6-detik, TETAP JALAN walau app di background (mis. Majoo di layar depan):
+  ///  1) order SUBMITTED (alias PENDING_ACCEPT) → accept + cetak + alert;
+  ///  2) order ACCEPTED yang diterima otomatis oleh server dan belum dicetak → cetak
+  ///     (dijaga klaim atomik di server, jadi tidak ganda dgn device lain) + alert;
+  ///  3) pelanggan menekan "Saya sudah bayar" (PENDING_VERIFICATION) → alert.
   Future<void> _pollPendingAccepts() async {
     final api = _webApi;
-    if (api == null) return;
-    final s = await _refreshSession();
-    if (s == null) return;
+    if (api == null || _polling) return;
+    _polling = true;
     try {
-      final orders = await api.list(
-        token: s.token,
-        branchId: s.selectedBranchId ?? s.user.branchId,
-        status: 'PENDING_ACCEPT',
-      );
-      if (orders.isNotEmpty) {
-        debugPrint('[fg web-order] ${orders.length} order PENDING_ACCEPT.');
-        for (final o in orders) {
-          try {
-            await api.accept(token: s.token, id: o.id);
-            await WebOrderPrintService.instance
-                .printAccepted(order: o, session: s);
-            final items = o.items.length;
-            WebOrderNotificationService.instance.newOrder(
-              queueNumber: o.queueNumber,
-              tableCode: o.tableCode,
-              itemCount: items,
-              autoAccepted: true,
-            );
-          } catch (e) {
-            debugPrint('[fg web-order] order ${o.id} FAIL accept/print: $e');
+      final s = await _refreshSession();
+      if (s == null) return;
+      await _pollWith(api, s);
+    } finally {
+      _polling = false;
+    }
+  }
+
+  Future<void> _pollWith(WebOrderApiService api, AuthSession s) async {
+    final branchId = s.selectedBranchId ?? s.user.branchId;
+    final newOrders = <WebOrder>[];
+    final payClaims = <WebOrder>[];
+    try {
+      // 1) menunggu diterima (backend memetakan PENDING_ACCEPT → SUBMITTED)
+      final pending = await api.list(token: s.token, branchId: branchId, status: 'PENDING_ACCEPT');
+      for (final o in pending) {
+        try {
+          await api.accept(token: s.token, id: o.id);
+          _handledAccepted.add(o.id);
+          await WebOrderPrintService.instance.printAccepted(order: o, session: s);
+          newOrders.add(o);
+        } catch (e) {
+          debugPrint('[fg web-order] order ${o.id} FAIL accept/print: $e');
+        }
+      }
+
+      // 2+3) sudah diterima (otomatis oleh server atau device lain)
+      final accepted = await api.list(token: s.token, branchId: branchId, status: 'ACCEPTED');
+      final now = DateTime.now();
+      for (final o in accepted) {
+        final age = o.createdAt == null ? Duration.zero : now.difference(o.createdAt!);
+        if (!_handledAccepted.contains(o.id)) {
+          _handledAccepted.add(o.id);
+          if (age <= _printWindow) {
+            try {
+              await WebOrderPrintService.instance.printAccepted(order: o, session: s);
+            } on SessionExpiredException {
+              rethrow;
+            } catch (e) {
+              debugPrint('[fg web-order] cetak order ${o.id} FAIL: $e');
+            }
+            if (age <= _alertWindow) newOrders.add(o);
           }
         }
-        // Bunyi + getar Android: WebOrderNotificationService (local_notifier +
-        // SystemSound) TIDAK JALAN di isolate headless ini (butuh Activity yg
-        // tak pernah ada di background service) — jadi update notifikasi
-        // ongoing service sendiri sbg pengganti. Channel dibuat dgn playSound+
-        // enableVibration+onlyAlertOnce:false (lihat
-        // androidNotificationOptionsForWebOrderFg) supaya tiap updateService()
-        // di sini benar2 membunyikan alert, bukan cuma ganti teks diam2.
-        try {
-          await FlutterForegroundTask.updateService(
-            notificationTitle: orders.length == 1
-                ? 'Web order diterima · Q-${orders.first.queueNumber}'
-                : '${orders.length} web order baru diterima',
-            notificationText: 'Struk & nota dapur sedang dicetak otomatis.',
-            // WAJIB diisi ulang — updateService() TIDAK mewarisi icon dari
-            // startService() sebelumnya. metaDataName HARUS PERSIS SAMA dgn
-            // android:name di <meta-data> AndroidManifest.xml (BUKAN nama
-            // resource) — sempat salah pakai 'launcher_icon' (nama resource,
-            // bukan nama meta-data), native getIconResId() jadi return 0
-            // ("no valid small icon"), CRASH TOTAL app tiap ada order baru
-            // (dibuktikan via logcat crash nyata di device fisik).
-            notificationIcon: const NotificationIcon(
-                metaDataName: 'com.goldenity.pos.ForegroundServiceIcon'),
-          );
-        } catch (e) {
-          debugPrint('[fg web-order] updateService (alert) FAIL: $e');
+        if (o.paymentStatus == 'PENDING_VERIFICATION' && _payAlerted.add(o.id) && age <= _payWindow) {
+          payClaims.add(o);
         }
+      }
+
+      // Bunyi + getar Android: WebOrderNotificationService (local_notifier +
+      // SystemSound) TIDAK JALAN di isolate headless ini (butuh Activity yg
+      // tak pernah ada di background service) — jadi update notifikasi
+      // ongoing service sendiri sbg pengganti. Channel dibuat dgn playSound+
+      // enableVibration+onlyAlertOnce:false (lihat
+      // androidNotificationOptionsForWebOrderFg) supaya tiap updateService()
+      // di sini benar2 membunyikan alert, bukan cuma ganti teks diam2.
+      if (newOrders.isNotEmpty || payClaims.isNotEmpty) {
+        String title;
+        String text;
+        if (newOrders.isNotEmpty) {
+          title = newOrders.length == 1
+              ? 'Web order baru · Q-${newOrders.first.queueNumber}'
+              : '${newOrders.length} web order baru';
+          text = 'Struk & nota dapur dicetak. Buka Goldenity POS jika belum keluar.';
+          if (payClaims.isNotEmpty) {
+            text = '${payClaims.length} pelanggan sudah bayar — cek bukti & verifikasi. $text';
+          }
+        } else {
+          title = payClaims.length == 1
+              ? 'Pelanggan sudah bayar · Q-${payClaims.first.queueNumber}'
+              : '${payClaims.length} pelanggan sudah bayar';
+          text = 'Cek bukti pembayaran lalu verifikasi di Web Orders.';
+        }
+        await _updateNotification(title, text);
       }
     } on SessionExpiredException {
       _rejectedToken = s.token;

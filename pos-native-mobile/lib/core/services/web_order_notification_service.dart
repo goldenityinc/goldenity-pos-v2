@@ -45,6 +45,17 @@ class WebOrderNotificationService {
     _flushTimer = Timer(_batchWindow, _flush);
   }
 
+  /// Pelanggan menekan "Saya sudah bayar" — kasir perlu cek bukti & verifikasi.
+  void paymentClaimed({required int queueNumber, String? tableCode}) {
+    _show(
+      'Pelanggan sudah bayar · Q-$queueNumber',
+      [
+        if (tableCode != null) 'Meja $tableCode',
+        'Cek bukti pembayaran & verifikasi di Web Orders.',
+      ].join(' · '),
+    );
+  }
+
   void _flush() {
     if (_pending.isEmpty) return;
     final batch = List<_PendingOrder>.from(_pending);
