@@ -28,6 +28,7 @@ import { parseCorsOrigin } from './config/cors';
 import { isMultiTenant } from './config/database';
 import { pingControlPlane } from './config/control-plane';
 import { tenantDbStats, disconnectAllTenantClients } from './config/tenant-db';
+import { startStaleWebOrderCloser } from './jobs/close-stale-web-orders';
 
 (BigInt.prototype as any).toJSON = function (this: bigint): string {
   return this.toString();
@@ -122,6 +123,7 @@ initSocket(httpServer);
 httpServer.listen(PORT, () => {
   console.log(`[goldenity-pos-backend] listening on :${PORT} (+ Socket.IO /socket.io)`);
   console.log(`[goldenity-pos-backend] TENANT_DB_MODE=${isMultiTenant() ? 'multi' : 'single'}`);
+  startStaleWebOrderCloser();
   console.log(`[goldenity-pos-backend] mounted routes: /api/v1/health, /api/v1/auth, /api/v1/expenses, /api/v1/finance, /api/v1/categories, /api/v1/products, /api/v1/sales, /api/v1/settings, /api/v1/shifts, /api/v1/dashboard, /api/v1/uploads, /api/v1/tables, /api/v1/web-orders, /api/v1/order (customer, no-JWT), /api/v1/notifications, /api/v1/staff, /api/v1/devices, /api/v1/subscription, /api/v1/internal`);
 });
 
